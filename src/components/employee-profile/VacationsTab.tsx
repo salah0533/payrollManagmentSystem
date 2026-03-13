@@ -2,14 +2,23 @@ import { Vacation } from '@/data/mockData';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Progress } from '@/components/ui/progress';
 
-interface VacationsTabProps {
+interface EmployeeVacationsTabProps {
   vacations: Vacation[];
+  startDate?: string;
+  endDate?: string;
 }
 
-export function EmployeeVacationsTab({ vacations }: VacationsTabProps) {
+export function EmployeeVacationsTab({ vacations, startDate, endDate }: EmployeeVacationsTabProps) {
+  const filteredVacations = vacations.filter((v) => {
+    if (!startDate || !endDate) return true;
+    const start = v.start_date ?? v.startDate;
+    const end = v.end_date ?? v.endDate;
+    return start <= endDate && end >= startDate; // overlap check
+  });
+
   const totalAllowed = 21; // Days per year
-  const usedDays = vacations.filter(v => v.status === 'approved').reduce((sum, v) => sum + v.days, 0);
-  const pendingDays = vacations.filter(v => v.status === 'pending').reduce((sum, v) => sum + v.days, 0);
+  const usedDays = filteredVacations.filter(v => v.status === 'approved').reduce((sum, v) => sum + v.days, 0);
+  const pendingDays = filteredVacations.filter(v => v.status === 'pending').reduce((sum, v) => sum + v.days, 0);
   const remainingDays = totalAllowed - usedDays;
   const usagePercent = (usedDays / totalAllowed) * 100;
 
@@ -59,14 +68,14 @@ export function EmployeeVacationsTab({ vacations }: VacationsTabProps) {
             </tr>
           </thead>
           <tbody>
-            {vacations.length === 0 ? (
+            {filteredVacations.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-8 text-muted-foreground">
                   No vacation records found
                 </td>
               </tr>
             ) : (
-              vacations.map((vacation) => (
+              filteredVacations.map((vacation) => (
                 <tr key={vacation.id}>
                   <td className="capitalize font-medium">{vacation.type}</td>
                   <td>{vacation.startDate}</td>

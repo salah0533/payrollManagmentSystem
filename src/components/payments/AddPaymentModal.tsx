@@ -59,7 +59,7 @@ export function AddPaymentModal({
     const currentMonth = format(new Date(), 'yyyy-MM');
     const monthlyPayments = employeePayments.filter(p => p.date.startsWith(currentMonth));
     
-    const monthlySalary = employee.settings.monthPrice;
+    const monthlySalary = employee.monthPrice;
     const paidSoFar = monthlyPayments
       .filter(p => p.status === 'paid' && p.type !== 'deduction')
       .reduce((sum, p) => sum + p.amount, 0);

@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, CreditCard, Palmtree, Settings, Mail, Phone, Building } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { employees, attendanceRecords, payments, vacations } from '@/data/mockData';
 import { EmployeeAttendanceTab } from '@/components/employee-profile/AttendanceTab';
 import { EmployeePaymentsTab } from '@/components/employee-profile/PaymentsTab';
 import { EmployeeVacationsTab } from '@/components/employee-profile/VacationsTab';
@@ -18,12 +19,154 @@ const EmployeeProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
+  const today = new Date().toISOString().split('T')[0];
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+  const [startDate, setStartDate] = useState(monthStart);
+  const [endDate, setEndDate] = useState(today);
+
   const [attendanceDrawerOpen, setAttendanceDrawerOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [vacationDrawerOpen, setVacationDrawerOpen] = useState(false);
   
-  const employee = employees.find(e => e.id === id);
-  
+  const [employee, setEmployee] = useState<any>(null);
+  const [employeeAttendance, setEmployeeAttendance] = useState<any[]>([]);
+  const [employeePayments, setEmployeePayments] = useState<any[]>([]);
+  const [employeeVacations, setEmployeeVacations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id || !startDate || !endDate) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [
+          empRes,
+          attRes,
+          attTypesRes,
+          payRes,
+          payTypesRes,
+          vacRes,
+          vacStatusRes,
+          vacTypesRes,
+        ] = await Promise.all([
+          fetch('http://localhost:8000/employee'),
+          fetch(`http://localhost:8000/attendance/emp/${id}/${startDate}/${endDate}`),
+          fetch('http://localhost:8000/att_types/'),
+          fetch(`http://localhost:8000/payment/${id}/${startDate}/${endDate}`),
+          fetch('http://localhost:8000/payment_types/'),
+          fetch(`http://localhost:8000/vacation/${id}/${startDate}/${endDate}`),
+          fetch('http://localhost:8000/vacation_status/'),
+          fetch('http://localhost:8000/vacation_types/'),
+        ]);
+
+        const [empJson, attJson, attTypesJson, payJson, payTypesJson, vacJson, vacStatusJson, vacTypesJson] =
+          await Promise.all([
+            empRes.json(),
+            attRes.json(),
+            attTypesRes.json(),
+            payRes.json(),
+            payTypesRes.json(),
+            vacRes.json(),
+            vacStatusRes.json(),
+            vacTypesRes.json(),
+          ]);
+
+        const attTypeMap: Record<number, string> = (attTypesJson?.data || []).reduce((acc: any, t: any) => {
+          acc[t.id] = t.att_type ?? t.attendance_type ?? String(t.id);
+          return acc;
+        }, {});
+        const paymentTypeMap: Record<number, string> = (payTypesJson?.data || []).reduce((acc: any, t: any) => {
+          acc[t.id] = t.payment_type ?? String(t.id);
+          return acc;
+        }, {});
+        const vacationStatusMap: Record<number, string> = (vacStatusJson?.data || []).reduce((acc: any, t: any) => {
+          acc[t.id] = t.vacation_status ?? String(t.id);
+          return acc;
+        }, {});
+        const vacationTypeMap: Record<number, string> = (vacTypesJson?.data || []).reduce((acc: any, t: any) => {
+          acc[t.id] = t.vacation_type ?? String(t.id);
+          return acc;
+        }, {});
+
+        const rawEmp = (empJson?.data || [])
+          .map((x: any) => x.Employees)
+          .find((e: any) => String(e.id) === String(id));
+
+        setEmployee(
+          rawEmp
+            ? {
+                id: String(rawEmp.id),
+                fullName: rawEmp.fullname,
+                email: rawEmp.email,
+                phone: rawEmp.phone,
+                jobTitle: rawEmp.job_title,
+                department: '-',
+                role: 'employee',
+                status: rawEmp.is_active ? 'active' : 'inactive',
+                dues: rawEmp.dues,
+                dailyWorkHours: rawEmp.daily_work_hours ?? rawEmp.daly_work_hours ?? 0,
+                extraHoursPrice: rawEmp.extra_hours_price,
+                hourPrice: rawEmp.hour_price,
+                dayPrice: rawEmp.day_price,
+                monthPrice: rawEmp.monthly_price ?? rawEmp.month_price ?? 0,
+                vacationDays: rawEmp.vacation_days,
+                salaryType: rawEmp.salary_type,
+                isActive: rawEmp.is_active,
+                allowedLate: rawEmp.allowed_late,
+                minExtraTime: rawEmp.min_extraTime,
+              }
+            : null
+        );
+
+        setEmployeeAttendance(
+          (attJson?.data || []).map((r: any) => ({
+            id: String(r.id),
+            employeeId: String(r.employee_id),
+            date: r.date,
+            entry_time: r.entry_time,
+            exit_time: r.exit_time,
+            attendence_type: attTypeMap[r.attendence_type] ?? String(r.attendence_type),
+          }))
+        );
+
+        setEmployeePayments(
+          (payJson?.data || []).map((p: any) => ({
+            id: String(p.id),
+            employeeId: String(p.employee_id),
+            date: String(p.date).split('T')[0],
+            amount: p.amount,
+            description: p.description,
+            payment_type: paymentTypeMap[p.payment_type] ?? String(p.payment_type),
+            start: p.start,
+            end: p.end,
+          }))
+        );
+
+        setEmployeeVacations(
+          (vacJson?.data || []).map((v: any) => ({
+            id: String(v.id),
+            employeeId: String(v.employee_id),
+            start_date: v.start_date,
+            end_date: v.end_date,
+            is_paid: v.is_paid,
+            vacation_type: vacationTypeMap[v.vacation_type] ?? String(v.vacation_type),
+            vacation_status: vacationStatusMap[v.vacation_status] ?? String(v.vacation_status),
+          }))
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id, startDate, endDate]);
+
+  if (loading) {
+    return <div className="py-12 text-center text-muted-foreground">Loading employee...</div>;
+  }
+
   if (!employee) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -34,10 +177,6 @@ const EmployeeProfile = () => {
       </div>
     );
   }
-
-  const employeeAttendance = attendanceRecords.filter(a => a.employeeId === id);
-  const employeePayments = payments.filter(p => p.employeeId === id);
-  const employeeVacations = vacations.filter(v => v.employeeId === id);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -103,6 +242,19 @@ const EmployeeProfile = () => {
         </div>
       </div>
 
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="startDate">Start Date</Label>
+            <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="endDate">End Date</Label>
+            <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+        </div>
+      </div>
+
       {/* Tabs */}
       <Tabs defaultValue="attendance" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
@@ -125,16 +277,24 @@ const EmployeeProfile = () => {
         </TabsList>
 
         <TabsContent value="attendance">
-          <EmployeeAttendanceTab records={employeeAttendance} />
+          <EmployeeAttendanceTab records={employeeAttendance} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="payments">
-          <EmployeePaymentsTab payments={employeePayments} />
+          <EmployeePaymentsTab payments={employeePayments} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="vacations">
-          <EmployeeVacationsTab vacations={employeeVacations} />
+          <EmployeeVacationsTab vacations={employeeVacations} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="settings">
-          <EmployeeSettingsTab employee={employee} />
+          <EmployeeSettingsTab
+            employee={employee}
+            onUpdated={(updatedEmployee) =>
+              setEmployee((prev: any) => ({
+                ...prev,
+                ...updatedEmployee,
+              }))
+            }
+          />
         </TabsContent>
       </Tabs>
 

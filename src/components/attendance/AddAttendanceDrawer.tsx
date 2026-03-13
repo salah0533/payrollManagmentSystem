@@ -26,7 +26,12 @@ import { Employee } from '@/data/mockData';
 interface AddAttendanceDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  employee?: Employee;
+  employee?: {
+    id: string;
+    fullName: string;
+    jobTitle: string;
+    dailyWorkHours: number;
+  };
   onSuccess?: () => void;
 }
 
@@ -86,8 +91,8 @@ export function AddAttendanceDrawer({
         newErrors.entryTime = 'Entry time is required';
       }
       
-      if (employee && workedHours > employee.settings.dailyWorkHours + 4) {
-        newErrors.workedHours = `Worked hours exceed maximum allowed (${employee.settings.dailyWorkHours + 4}h)`;
+      if (employee && workedHours > (employee.dailyWorkHours ?? 8) + 4) {
+        newErrors.workedHours = `Worked hours exceed maximum allowed (${(employee.dailyWorkHours ?? 8) + 4}h)`;
       }
     }
 
@@ -222,10 +227,10 @@ export function AddAttendanceDrawer({
                     </div>
                     {employee && (
                       <div className="text-sm text-muted-foreground">
-                        <p>Daily: {employee.settings.dailyWorkHours}h</p>
-                        {workedHours > employee.settings.dailyWorkHours && (
+                        <p>Daily: {employee.dailyWorkHours}h</p>
+                        {workedHours > employee.dailyWorkHours && (
                           <p className="text-warning">
-                            +{(workedHours - employee.settings.dailyWorkHours).toFixed(2)}h extra
+                            +{(workedHours - employee.dailyWorkHours).toFixed(2)}h extra
                           </p>
                         )}
                       </div>
@@ -242,7 +247,7 @@ export function AddAttendanceDrawer({
             )}
 
             {/* Auto Attendance Indicator */}
-            {employee?.settings.autoAttendance && (
+            {employee?.autoAttendance && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-info/10 border border-info/20">
                 <Badge variant="outline" className="bg-info/10 text-info border-info/30">
                   Auto Attendance

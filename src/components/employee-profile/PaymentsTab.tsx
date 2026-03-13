@@ -2,15 +2,23 @@ import { Payment } from '@/data/mockData';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 
-interface PaymentsTabProps {
+interface EmployeePaymentsTabProps {
   payments: Payment[];
+  startDate?: string;
+  endDate?: string;
 }
 
-export function EmployeePaymentsTab({ payments }: PaymentsTabProps) {
-  const totalPaid = payments.filter(p => p.status === 'paid' && p.type === 'salary').reduce((sum, p) => sum + p.amount, 0);
-  const totalBonuses = payments.filter(p => p.type === 'bonus').reduce((sum, p) => sum + p.amount, 0);
-  const totalDeductions = payments.filter(p => p.type === 'deduction').reduce((sum, p) => sum + Math.abs(p.amount), 0);
-  const pending = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
+export function EmployeePaymentsTab({ payments, startDate, endDate }: EmployeePaymentsTabProps) {
+  const filteredPayments = payments.filter((p) => {
+    if (!startDate || !endDate) return true;
+    const d = String(p.date).split('T')[0];
+    return d >= startDate && d <= endDate;
+  });
+
+  const totalPaid = filteredPayments.filter(p => p.status === 'paid' && p.type === 'salary').reduce((sum, p) => sum + p.amount, 0);
+  const totalBonuses = filteredPayments.filter(p => p.type === 'bonus').reduce((sum, p) => sum + p.amount, 0);
+  const totalDeductions = filteredPayments.filter(p => p.type === 'deduction').reduce((sum, p) => sum + Math.abs(p.amount), 0);
+  const pending = filteredPayments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
 
   return (
     <div className="space-y-6">
@@ -47,14 +55,14 @@ export function EmployeePaymentsTab({ payments }: PaymentsTabProps) {
             </tr>
           </thead>
           <tbody>
-            {payments.length === 0 ? (
+            {filteredPayments.length === 0 ? (
               <tr>
                 <td colSpan={5} className="text-center py-8 text-muted-foreground">
                   No payment records found
                 </td>
               </tr>
             ) : (
-              payments.map((payment) => (
+              filteredPayments.map((payment) => (
                 <tr key={payment.id}>
                   <td className="font-medium">{payment.date}</td>
                   <td className={cn(
