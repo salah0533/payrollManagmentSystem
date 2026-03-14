@@ -14,33 +14,49 @@ export function EmployeeAttendanceTab({ records, startDate, endDate }: Attendanc
     return r.date >= startDate && r.date <= endDate;
   });
 
+  const getType = (record: any) => String(record?.attendence_type ?? '').trim().toLowerCase();
+
+  const workedHours = filteredRecords.map((r: any) => {
+    const entryRaw = r.entry_time ? String(r.entry_time).split('.')[0] : '';
+    const exitRaw = r.exit_time ? String(r.exit_time).split('.')[0] : '';
+    if (!entryRaw || !exitRaw) return 0;
+
+    const entry = new Date(`${r.date}T${entryRaw}`);
+    const exit = new Date(`${r.date}T${exitRaw}`);
+    if (Number.isNaN(entry.getTime()) || Number.isNaN(exit.getTime())) return 0;
+
+    const diff = (exit.getTime() - entry.getTime()) / (1000 * 60 * 60);
+    const hours = Math.floor(diff);
+    const minutes = Math.round((diff - hours) * 60);
+
+    return diff > 0 ? [hours, minutes] : [0, 0];
+  });
+
+  const totalPresent = filteredRecords.filter((r: any) => getType(r) === 'present').length;
+  const totalLate = filteredRecords.filter((r: any) => getType(r) === 'late').length;
+  const totalAbsent = filteredRecords.filter((r: any) => getType(r) === 'absent').length;
+  const totalHours = workedHours.reduce((sum, h) => sum + h[0], 0);
+  const totalMinutes = workedHours.reduce((sum, h) => sum + h[1], 0);
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total Present</p>
-          <p className="text-2xl font-bold text-success">
-            {filteredRecords.filter(r => r.type === 'present').length}
-          </p>
+          <p className="text-2xl font-bold text-success">{totalPresent}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Late Arrivals</p>
-          <p className="text-2xl font-bold text-warning">
-            {filteredRecords.filter(r => r.type === 'late').length}
-          </p>
+          <p className="text-2xl font-bold text-warning">{totalLate}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Absent Days</p>
-          <p className="text-2xl font-bold text-destructive">
-            {filteredRecords.filter(r => r.type === 'absent').length}
-          </p>
+          <p className="text-2xl font-bold text-destructive">{totalAbsent}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total Hours</p>
-          <p className="text-2xl font-bold">
-            {filteredRecords.reduce((sum, r) => sum + r.workedHours, 0).toFixed(1)}
-          </p>
+          <p className="text-2xl font-bold">{totalHours}h {totalMinutes.toString().padStart(2, '0')}</p>
         </div>
       </div>
 
@@ -54,7 +70,6 @@ export function EmployeeAttendanceTab({ records, startDate, endDate }: Attendanc
               <th>Exit Time</th>
               <th>Worked Hours</th>
               <th>Type</th>
-              <th>Auto</th>
             </tr>
           </thead>
           <tbody>
@@ -65,19 +80,14 @@ export function EmployeeAttendanceTab({ records, startDate, endDate }: Attendanc
                 </td>
               </tr>
             ) : (
-              filteredRecords.map((record) => (
+              filteredRecords.map((record,index) => (
                 <tr key={record.id}>
                   <td className="font-medium">{record.date}</td>
-                  <td>{record.entryTime || '-'}</td>
-                  <td>{record.exitTime || '-'}</td>
-                  <td>{record.workedHours > 0 ? `${record.workedHours}h` : '-'}</td>
+                  <td>{record.entry_time.split(".")[0] || '-'}</td>
+                  <td>{record.exit_time.split(".")[0] || '-'}</td>
+                  <td>{workedHours[index][0] > 0 ? `${workedHours[index][0]}h ${workedHours[index][1].toString().padStart(2, '0')}` : '-'}</td>
                   <td>
-                    <StatusBadge status={record.type} />
-                  </td>
-                  <td>
-                    {record.isAuto && (
-                      <Badge variant="outline" className="text-xs">Auto</Badge>
-                    )}
+                    <StatusBadge status={record.attendence_type} />
                   </td>
                 </tr>
               ))

@@ -74,7 +74,7 @@ const EmployeeProfile = () => {
           ]);
 
         const attTypeMap: Record<number, string> = (attTypesJson?.data || []).reduce((acc: any, t: any) => {
-          acc[t.id] = t.att_type ?? t.attendance_type ?? String(t.id);
+          acc[t.id] = t.attendence_type;
           return acc;
         }, {});
         const paymentTypeMap: Record<number, string> = (payTypesJson?.data || []).reduce((acc: any, t: any) => {
@@ -121,14 +121,18 @@ const EmployeeProfile = () => {
         );
 
         setEmployeeAttendance(
-          (attJson?.data || []).map((r: any) => ({
-            id: String(r.id),
-            employeeId: String(r.employee_id),
-            date: r.date,
-            entry_time: r.entry_time,
-            exit_time: r.exit_time,
-            attendence_type: attTypeMap[r.attendence_type] ?? String(r.attendence_type),
-          }))
+          (attJson?.data || []).map((r: any) => {
+            // r.attendence_type is an id, map it to the string label from attTypeMap
+            const attTypeLabel = attTypeMap[r.attendence_type] ?? String(r.attendence_type);
+            return {
+              id: String(r.id),
+              employeeId: String(r.employee_id),
+              date: r.date,
+              entry_time: r.entry_time,
+              exit_time: r.exit_time,
+              attendence_type: attTypeLabel,
+            };
+          })
         );
 
         setEmployeePayments(
@@ -283,7 +287,7 @@ const EmployeeProfile = () => {
           <EmployeePaymentsTab payments={employeePayments} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="vacations">
-          <EmployeeVacationsTab vacations={employeeVacations} startDate={startDate} endDate={endDate} />
+          <EmployeeVacationsTab vacations={employeeVacations} vacationDays={employee.vacationDays} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="settings">
           <EmployeeSettingsTab

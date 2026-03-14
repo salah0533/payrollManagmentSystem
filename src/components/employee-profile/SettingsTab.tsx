@@ -24,24 +24,24 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
   const [salaryTypes, setSalaryTypes] = useState<SalaryType[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-
+  console.log('EmployeeSettingsTab received employee:', employee);
   const initialForm = useMemo(
     () => ({
-      fullname: employee?.fullName ?? '',
-      job_title: employee?.jobTitle ?? '',
+      fullname: employee?.fullName ?? employee?.fullname ?? '',
+      job_title: employee?.jobTitle ?? employee?.job_title ?? '',
       phone: employee?.phone ?? '',
       email: employee?.email ?? '',
       dues: employee?.dues ?? 0,
-      daily_work_hours: employee?.daily_work_hours ?? 0,
-      extra_hours_price: employee?.extra_hours_price ?? 0,
-      hour_price: employee?.hour_price ?? 0,
-      day_price: employee?.day_price ?? 0,
-      month_price: employee?.month_price ?? 0,
-      vacation_days: employee?.vacation_days ?? 0,
-      salary_type: employee?.salary_type ?? 0,
-      is_active: employee?.is_active ?? true,
-      allowed_late: employee?.allowed_late ?? 0,
-      min_extraTime: employee?.min_extraTime ?? 0,
+      daily_work_hours: employee?.daily_work_hours ?? employee?.dailyWorkHours ?? 0,
+      extra_hours_price: employee?.extra_hours_price ?? employee?.extraHoursPrice ?? 0,
+      hour_price: employee?.hour_price ?? employee?.hourPrice ?? 0,
+      day_price: employee?.day_price ?? employee?.dayPrice ?? 0,
+      monthly_price: employee?.monthly_price ?? employee?.monthPrice ?? 0,
+      vacation_days: employee?.vacation_days ?? employee?.vacationDays ?? 0,
+      salary_type: employee?.salary_type ?? employee?.salaryType ?? 0,
+      is_active: employee?.is_active ?? employee?.isActive ?? true,
+      allowed_late: employee?.allowed_late ?? employee?.allowedLate ?? 0,
+      min_extraTime: employee?.min_extraTime ?? employee?.minExtraTime ?? 0,
     }),
     [employee]
   );
@@ -78,39 +78,43 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
 
     const payload = {
       id: Number(employee.id),
-      fullname: toNullableString(formData.fullname, employee.fullName ?? ''),
-      job_title: toNullableString(formData.job_title, employee.jobTitle ?? ''),
+      fullname: toNullableString(formData.fullname, employee.fullName ?? employee.fullname ?? ''),
+      job_title: toNullableString(formData.job_title, employee.jobTitle ?? employee.job_title ?? ''),
       phone: toNullableString(formData.phone, employee.phone ?? ''),
       email: toNullableString(formData.email, employee.email ?? ''),
       dues: toNullableNumber(formData.dues, employee.dues ?? 0),
-      daly_work_hours: toNullableNumber(
+      daily_work_hours: toNullableNumber(
         formData.daily_work_hours,
-        employee.daily_work_hours ?? 0
+        employee.daily_work_hours ?? employee.dailyWorkHours ?? 0
       ),
       extra_hours_price: toNullableNumber(
         formData.extra_hours_price,
-        employee.extra_hours_price ?? 0
+        employee.extra_hours_price ?? employee.extraHoursPrice ?? 0
       ),
-      hour_price: toNullableNumber(formData.hour_price, employee.hour_price ?? 0),
-      day_price: toNullableNumber(formData.day_price, employee.day_price ?? 0),
-      month_price: toNullableNumber(formData.month_price, employee.month_price ?? 0),
+      hour_price: toNullableNumber(formData.hour_price, employee.hour_price ?? employee.hourPrice ?? 0),
+      day_price: toNullableNumber(formData.day_price, employee.day_price ?? employee.dayPrice ?? 0),
+      monthly_price: toNullableNumber(
+        formData.monthly_price,
+        employee.monthly_price ?? employee.monthPrice ?? 0
+      ),
       vacation_days: toNullableNumber(
         formData.vacation_days,
-        employee.vacation_days ?? 0
+        employee.vacation_days ?? employee.vacationDays ?? 0
       ),
-      salary_type: toNullableNumber(formData.salary_type, employee.salary_type ?? 0),
+      salary_type: toNullableNumber(formData.salary_type, employee.salary_type ?? employee.salaryType ?? 0),
       is_active:
-        formData.is_active === (employee.is_active ?? true) ? null : formData.is_active,
+        formData.is_active === (employee.is_active ?? employee.isActive ?? true) ? null : formData.is_active,
       allowed_late: toNullableNumber(
         formData.allowed_late,
-        employee.allowed_late ?? 0
+        employee.allowed_late ?? employee.allowedLate ?? 0
       ),
       min_extraTime: toNullableNumber(
         formData.min_extraTime,
-        employee.min_extraTime ?? 0
+        employee.min_extraTime ?? employee.minExtraTime ?? 0
       ),
     };
-
+    console.log('employee:', employee);
+    console.log('Submitting payload:', payload);
     setSaving(true);
     setMessage('');
 
@@ -132,17 +136,27 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
         phone: payload.phone ?? employee.phone,
         email: payload.email ?? employee.email,
         dues: payload.dues ?? employee.dues,
-        daily_work_hours: payload.daly_work_hours ?? employee.daily_work_hours,
+        daily_work_hours: payload.daily_work_hours ?? employee.daily_work_hours,
+        dailyWorkHours: payload.daily_work_hours ?? employee.dailyWorkHours,
         extra_hours_price: payload.extra_hours_price ?? employee.extra_hours_price,
+        extraHoursPrice: payload.extra_hours_price ?? employee.extraHoursPrice,
         hour_price: payload.hour_price ?? employee.hour_price,
+        hourPrice: payload.hour_price ?? employee.hourPrice,
         day_price: payload.day_price ?? employee.day_price,
-        month_price: payload.month_price ?? employee.month_price,
+        dayPrice: payload.day_price ?? employee.dayPrice,
+        monthly_price: payload.monthly_price ?? employee.monthly_price,
+        monthPrice: payload.monthly_price ?? employee.monthPrice,
         vacation_days: payload.vacation_days ?? employee.vacation_days,
+        vacationDays: payload.vacation_days ?? employee.vacationDays,
         salary_type: payload.salary_type ?? employee.salary_type,
+        salaryType: payload.salary_type ?? employee.salaryType,
         is_active: payload.is_active ?? employee.is_active,
+        isActive: payload.is_active ?? employee.isActive,
         allowed_late: payload.allowed_late ?? employee.allowed_late,
+        allowedLate: payload.allowed_late ?? employee.allowedLate,
         min_extraTime: payload.min_extraTime ?? employee.min_extraTime,
-        status: (payload.is_active ?? employee.is_active) ? 'active' : 'inactive',
+        minExtraTime: payload.min_extraTime ?? employee.minExtraTime,
+        status: (payload.is_active ?? employee.is_active ?? employee.isActive) ? 'active' : 'inactive',
       };
 
       onUpdated?.(mergedEmployee);
@@ -286,13 +300,13 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="month_price">Month Price</Label>
+          <Label htmlFor="monthly_price">Monthly Price</Label>
           <Input
-            id="month_price"
+            id="monthly_price"
             type="number"
-            value={formData.month_price}
+            value={formData.monthly_price}
             onChange={(e) =>
-              setFormData({ ...formData, month_price: Number(e.target.value) || 0 })
+              setFormData({ ...formData, monthly_price: Number(e.target.value) || 0 })
             }
           />
         </div>

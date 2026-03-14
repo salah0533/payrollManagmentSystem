@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 interface StatusBadgeProps {
-  status: 'active' | 'inactive' | 'pending' | 'approved' | 'rejected' | 'present' | 'late' | 'absent' | 'vacation' | 'paid';
+  status: string;
   className?: string;
 }
 
@@ -22,8 +22,9 @@ const statusLabels: Record<string, string> = {
   active: 'Active',
   inactive: 'Inactive',
   pending: 'Pending',
-  approved: 'Approved',
+  proved: 'Approved',
   rejected: 'Rejected',
+  canceled:"Canceled",
   present: 'Present',
   late: 'Late',
   absent: 'Absent',
@@ -32,6 +33,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  console.log('Rendering StatusBadge with status:', status);
   return (
     <span className={cn('status-badge', statusStyles[status], className)}>
       {statusLabels[status]}

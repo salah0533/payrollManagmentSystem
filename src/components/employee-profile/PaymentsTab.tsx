@@ -15,30 +15,30 @@ export function EmployeePaymentsTab({ payments, startDate, endDate }: EmployeePa
     return d >= startDate && d <= endDate;
   });
 
-  const totalPaid = filteredPayments.filter(p => p.status === 'paid' && p.type === 'salary').reduce((sum, p) => sum + p.amount, 0);
-  const totalBonuses = filteredPayments.filter(p => p.type === 'bonus').reduce((sum, p) => sum + p.amount, 0);
-  const totalDeductions = filteredPayments.filter(p => p.type === 'deduction').reduce((sum, p) => sum + Math.abs(p.amount), 0);
-  const pending = filteredPayments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
-
+  const totalPaid = filteredPayments.filter(p =>  p.payment_type == 'payment').reduce((sum, p) => sum + p.amount, 0);
+  const totalBonuses = filteredPayments.filter(p => p.payment_type == 'bonus').reduce((sum, p) => sum + p.amount, 0);
+  const totalDeductions = filteredPayments.filter(p => p.payment_type == 'deduction').reduce((sum, p) => sum + Math.abs(p.amount), 0);
+  const totalAttendence = filteredPayments.filter(p => p.payment_type == 'attendence').reduce((sum, p) => sum + p.amount, 0);
+  console.log(filteredPayments);
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total Paid</p>
-          <p className="text-2xl font-bold text-success">${totalPaid.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-success">{totalPaid.toLocaleString()} DA</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total Bonuses</p>
-          <p className="text-2xl font-bold text-info">${totalBonuses.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-info">{totalBonuses.toLocaleString()} DA</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total Deductions</p>
-          <p className="text-2xl font-bold text-warning">${totalDeductions.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-warning">{totalDeductions.toLocaleString()} DA</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Pending</p>
-          <p className="text-2xl font-bold">${pending.toLocaleString()}</p>
+          <p className="text-sm text-muted-foreground">Total Attendence</p>
+          <p className="text-2xl font-bold">{totalAttendence.toLocaleString()} DA</p>
         </div>
       </div>
 
@@ -67,12 +67,12 @@ export function EmployeePaymentsTab({ payments, startDate, endDate }: EmployeePa
                   <td className="font-medium">{payment.date}</td>
                   <td className={cn(
                     'font-semibold',
-                    payment.type === 'deduction' ? 'text-destructive' : 'text-success'
+                    payment.payment_type === 'deduction' ? 'text-destructive' : 'text-success'
                   )}>
-                    {payment.type === 'deduction' ? '-' : '+'}${Math.abs(payment.amount).toLocaleString()}
+                    {payment.payment_type === 'deduction' ? '-' : '+'}{Math.abs(payment.amount).toLocaleString()} DA
                   </td>
-                  <td className="capitalize">{payment.type}</td>
-                  <td className="text-muted-foreground">{payment.description}</td>
+                  <td className="capitalize">{payment.payment_type}</td>
+                  <td className="text-muted-foreground">{payment.description=="" || payment.description == null ? "-" : payment.description}</td>
                   {/*{<td>
                     <StatusBadge status={payment.status} />
                   </td>*/}

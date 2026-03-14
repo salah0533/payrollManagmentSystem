@@ -42,11 +42,11 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
     phone: '',
     job_title: '',
     dues: 0,
-    daily_work_hours: 8, // keep reset consistent
+    daily_work_hours: 8,
     extra_hours_price: 0,
     hour_price: 0,
     day_price: 0,
-    month_price: 0,
+    monthly_price: 0,
     vacation_days: 0,
     salary_type: 0,
     is_active: true,
@@ -63,9 +63,9 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
 
       return {
         ...prev,
-        month_price: monthPrice,
-        day_price: dayPrice.toFixed(2),
-        hour_price: hourPrice.toFixed(2),
+        monthly_price: monthPrice,
+        day_price: Number(dayPrice.toFixed(2)),
+        hour_price: Number(hourPrice.toFixed(2)),
       };
     });
   }
@@ -77,8 +77,8 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
 
       return {
         ...prev,
-        day_price: dayPrice.toFixed(2),
-        hour_price: hourPrice.toFixed(2),
+        day_price: Number(dayPrice.toFixed(2)),
+        hour_price: Number(hourPrice.toFixed(2)),
       };
     });
   }
@@ -109,11 +109,11 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
       phone: '',
       job_title: '',
       dues: 0,
-      daily_work_hours: 0, // keep reset consistent
+      daily_work_hours: 0,
       extra_hours_price: 0,
       hour_price: 0,
       day_price: 0,
-      month_price: 0,
+      monthly_price: 0,
       vacation_days: 0,
       salary_type: 0,
       is_active: true,
@@ -183,12 +183,12 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="month_price">Month Price</Label>
+          <Label htmlFor="monthly_price">Monthly Price</Label>
           <Input
-            id="month_price"
+            id="monthly_price"
             type="number"
-            value={formData.month_price}
-            onChange={monthPriceChange} // changed
+            value={formData.monthly_price}
+            onChange={monthPriceChange}
             placeholder="0.00"
             required
           />
