@@ -4,12 +4,11 @@ import { Progress } from '@/components/ui/progress';
 
 interface EmployeeVacationsTabProps {
   vacations: Vacation[];
-  vacationDays?:number;
   startDate?: string;
   endDate?: string;
 }
 
-export function EmployeeVacationsTab({ vacations,vacationDays, startDate, endDate }: EmployeeVacationsTabProps) {
+export function EmployeeVacationsTab({ vacations, startDate, endDate }: EmployeeVacationsTabProps) {
   const filteredVacations = vacations
     .filter((v) => {
       if (!startDate || !endDate) return true;
@@ -23,50 +22,8 @@ export function EmployeeVacationsTab({ vacations,vacationDays, startDate, endDat
       return { ...v, days };
     });
 
-  const totalAllowed = vacationDays ?? 0; // default to 30 if not provided
-  console.log('Filtered Vacations:', filteredVacations);
-  const usedDays = filteredVacations
-    .filter(v => v.vacation_status === 'approved' && v.vacation_type === "yearly_vacation")
-    .reduce((sum, v) => sum + v.days, 0);
-
-  const pendingDays = filteredVacations
-    .filter(v => v.vacation_status === 'pending')
-    .reduce((sum, v) => sum + v.days, 0);
-  const remainingDays = totalAllowed - usedDays;
-  const usagePercent = (usedDays / totalAllowed) * 100;
-  
   return (
     <div className="space-y-6">
-      {/* Vacation Balance */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="text-lg font-semibold mb-4">Yearly Vacation Balance</h3>
-        <div className="space-y-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Used: {usedDays} days</span>
-            <span className="text-muted-foreground">Remaining: {remainingDays} days</span>
-          </div>
-          <Progress value={usagePercent} className="h-3" />
-          <div className="grid gap-4 sm:grid-cols-4 pt-2">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Allowed</p>
-              <p className="text-xl font-bold">{totalAllowed} days</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Used</p>
-              <p className="text-xl font-bold text-info">{usedDays} days</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pending</p>
-              <p className="text-xl font-bold text-warning">{pendingDays} days</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Remaining</p>
-              <p className="text-xl font-bold text-success">{remainingDays} days</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Vacation History */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <table className="data-table w-full table-fixed">

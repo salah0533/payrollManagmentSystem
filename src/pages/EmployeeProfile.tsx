@@ -113,7 +113,6 @@ const EmployeeProfile = () => {
                 hourPrice: rawEmp.hour_price,
                 dayPrice: rawEmp.day_price,
                 monthPrice: rawEmp.monthly_price ?? rawEmp.month_price ?? 0,
-                vacationDays: rawEmp.vacation_days,
                 salaryType: rawEmp.salary_type,
                 isActive: rawEmp.is_active,
                 allowedLate: rawEmp.allowed_late,
@@ -287,7 +286,7 @@ const EmployeeProfile = () => {
           <EmployeePaymentsTab payments={employeePayments} startDate={startDate} endDate={endDate} dues={employee.dues} />
         </TabsContent>
         <TabsContent value="vacations">
-          <EmployeeVacationsTab vacations={employeeVacations} vacationDays={employee.vacationDays} startDate={startDate} endDate={endDate} />
+          <EmployeeVacationsTab vacations={employeeVacations} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="settings">
           <EmployeeSettingsTab
