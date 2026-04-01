@@ -40,9 +40,10 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
     fullname: '',
     email: '',
     phone: '',
+    joined: '',
     job_title: '',
     dues: 0,
-    daily_work_hours: 8,
+    daily_work_hours: 0,
     extra_hours_price: 0,
     hour_price: 0,
     day_price: 0,
@@ -107,6 +108,7 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
       fullname: '',
       email: '',
       phone: '',
+      joined: '',
       job_title: '',
       dues: 0,
       daily_work_hours: 0,
@@ -131,7 +133,7 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
             id="fullname"
             value={formData.fullname}
             onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
-            placeholder="John Doe"
+            placeholder="ahmed ali"
             required
           />
         </div>
@@ -142,7 +144,7 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            placeholder="john@store.com"
+            placeholder="ahmed@gmail.com"
             required
           />
         </div>
@@ -162,7 +164,17 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
             id="job_title"
             value={formData.job_title}
             onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
-            placeholder="Software Engineer"
+            placeholder="mecanicien"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="joined">Joined Date</Label>
+          <Input
+            id="joined"
+            type="date"
+            value={formData.joined}
+            onChange={(e) => setFormData({ ...formData, joined: e.target.value })}
             required
           />
         </div>

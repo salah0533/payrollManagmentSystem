@@ -32,8 +32,7 @@ export interface Attendance {
   entryTime: string | null;
   exitTime: string | null;
   workedHours: number;
-  attendence_type: 'present' | 'late' | 'absent' | 'vacation';
-  isAuto: boolean;
+  attendence_type: 'present' | 'late' | 'absent' | 'vacation' | 'Overtime';
 }
 
 export interface Payment {

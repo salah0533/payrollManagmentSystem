@@ -24,13 +24,14 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
   const [salaryTypes, setSalaryTypes] = useState<SalaryType[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  console.log('EmployeeSettingsTab received employee:', employee);
+
   const initialForm = useMemo(
     () => ({
       fullname: employee?.fullName ?? employee?.fullname ?? '',
       job_title: employee?.jobTitle ?? employee?.job_title ?? '',
       phone: employee?.phone ?? '',
       email: employee?.email ?? '',
+      joined: employee?.joined ?? employee?.hireDate ?? '',
       dues: employee?.dues ?? 0,
       daily_work_hours: employee?.daily_work_hours ?? employee?.dailyWorkHours ?? 0,
       extra_hours_price: employee?.extra_hours_price ?? employee?.extraHoursPrice ?? 0,
@@ -82,6 +83,7 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
       job_title: toNullableString(formData.job_title, employee.jobTitle ?? employee.job_title ?? ''),
       phone: toNullableString(formData.phone, employee.phone ?? ''),
       email: toNullableString(formData.email, employee.email ?? ''),
+      joined: toNullableString(formData.joined, employee.joined ?? employee.hireDate ?? ''),
       dues: toNullableNumber(formData.dues, employee.dues ?? 0),
       daily_work_hours: toNullableNumber(
         formData.daily_work_hours,
@@ -113,8 +115,6 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
         employee.min_extraTime ?? employee.minExtraTime ?? 0
       ),
     };
-    console.log('employee:', employee);
-    console.log('Submitting payload:', payload);
     setSaving(true);
     setMessage('');
 
@@ -135,6 +135,8 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
         jobTitle: payload.job_title ?? employee.jobTitle,
         phone: payload.phone ?? employee.phone,
         email: payload.email ?? employee.email,
+        joined: payload.joined ?? employee.joined,
+        hireDate: payload.joined ?? employee.hireDate,
         dues: payload.dues ?? employee.dues,
         daily_work_hours: payload.daily_work_hours ?? employee.daily_work_hours,
         dailyWorkHours: payload.daily_work_hours ?? employee.dailyWorkHours,
@@ -203,6 +205,15 @@ export function EmployeeSettingsTab({ employee, onUpdated }: EmployeeSettingsTab
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="joined">Joined Date</Label>
+          <Input
+            id="joined"
+            type="date"
+            value={formData.joined}
+            onChange={(e) => setFormData({ ...formData, joined: e.target.value })}
           />
         </div>
 

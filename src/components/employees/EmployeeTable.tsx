@@ -126,7 +126,7 @@ export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
                 </td>
                 <td className="hidden lg:table-cell">{formatSalaryType(employee.salaryType)}</td>
                 <td>
-                  <div className="flex items-center justify-end gap-1">
+                  <div className="flex items-center justify-start gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -134,32 +134,6 @@ export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/employees/${employee.id}`)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        {employee.status === 'active' && (
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => setDeactivateId(employee.id)}
-                          >
-                            <UserX className="mr-2 h-4 w-4" />
-                            Deactivate
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
                 </td>
               </tr>

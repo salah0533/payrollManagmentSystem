@@ -24,8 +24,9 @@ export function EmployeeVacationsTab({ vacations,vacationDays, startDate, endDat
     });
 
   const totalAllowed = vacationDays ?? 0; // default to 30 if not provided
+  console.log('Filtered Vacations:', filteredVacations);
   const usedDays = filteredVacations
-    .filter(v => v.vacation_status === 'proved')
+    .filter(v => v.vacation_status === 'approved' && v.vacation_type === "yearly_vacation")
     .reduce((sum, v) => sum + v.days, 0);
 
   const pendingDays = filteredVacations

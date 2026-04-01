@@ -101,10 +101,12 @@ const EmployeeProfile = () => {
                 fullName: rawEmp.fullname,
                 email: rawEmp.email,
                 phone: rawEmp.phone,
+                joined: rawEmp.joined,
                 jobTitle: rawEmp.job_title,
                 department: '-',
                 role: 'employee',
                 status: rawEmp.is_active ? 'active' : 'inactive',
+                hireDate: rawEmp.joined ?? '',
                 dues: rawEmp.dues,
                 dailyWorkHours: rawEmp.daily_work_hours ?? rawEmp.daly_work_hours ?? 0,
                 extraHoursPrice: rawEmp.extra_hours_price,
@@ -119,7 +121,6 @@ const EmployeeProfile = () => {
               }
             : null
         );
-
         setEmployeeAttendance(
           (attJson?.data || []).map((r: any) => {
             // r.attendence_type is an id, map it to the string label from attTypeMap
@@ -134,7 +135,6 @@ const EmployeeProfile = () => {
             };
           })
         );
-
         setEmployeePayments(
           (payJson?.data || []).map((p: any) => ({
             id: String(p.id),
@@ -284,7 +284,7 @@ const EmployeeProfile = () => {
           <EmployeeAttendanceTab records={employeeAttendance} startDate={startDate} endDate={endDate} />
         </TabsContent>
         <TabsContent value="payments">
-          <EmployeePaymentsTab payments={employeePayments} startDate={startDate} endDate={endDate} />
+          <EmployeePaymentsTab payments={employeePayments} startDate={startDate} endDate={endDate} dues={employee.dues} />
         </TabsContent>
         <TabsContent value="vacations">
           <EmployeeVacationsTab vacations={employeeVacations} vacationDays={employee.vacationDays} startDate={startDate} endDate={endDate} />

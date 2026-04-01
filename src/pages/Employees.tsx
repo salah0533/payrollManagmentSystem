@@ -48,10 +48,11 @@ const Employees = () => {
           fullName: emp.fullname,
           email: emp.email,
           phone: emp.phone,
+          joined: emp.joined,
           salaryType: salaryTypeLabel,
           jobTitle: `${emp.job_title} (${salaryTypeLabel})`, // show salary type in existing table column
           status: emp.is_active ? 'active' : 'inactive',
-          hireDate: '',
+          hireDate: emp.joined ?? '',
           settings: {
             dailyWorkHours: emp.daily_work_hours,
             hourPrice: emp.hour_price,

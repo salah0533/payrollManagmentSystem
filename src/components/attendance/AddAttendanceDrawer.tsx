@@ -33,7 +33,7 @@ interface AddAttendanceDrawerProps {
   onSuccess?: () => void;
 }
 
-type AttType = { id: number; att_type?: string; attendance_type?: string };
+type AttType = { id: number; attendence_type: string };
 
 export function AddAttendanceDrawer({
   open,
@@ -42,24 +42,40 @@ export function AddAttendanceDrawer({
   onSuccess,
 }: AddAttendanceDrawerProps) {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [attendanceTypeId, setAttendanceTypeId] = useState<number>(0);
-  const [entryTime, setEntryTime] = useState('09:00');
-  const [exitTime, setExitTime] = useState('17:00');
+  const [attendanceTypeId, setAttendanceTypeId] = useState<number | null>(null);
+  const [entryTime, setEntryTime] = useState('08:00');
   const [hasExitTime, setHasExitTime] = useState(true);
   const [workedHours, setWorkedHours] = useState(8);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [attTypes, setAttTypes] = useState<AttType[]>([]);
 
+  const addHoursToTime = (time: string, hoursToAdd: number) => {
+    const [h, m] = time.split(':').map(Number);
+    const date = new Date();
+    date.setHours(h, m, 0, 0);
+    date.setMinutes(date.getMinutes() + Math.round(hoursToAdd * 60));
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const [exitTime, setExitTime] = useState(() =>
+    addHoursToTime('08:00', employee?.dailyWorkHours ?? 8)
+  );
+  const entryTimeChange = (newEntryTime: string) => {
+    setEntryTime(newEntryTime);
+    const dailyHours = employee?.dailyWorkHours ?? 8;
+    const newExitTime = addHoursToTime(newEntryTime, dailyHours);
+    setExitTime(newExitTime); 
+  }
   useEffect(() => {
     const fetchAttTypes = async () => {
       try {
         const res = await fetch('http://localhost:8000/att_types/');
         const json = await res.json();
         setAttTypes(json?.data || []);
-        if ((json?.data || []).length > 0) {
-          setAttendanceTypeId(json.data[0].id);
-        }
+        // if ((json?.data || []).length > 0) {
+        //   setAttendanceTypeId(json.data[0].id);
+        // }
       } catch {
         setAttTypes([]);
       }
@@ -67,14 +83,16 @@ export function AddAttendanceDrawer({
     fetchAttTypes();
   }, []);
 
-  const getTypeName = (t: AttType) => t.att_type ?? t.attendance_type ?? t.attendence_type ?? String(t.id);
+  const getTypeName = (t: AttType) => t.attendence_type;
 
   const getAbsentTypeId = () => {
     const absentType = attTypes.find((t) =>
       getTypeName(t).toLowerCase().includes('absent')
     );
-    return absentType?.id ?? attendanceTypeId;
+    
+    return absentType?.id;
   };
+
 
   const handleMarkAbsent = async () => {
     if (!date) return;
@@ -87,13 +105,12 @@ export function AddAttendanceDrawer({
         exit_time: null,
         attendence_type: getAbsentTypeId(),
       };
-
       const res = await fetch('http://localhost:8000/attendance/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
+      
       if (!res.ok) throw new Error('Failed to mark absent');
 
       toast({
@@ -133,7 +150,6 @@ export function AddAttendanceDrawer({
         exit_time: hasExitTime ? exitTime + ':00' : null,
         attendence_type: attendanceTypeId,
       };
-
       const res = await fetch('http://localhost:8000/attendance/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -155,6 +171,24 @@ export function AddAttendanceDrawer({
       setIsSubmitting(false);
     }
   };
+
+  // Auto-calculate worked hours when times change
+  useEffect(() => {
+    if (!hasExitTime || !entryTime || !exitTime) {
+      setWorkedHours(0);
+      return;
+    }
+
+    const [eH, eM] = entryTime.split(':').map(Number);
+    const [xH, xM] = exitTime.split(':').map(Number);
+    const diff = (xH * 60 + xM) - (eH * 60 + eM);
+
+    if (diff > 0) {
+      setWorkedHours(Math.round((diff / 60) * 100) / 100);
+    } else {
+      setWorkedHours(0); // ensure value updates when exit <= entry
+    }
+  }, [entryTime, exitTime, hasExitTime]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -194,7 +228,7 @@ export function AddAttendanceDrawer({
               )}
             </div>
 
-            {/* Attendance Type from backend */}
+            {/* Attendance Type from backend
             <div className="space-y-2">
               <Label htmlFor="type">Attendance Type</Label>
               <Select
@@ -212,7 +246,7 @@ export function AddAttendanceDrawer({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
 
             {/* Entry Time */}
             <div className="space-y-2">
@@ -221,7 +255,7 @@ export function AddAttendanceDrawer({
                 id="entryTime"
                 type="time"
                 value={entryTime}
-                onChange={(e) => setEntryTime(e.target.value)}
+                onChange={(e) => entryTimeChange(e.target.value)}
                 className={errors.entryTime ? 'border-destructive' : ''}
               />
               {errors.entryTime && (

@@ -19,7 +19,7 @@ export function EmployeeAttendanceTab({ records, startDate, endDate }: Attendanc
   const workedHours = filteredRecords.map((r: any) => {
     const entryRaw = r.entry_time ? String(r.entry_time).split('.')[0] : '';
     const exitRaw = r.exit_time ? String(r.exit_time).split('.')[0] : '';
-    if (!entryRaw || !exitRaw) return 0;
+    if (!entryRaw || !exitRaw) return [0, 0];
 
     const entry = new Date(`${r.date}T${entryRaw}`);
     const exit = new Date(`${r.date}T${exitRaw}`);
@@ -31,13 +31,11 @@ export function EmployeeAttendanceTab({ records, startDate, endDate }: Attendanc
 
     return diff > 0 ? [hours, minutes] : [0, 0];
   });
-
   const totalPresent = filteredRecords.filter((r: any) => getType(r) === 'present').length;
   const totalLate = filteredRecords.filter((r: any) => getType(r) === 'late').length;
   const totalAbsent = filteredRecords.filter((r: any) => getType(r) === 'absent').length;
   const totalHours = workedHours.reduce((sum, h) => sum + h[0], 0);
   const totalMinutes = workedHours.reduce((sum, h) => sum + h[1], 0);
-
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -83,11 +81,11 @@ export function EmployeeAttendanceTab({ records, startDate, endDate }: Attendanc
               filteredRecords.map((record,index) => (
                 <tr key={record.id}>
                   <td className="font-medium">{record.date}</td>
-                  <td>{record.entry_time.split(".")[0] || '-'}</td>
-                  <td>{record.exit_time.split(".")[0] || '-'}</td>
+                  <td>{record.entry_time ? record.entry_time.split(".")[0] || '-' : '-'}</td>
+                  <td>{record.exit_time ? record.exit_time.split(".")[0] || '-' : '-'}</td>
                   <td>{workedHours[index][0] > 0 ? `${workedHours[index][0]}h ${workedHours[index][1].toString().padStart(2, '0')}` : '-'}</td>
                   <td>
-                    <StatusBadge status={record.attendence_type} />
+                    <StatusBadge status={record.attendence_type?.toLowerCase()} />
                   </td>
                 </tr>
               ))
