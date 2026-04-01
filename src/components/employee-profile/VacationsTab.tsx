@@ -1,6 +1,5 @@
 import { Vacation } from '@/data/mockData';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Progress } from '@/components/ui/progress';
 
 interface EmployeeVacationsTabProps {
   vacations: Vacation[];
