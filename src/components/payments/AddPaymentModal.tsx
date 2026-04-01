@@ -32,6 +32,14 @@ interface AddPaymentModalProps {
     jobTitle: string;
     dues?: number;
   };
+  employees?: Array<{
+    id: string;
+    fullName: string;
+    jobTitle: string;
+    dues?: number;
+  }>;
+  selectedEmployeeId?: string;
+  onEmployeeChange?: (employeeId: string) => void;
   onSuccess?: () => void;
 }
 
@@ -58,6 +66,9 @@ export function AddPaymentModal({
   open,
   onOpenChange,
   employee,
+  employees = [],
+  selectedEmployeeId,
+  onEmployeeChange,
   onSuccess,
 }: AddPaymentModalProps) {
   const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
@@ -71,6 +82,14 @@ export function AddPaymentModal({
   const [isLoadingAttendanceStats, setIsLoadingAttendanceStats] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const selectedEmployee = useMemo(() => {
+    if (employees.length > 0 && selectedEmployeeId) {
+      return employees.find((item) => String(item.id) === String(selectedEmployeeId));
+    }
+
+    return employee;
+  }, [employees, selectedEmployeeId, employee]);
 
   const selectedPaymentType = useMemo(
     () => paymentTypes.find((type) => String(type.id) === paymentTypeId),
@@ -144,7 +163,7 @@ export function AddPaymentModal({
 
   useEffect(() => {
     if (!open) return;
-    if (!employee?.id) return;
+    if (!selectedEmployee?.id) return;
     if (!isAttendancePayment) {
       setAttendanceStats(null);
       return;
@@ -154,7 +173,7 @@ export function AddPaymentModal({
     const fetchAttendanceStats = async () => {
       setIsLoadingAttendanceStats(true);
       try {
-        const response = await fetch(`http://localhost:8000/payment/att/${employee.id}/${yearMonth}`);
+        const response = await fetch(`http://localhost:8000/payment/att/${selectedEmployee.id}/${yearMonth}`);
         if (!response.ok) throw new Error('Failed to load attendance payment stats');
 
         const json = await response.json();
@@ -172,10 +191,14 @@ export function AddPaymentModal({
     };
 
     fetchAttendanceStats();
-  }, [open, employee?.id, isAttendancePayment, yearMonth]);
+  }, [open, selectedEmployee?.id, isAttendancePayment, yearMonth]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (!selectedEmployee?.id) {
+      newErrors.employee = 'Employee is required';
+    }
 
     if (!paymentTypeId) {
       newErrors.paymentType = 'Payment type is required';
@@ -208,7 +231,7 @@ export function AddPaymentModal({
 
     try {
       const payload = {
-        employee_id: Number(employee?.id),
+        employee_id: Number(selectedEmployee?.id),
         date,
         payment_type: Number(paymentTypeId),
         amount: Number(amount),
@@ -236,7 +259,7 @@ export function AddPaymentModal({
 
       toast({
         title: 'Payment Added',
-        description: `${selectedPaymentType?.payment_type ?? 'Payment'} of ${Number(amount).toLocaleString()} DA has been recorded.`,
+        description: `${selectedPaymentType?.payment_type ?? 'Payment'} of ${Number(amount).toLocaleString()} DA has been recorded for ${selectedEmployee?.fullName || 'the selected employee'}.`,
       });
 
       setAmount('');
@@ -275,23 +298,48 @@ export function AddPaymentModal({
             Add Payment
           </DialogTitle>
           <DialogDescription>
-            Record a payment for {employee?.fullName || 'the selected employee'}
+            Record a payment for {selectedEmployee?.fullName || 'the selected employee'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Employee Info */}
-          <div className="rounded-lg border border-border bg-muted/50 p-4">
-            <Label className="text-xs text-muted-foreground">Employee</Label>
-            <p className="font-semibold">{employee?.fullName || 'Not selected'}</p>
-            <p className="text-sm text-muted-foreground">{employee?.jobTitle}</p>
-          </div>
+          {employees.length > 0 ? (
+            <div className="space-y-2">
+              <Label>Employee</Label>
+              <Select value={selectedEmployeeId} onValueChange={onEmployeeChange}>
+                <SelectTrigger className={cn(errors.employee && 'border-destructive')}>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.employee && <p className="text-sm text-destructive">{errors.employee}</p>}
+              {selectedEmployee && (
+                <div className="rounded-lg border border-border bg-muted/50 p-4">
+                  <p className="font-semibold">{selectedEmployee.fullName}</p>
+                  <p className="text-sm text-muted-foreground">{selectedEmployee.jobTitle}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-muted/50 p-4">
+              <Label className="text-xs text-muted-foreground">Employee</Label>
+              <p className="font-semibold">{selectedEmployee?.fullName || 'Not selected'}</p>
+              <p className="text-sm text-muted-foreground">{selectedEmployee?.jobTitle}</p>
+            </div>
+          )}
 
           {/* Dues Summary for non-attendance types */}
           {!isAttendancePayment && (
             <div className="rounded-lg border border-border p-4 space-y-2">
               <Label className="text-xs text-muted-foreground">Employee Dues</Label>
-              <p className="text-2xl font-bold">{Number(employee?.dues ?? 0).toLocaleString()} DA</p>
+              <p className="text-2xl font-bold">{Number(selectedEmployee?.dues ?? 0).toLocaleString()} DA</p>
               <p className="text-xs text-muted-foreground">Shown for payment types other than attendence.</p>
             </div>
           )}
@@ -443,7 +491,7 @@ export function AddPaymentModal({
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={isSubmitting || !amount || !paymentTypeId || isLoadingTypes}
+            disabled={isSubmitting || !amount || !paymentTypeId || isLoadingTypes || !selectedEmployee?.id}
             className={cn(isDeduction && 'bg-destructive hover:bg-destructive/90')}
           >
             {isSubmitting ? 'Saving...' : isDeduction ? 'Record Deduction' : 'Save Payment'}
