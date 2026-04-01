@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Clock, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,14 @@ interface AddAttendanceDrawerProps {
     jobTitle: string;
     dailyWorkHours: number;
   };
+  employees?: Array<{
+    id: string;
+    fullName: string;
+    jobTitle: string;
+    dailyWorkHours: number;
+  }>;
+  selectedEmployeeId?: string;
+  onEmployeeChange?: (employeeId: string) => void;
   onSuccess?: () => void;
 }
 
@@ -39,6 +47,9 @@ export function AddAttendanceDrawer({
   open,
   onOpenChange,
   employee,
+  employees = [],
+  selectedEmployeeId,
+  onEmployeeChange,
   onSuccess,
 }: AddAttendanceDrawerProps) {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -50,6 +61,13 @@ export function AddAttendanceDrawer({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [attTypes, setAttTypes] = useState<AttType[]>([]);
 
+  const selectedEmployee = useMemo(() => {
+    if (employees.length > 0 && selectedEmployeeId) {
+      return employees.find((emp) => String(emp.id) === String(selectedEmployeeId));
+    }
+    return employee;
+  }, [employees, selectedEmployeeId, employee]);
+
   const addHoursToTime = (time: string, hoursToAdd: number) => {
     const [h, m] = time.split(':').map(Number);
     const date = new Date();
@@ -59,11 +77,11 @@ export function AddAttendanceDrawer({
   };
 
   const [exitTime, setExitTime] = useState(() =>
-    addHoursToTime('08:00', employee?.dailyWorkHours ?? 8)
+    addHoursToTime('08:00', selectedEmployee?.dailyWorkHours ?? 8)
   );
   const entryTimeChange = (newEntryTime: string) => {
     setEntryTime(newEntryTime);
-    const dailyHours = employee?.dailyWorkHours ?? 8;
+    const dailyHours = selectedEmployee?.dailyWorkHours ?? 8;
     const newExitTime = addHoursToTime(newEntryTime, dailyHours);
     setExitTime(newExitTime); 
   }
@@ -72,10 +90,11 @@ export function AddAttendanceDrawer({
       try {
         const res = await fetch('http://localhost:8000/att_types/');
         const json = await res.json();
-        setAttTypes(json?.data || []);
-        // if ((json?.data || []).length > 0) {
-        //   setAttendanceTypeId(json.data[0].id);
-        // }
+        const types = json?.data || [];
+        setAttTypes(types);
+        if (types.length > 0) {
+          setAttendanceTypeId(types[0].id);
+        }
       } catch {
         setAttTypes([]);
       }
@@ -99,7 +118,7 @@ export function AddAttendanceDrawer({
     setIsSubmitting(true);
     try {
       const payload = {
-        employee_id: Number(employee?.id),
+        employee_id: Number(selectedEmployee?.id),
         date,
         entry_time: null,
         exit_time: null,
@@ -115,7 +134,7 @@ export function AddAttendanceDrawer({
 
       toast({
         title: 'Marked Absent',
-        description: `${employee?.fullName || 'Employee'} marked as absent on ${date}.`,
+        description: `${selectedEmployee?.fullName || 'Employee'} marked as absent on ${date}.`,
       });
 
       onOpenChange(false);
@@ -129,10 +148,11 @@ export function AddAttendanceDrawer({
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    if (!selectedEmployee?.id) newErrors.employee = 'Employee is required';
     if (!date) newErrors.date = 'Date is required';
     if (!entryTime) newErrors.entryTime = 'Entry time is required';
-    if (employee && workedHours > (employee.dailyWorkHours ?? 8) + 4) {
-      newErrors.workedHours = `Worked hours exceed maximum allowed (${(employee.dailyWorkHours ?? 8) + 4}h)`;
+    if (selectedEmployee && workedHours > (selectedEmployee.dailyWorkHours ?? 8) + 4) {
+      newErrors.workedHours = `Worked hours exceed maximum allowed (${(selectedEmployee.dailyWorkHours ?? 8) + 4}h)`;
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -144,7 +164,7 @@ export function AddAttendanceDrawer({
     setIsSubmitting(true);
     try {
       const payload = {
-        employee_id: Number(employee?.id),
+        employee_id: Number(selectedEmployee?.id),
         date,
         entry_time: entryTime + ':00',
         exit_time: hasExitTime ? exitTime + ':00' : null,
@@ -160,7 +180,7 @@ export function AddAttendanceDrawer({
 
       toast({
         title: 'Attendance Added',
-        description: `Attendance for ${employee?.fullName || 'employee'} saved.`,
+        description: `Attendance for ${selectedEmployee?.fullName || 'employee'} saved.`,
       });
 
       onOpenChange(false);
@@ -199,16 +219,42 @@ export function AddAttendanceDrawer({
             Add Attendance
           </SheetTitle>
           <SheetDescription>
-            Record attendance for {employee?.fullName || 'the selected employee'}
+            Record attendance for {selectedEmployee?.fullName || 'the selected employee'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          <div className="rounded-lg border border-border bg-muted/50 p-4">
-            <Label className="text-xs text-muted-foreground">Employee</Label>
-            <p className="font-semibold">{employee?.fullName || 'Not selected'}</p>
-            <p className="text-sm text-muted-foreground">{employee?.jobTitle}</p>
-          </div>
+          {employees.length > 0 ? (
+            <div className="space-y-2">
+              <Label>Employee</Label>
+              <Select
+                value={selectedEmployeeId}
+                onValueChange={onEmployeeChange}
+              >
+                <SelectTrigger className={errors.employee ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={String(emp.id)}>
+                      {emp.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.employee && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />{errors.employee}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-muted/50 p-4">
+              <Label className="text-xs text-muted-foreground">Employee</Label>
+              <p className="font-semibold">{selectedEmployee?.fullName || 'Not selected'}</p>
+              <p className="text-sm text-muted-foreground">{selectedEmployee?.jobTitle}</p>
+            </div>
+          )}
 
           <div className="grid gap-4">
             {/* Date */}
@@ -228,7 +274,6 @@ export function AddAttendanceDrawer({
               )}
             </div>
 
-            {/* Attendance Type from backend
             <div className="space-y-2">
               <Label htmlFor="type">Attendance Type</Label>
               <Select
@@ -246,7 +291,7 @@ export function AddAttendanceDrawer({
                   ))}
                 </SelectContent>
               </Select>
-            </div> */}
+            </div>
 
             {/* Entry Time */}
             <div className="space-y-2">
@@ -296,12 +341,12 @@ export function AddAttendanceDrawer({
                     <span className="text-2xl font-bold">{workedHours}</span>
                     <span className="text-muted-foreground ml-1">hours</span>
                   </div>
-                  {employee && (
+                  {selectedEmployee && (
                     <div className="text-sm text-muted-foreground">
-                      <p>Daily: {employee.dailyWorkHours}h</p>
-                      {workedHours > employee.dailyWorkHours && (
+                      <p>Daily: {selectedEmployee.dailyWorkHours}h</p>
+                      {workedHours > selectedEmployee.dailyWorkHours && (
                         <p className="text-warning">
-                          +{(workedHours - employee.dailyWorkHours).toFixed(2)}h extra
+                          +{(workedHours - selectedEmployee.dailyWorkHours).toFixed(2)}h extra
                         </p>
                       )}
                     </div>
