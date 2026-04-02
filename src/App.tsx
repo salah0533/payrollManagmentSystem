@@ -10,7 +10,6 @@ import EmployeeProfile from "@/pages/EmployeeProfile";
 import Attendance from "@/pages/Attendance";
 import Payments from "@/pages/Payments";
 import Vacations from "@/pages/Vacations";
-import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 
@@ -30,7 +29,6 @@ const App = () => (
             <Route path="/attendance" element={<Attendance />} />
             <Route path="/payments" element={<Payments />} />
             <Route path="/vacations" element={<Vacations />} />
-            <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
