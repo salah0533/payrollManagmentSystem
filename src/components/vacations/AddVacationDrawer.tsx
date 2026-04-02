@@ -24,13 +24,23 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Employee } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+
+type DrawerEmployee = {
+  id: string;
+  fullName: string;
+  jobTitle: string;
+  dailyWorkHours?: number;
+  dues?: number;
+};
 
 interface AddVacationDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  employee?: Employee;
+  employee?: DrawerEmployee;
+  employees?: DrawerEmployee[];
+  selectedEmployeeId?: string;
+  onEmployeeChange?: (employeeId: string) => void;
   onSuccess?: () => void;
 }
 
@@ -58,6 +68,9 @@ export function AddVacationDrawer({
   open,
   onOpenChange,
   employee,
+  employees = [],
+  selectedEmployeeId,
+  onEmployeeChange,
   onSuccess,
 }: AddVacationDrawerProps) {
   const [vacationType, setVacationType] = useState('');
@@ -76,6 +89,14 @@ export function AddVacationDrawer({
   const [isLoadingYearlyStats, setIsLoadingYearlyStats] = useState(false);
   const [showYearlyDetails, setShowYearlyDetails] = useState(false);
   const [isPaid, setIsPaid] = useState(true);
+
+  const selectedEmployee = useMemo(() => {
+    if (employees.length > 0 && selectedEmployeeId) {
+      return employees.find((item) => String(item.id) === String(selectedEmployeeId));
+    }
+
+    return employee;
+  }, [employees, selectedEmployeeId, employee]);
 
   useEffect(() => {
     const fetchVacationTypesAndStatuses = async () => {
@@ -129,14 +150,14 @@ export function AddVacationDrawer({
 
   useEffect(() => {
     const fetchYearlyStats = async () => {
-      if (!employee?.id || !isYearlyVacation) {
+      if (!selectedEmployee?.id || !isYearlyVacation) {
         setYearlyStats({});
         return;
       }
 
       setIsLoadingYearlyStats(true);
       try {
-        const res = await fetch(`http://localhost:8000/annual_vacations/used_vac/${employee.id}`);
+        const res = await fetch(`http://localhost:8000/annual_vacations/used_vac/${selectedEmployee.id}`);
         const json = await res.json();
         setYearlyStats(json?.data || {});
       } catch {
@@ -147,7 +168,7 @@ export function AddVacationDrawer({
     };
 
     fetchYearlyStats();
-  }, [employee?.id, isYearlyVacation]);
+  }, [selectedEmployee?.id, isYearlyVacation]);
 
   const yearlySummary = useMemo(() => {
     const entries = Object.entries(yearlyStats).sort(([a], [b]) => Number(b) - Number(a));
@@ -238,6 +259,10 @@ export function AddVacationDrawer({
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (!selectedEmployee?.id) {
+      newErrors.employee = 'Employee is required';
+    }
     
     if (!startDate) {
       newErrors.startDate = 'Start date is required';
@@ -274,7 +299,7 @@ export function AddVacationDrawer({
     
     try {
       const payload = {
-        employee_id: Number(employee?.id),
+        employee_id: Number(selectedEmployee?.id),
         start_date: startDate,
         end_date: endDate,
         vacation_type: getSelectedVacationTypeId(),
@@ -336,17 +361,42 @@ export function AddVacationDrawer({
             Add Vacation
           </SheetTitle>
           <SheetDescription>
-            Request vacation for {employee?.fullName || 'the selected employee'}
+            Request vacation for {selectedEmployee?.fullName || 'the selected employee'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
           {/* Employee Info */}
-          <div className="rounded-lg border border-border bg-muted/50 p-4">
-            <Label className="text-xs text-muted-foreground">Employee</Label>
-            <p className="font-semibold">{employee?.fullName || 'Not selected'}</p>
-            <p className="text-sm text-muted-foreground">{employee?.jobTitle}</p>
-          </div>
+          {employees.length > 0 ? (
+            <div className="space-y-2">
+              <Label>Employee</Label>
+              <Select value={selectedEmployeeId || ''} onValueChange={onEmployeeChange}>
+                <SelectTrigger className={cn(errors.employee && 'border-destructive')}>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.employee && <p className="text-sm text-destructive">{errors.employee}</p>}
+              {selectedEmployee && (
+                <div className="rounded-lg border border-border bg-muted/50 p-4">
+                  <p className="font-semibold">{selectedEmployee.fullName}</p>
+                  <p className="text-sm text-muted-foreground">{selectedEmployee.jobTitle}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-muted/50 p-4">
+              <Label className="text-xs text-muted-foreground">Employee</Label>
+              <p className="font-semibold">{selectedEmployee?.fullName || 'Not selected'}</p>
+              <p className="text-sm text-muted-foreground">{selectedEmployee?.jobTitle}</p>
+            </div>
+          )}
 
           {/* Vacation Usage Progress */}
           {isYearlyVacation && (
@@ -580,7 +630,7 @@ export function AddVacationDrawer({
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={isSubmitting || exceedsLimit || !vacationType || hasInvalidYearlyDates || !!errors.dates}
+            disabled={isSubmitting || exceedsLimit || !vacationType || hasInvalidYearlyDates || !!errors.dates || !selectedEmployee?.id}
             className="flex-1"
           >
             {isSubmitting ? 'Submitting...' : 'Submit Request'}
