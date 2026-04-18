@@ -24,6 +24,7 @@ export interface Employee {
 }
 
 export interface Attendance {
+  [x: string]: string;
   id: string;
   employeeId: string;
   employeeName: string;
@@ -31,8 +32,7 @@ export interface Attendance {
   entryTime: string | null;
   exitTime: string | null;
   workedHours: number;
-  type: 'present' | 'late' | 'absent' | 'vacation';
-  isAuto: boolean;
+  attendence_type: 'present' | 'late' | 'absent' | 'vacation' | 'Overtime';
 }
 
 export interface Payment {
@@ -41,21 +41,19 @@ export interface Payment {
   employeeName: string;
   date: string;
   amount: number;
-  type: 'salary' | 'bonus' | 'deduction';
+  payment_type: string;
   description: string;
-  status: 'paid' | 'pending';
 }
 
 export interface Vacation {
   id: string;
   employeeId: string;
   employeeName: string;
-  type: 'annual' | 'sick' | 'personal' | 'unpaid';
-  startDate: string;
-  endDate: string;
+  vacation_type:string;
+  start_date: string;
+  end_date: string;
   days: number;
-  status: 'approved' | 'pending' | 'rejected';
-  reason: string;
+  vacation_status: string;
 }
 
 export const employees: Employee[] = [

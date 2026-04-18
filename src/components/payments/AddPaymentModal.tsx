@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { DollarSign, AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { Banknote, AlertCircle, Loader2, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,67 +20,189 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
-import { Employee, payments } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 
 interface AddPaymentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  employee?: Employee;
+  employee?: {
+    id: string;
+    fullName: string;
+    jobTitle: string;
+    dues?: number;
+  };
+  employees?: Array<{
+    id: string;
+    fullName: string;
+    jobTitle: string;
+    dues?: number;
+  }>;
+  selectedEmployeeId?: string;
+  onEmployeeChange?: (employeeId: string) => void;
   onSuccess?: () => void;
 }
 
-const paymentTypes = [
-  { value: 'salary', label: 'Salary', icon: DollarSign },
-  { value: 'bonus', label: 'Bonus', icon: TrendingUp },
-  { value: 'deduction', label: 'Deduction', icon: TrendingDown },
-];
+type PaymentType = {
+  id: number;
+  payment_type: string;
+};
+
+type AttendanceStats = {
+  salary_type?: string;
+  month_price?: number;
+  day_price?: number;
+  hour_price?: number;
+  overtime_price?: number;
+  present?: number;
+  absent?: number;
+  late?: number;
+  overtime?: number;
+  paid_vacation?: number;
+  not_paid_vacation?: number;
+};
 
 export function AddPaymentModal({
   open,
   onOpenChange,
   employee,
+  employees = [],
+  selectedEmployeeId,
+  onEmployeeChange,
   onSuccess,
 }: AddPaymentModalProps) {
-  const [paymentType, setPaymentType] = useState('salary');
+  const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
+  const [paymentTypeId, setPaymentTypeId] = useState<string>('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [yearMonth, setYearMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [description, setDescription] = useState('');
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+  const [isLoadingAttendanceStats, setIsLoadingAttendanceStats] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Calculate payment summary for the employee
-  const paymentSummary = useMemo(() => {
-    if (!employee) return null;
+  const selectedEmployee = useMemo(() => {
+    if (employees.length > 0 && selectedEmployeeId) {
+      return employees.find((item) => String(item.id) === String(selectedEmployeeId));
+    }
 
-    const employeePayments = payments.filter(p => p.employeeId === employee.id);
-    const currentMonth = format(new Date(), 'yyyy-MM');
-    const monthlyPayments = employeePayments.filter(p => p.date.startsWith(currentMonth));
-    
-    const monthlySalary = employee.settings.monthPrice;
-    const paidSoFar = monthlyPayments
-      .filter(p => p.status === 'paid' && p.type !== 'deduction')
-      .reduce((sum, p) => sum + p.amount, 0);
-    const totalDeductions = monthlyPayments
-      .filter(p => p.type === 'deduction')
-      .reduce((sum, p) => sum + Math.abs(p.amount), 0);
-    
-    const remainingDues = Math.max(0, monthlySalary - paidSoFar);
-    const paidPercentage = (paidSoFar / monthlySalary) * 100;
+    return employee;
+  }, [employees, selectedEmployeeId, employee]);
+
+  const selectedPaymentType = useMemo(
+    () => paymentTypes.find((type) => String(type.id) === paymentTypeId),
+    [paymentTypeId, paymentTypes]
+  );
+
+  const isAttendancePayment = selectedPaymentType?.payment_type?.toLowerCase() === 'attendence';
+
+  const computedAttendanceTotals = useMemo(() => {
+    if (!attendanceStats || attendanceStats.salary_type !== 'monthly') return null;
+
+    const monthPrice = Number(attendanceStats.month_price ?? 0);
+    const dayPrice = Number(attendanceStats.day_price ?? 0);
+    const hourPrice = Number(attendanceStats.hour_price ?? 0);
+    const overtimePrice = Number(attendanceStats.overtime_price ?? attendanceStats.hour_price ?? 0);
+    const absent = Number(attendanceStats.absent ?? 0);
+    const notPaidVacation = Number(attendanceStats.not_paid_vacation ?? 0);
+    const late = Number(attendanceStats.late ?? 0);
+    const overtime = Number(attendanceStats.overtime ?? 0);
+
+    const absentDeduction = absent * dayPrice;
+    const notPaidVacationDeduction = notPaidVacation * dayPrice;
+    const subtotal = monthPrice - absentDeduction - notPaidVacationDeduction;
+    const total = subtotal - late * hourPrice + overtime * overtimePrice;
 
     return {
-      monthlySalary,
-      paidSoFar,
-      totalDeductions,
-      remainingDues,
-      paidPercentage: Math.min(100, paidPercentage),
+      monthPrice,
+      absent,
+      notPaidVacation,
+      late,
+      overtime,
+      absentDeduction,
+      notPaidVacationDeduction,
+      lateDeduction: late * hourPrice,
+      overtimeAddition: overtime * overtimePrice,
+      subtotal,
+      total,
     };
-  }, [employee]);
+  }, [attendanceStats]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchPaymentTypes = async () => {
+      setIsLoadingTypes(true);
+      try {
+        const response = await fetch('http://localhost:8000/payment_types/');
+        if (!response.ok) throw new Error('Failed to load payment types');
+
+        const json = await response.json();
+        const types = (json?.data || []) as PaymentType[];
+        setPaymentTypes(types);
+
+        if (!paymentTypeId && types.length > 0) {
+          setPaymentTypeId(String(types[0].id));
+        }
+      } catch {
+        setPaymentTypes([]);
+        toast({
+          title: 'Error',
+          description: 'Failed to load payment types.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingTypes(false);
+      }
+    };
+
+    fetchPaymentTypes();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!selectedEmployee?.id) return;
+    if (!isAttendancePayment) {
+      setAttendanceStats(null);
+      return;
+    }
+    if (!yearMonth) return;
+
+    const fetchAttendanceStats = async () => {
+      setIsLoadingAttendanceStats(true);
+      try {
+        const response = await fetch(`http://localhost:8000/payment/att/${selectedEmployee.id}/${yearMonth}`);
+        if (!response.ok) throw new Error('Failed to load attendance payment stats');
+
+        const json = await response.json();
+        setAttendanceStats(json?.data || null);
+      } catch {
+        setAttendanceStats(null);
+        toast({
+          title: 'Error',
+          description: 'Failed to load attendance payment stats.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingAttendanceStats(false);
+      }
+    };
+
+    fetchAttendanceStats();
+  }, [open, selectedEmployee?.id, isAttendancePayment, yearMonth]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (!selectedEmployee?.id) {
+      newErrors.employee = 'Employee is required';
+    }
+
+    if (!paymentTypeId) {
+      newErrors.paymentType = 'Payment type is required';
+    }
     
     if (!amount || parseFloat(amount) <= 0) {
       newErrors.amount = 'Amount must be greater than 0';
@@ -94,6 +216,10 @@ export function AddPaymentModal({
       newErrors.description = 'Description is required';
     }
 
+    if (isAttendancePayment && !yearMonth) {
+      newErrors.yearMonth = 'Month is required for attendance payment';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -102,25 +228,58 @@ export function AddPaymentModal({
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    toast({
-      title: 'Payment Added',
-      description: `${paymentType.charAt(0).toUpperCase() + paymentType.slice(1)} of $${amount} has been recorded.`,
-    });
-    
-    // Reset form
-    setPaymentType('salary');
-    setAmount('');
-    setDate(format(new Date(), 'yyyy-MM-dd'));
-    setDescription('');
-    setErrors({});
-    
-    setIsSubmitting(false);
-    onOpenChange(false);
-    onSuccess?.();
+
+    try {
+      const payload = {
+        employee_id: Number(selectedEmployee?.id),
+        date,
+        payment_type: Number(paymentTypeId),
+        amount: Number(amount),
+        description: description.trim(),
+        year_month: isAttendancePayment ? yearMonth : null,
+      };
+
+      let response = await fetch('http://localhost:8000/payment/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok && (response.status === 404 || response.status === 405)) {
+        response = await fetch('http://localhost:8000/payment/', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to save payment');
+      }
+
+      toast({
+        title: 'Payment Added',
+        description: `${selectedPaymentType?.payment_type ?? 'Payment'} of ${Number(amount).toLocaleString()} DA has been recorded for ${selectedEmployee?.fullName || 'the selected employee'}.`,
+      });
+
+      setAmount('');
+      setDate(format(new Date(), 'yyyy-MM-dd'));
+      setYearMonth(format(new Date(), 'yyyy-MM'));
+      setDescription('');
+      setAttendanceStats(null);
+      setErrors({});
+
+      onOpenChange(false);
+      onSuccess?.();
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to add payment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -128,58 +287,117 @@ export function AddPaymentModal({
     onOpenChange(false);
   };
 
-  const isDeduction = paymentType === 'deduction';
+  const isDeduction = selectedPaymentType?.payment_type?.toLowerCase() === 'deduction';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
+            <Banknote className="h-5 w-5" />
             Add Payment
           </DialogTitle>
           <DialogDescription>
-            Record a payment for {employee?.fullName || 'the selected employee'}
+            Record a payment for {selectedEmployee?.fullName || 'the selected employee'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Employee Info */}
-          <div className="rounded-lg border border-border bg-muted/50 p-4">
-            <Label className="text-xs text-muted-foreground">Employee</Label>
-            <p className="font-semibold">{employee?.fullName || 'Not selected'}</p>
-            <p className="text-sm text-muted-foreground">{employee?.jobTitle}</p>
-          </div>
+          {employees.length > 0 ? (
+            <div className="space-y-2">
+              <Label>Employee</Label>
+              <Select value={selectedEmployeeId} onValueChange={onEmployeeChange}>
+                <SelectTrigger className={cn(errors.employee && 'border-destructive')}>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.employee && <p className="text-sm text-destructive">{errors.employee}</p>}
+              {selectedEmployee && (
+                <div className="rounded-lg border border-border bg-muted/50 p-4">
+                  <p className="font-semibold">{selectedEmployee.fullName}</p>
+                  <p className="text-sm text-muted-foreground">{selectedEmployee.jobTitle}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-muted/50 p-4">
+              <Label className="text-xs text-muted-foreground">Employee</Label>
+              <p className="font-semibold">{selectedEmployee?.fullName || 'Not selected'}</p>
+              <p className="text-sm text-muted-foreground">{selectedEmployee?.jobTitle}</p>
+            </div>
+          )}
 
-          {/* Payment Summary */}
-          {paymentSummary && (
+          {/* Dues Summary for non-attendance types */}
+          {!isAttendancePayment && (
+            <div className="rounded-lg border border-border p-4 space-y-2">
+              <Label className="text-xs text-muted-foreground">Employee Dues</Label>
+              <p className="text-2xl font-bold">{Number(selectedEmployee?.dues ?? 0).toLocaleString()} DA</p>
+              <p className="text-xs text-muted-foreground">Shown for payment types other than attendence.</p>
+            </div>
+          )}
+
+          {/* Attendance stats and total calculation */}
+          {isAttendancePayment && (
             <div className="rounded-lg border border-border p-4 space-y-3">
-              <Label className="text-xs text-muted-foreground">Payment Summary (This Month)</Label>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-xs text-muted-foreground">Monthly Salary</p>
-                  <p className="font-bold text-lg">${paymentSummary.monthlySalary.toLocaleString()}</p>
+              <Label className="text-xs text-muted-foreground">Attendance Payment Stats</Label>
+              <div className="space-y-2">
+                <Label htmlFor="year-month">Month</Label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="year-month"
+                    type="month"
+                    value={yearMonth}
+                    onChange={(e) => setYearMonth(e.target.value)}
+                    className={cn('pl-9', errors.yearMonth && 'border-destructive')}
+                  />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Paid So Far</p>
-                  <p className="font-bold text-lg text-success">${paymentSummary.paidSoFar.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Remaining</p>
-                  <p className="font-bold text-lg text-warning">${paymentSummary.remainingDues.toLocaleString()}</p>
-                </div>
+                {errors.yearMonth && <p className="text-sm text-destructive">{errors.yearMonth}</p>}
               </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Payment Progress</span>
-                  <span>{paymentSummary.paidPercentage.toFixed(0)}%</span>
+
+              {isLoadingAttendanceStats ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading attendance stats...
                 </div>
-                <Progress value={paymentSummary.paidPercentage} className="h-2" />
-              </div>
-              {paymentSummary.totalDeductions > 0 && (
-                <p className="text-xs text-destructive">
-                  Total Deductions: ${paymentSummary.totalDeductions.toLocaleString()}
-                </p>
+              ) : attendanceStats ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <p>Present: <span className="font-semibold">{attendanceStats.present ?? 0}</span></p>
+                    <p>Absent: <span className="font-semibold">{attendanceStats.absent ?? 0}</span></p>
+                    <p>Late: <span className="font-semibold">{attendanceStats.late ?? 0}</span></p>
+                    <p>Overtime: <span className="font-semibold">{attendanceStats.overtime ?? 0}</span></p>
+                    <p>Paid Vacation: <span className="font-semibold">{attendanceStats.paid_vacation ?? 0}</span></p>
+                    <p>Not Paid Vacation: <span className="font-semibold">{attendanceStats.not_paid_vacation ?? 0}</span></p>
+                  </div>
+
+                  {computedAttendanceTotals ? (
+                    <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1">
+                      <p>
+                        Base: {computedAttendanceTotals.monthPrice.toLocaleString()} - absent ({computedAttendanceTotals.absent} x {Number(attendanceStats?.day_price ?? 0).toLocaleString()}) - not paid vacation ({computedAttendanceTotals.notPaidVacation} x {Number(attendanceStats?.day_price ?? 0).toLocaleString()})
+                      </p>
+                      <p>Subtotal: <span className="font-semibold">{computedAttendanceTotals.subtotal.toLocaleString()} DA</span></p>
+                      <p>
+                        Final: subtotal - late ({computedAttendanceTotals.late} x {Number(attendanceStats?.hour_price ?? 0).toLocaleString()}) + overtime ({computedAttendanceTotals.overtime} x {Number(attendanceStats?.overtime_price ?? attendanceStats?.hour_price ?? 0).toLocaleString()})
+                      </p>
+                      <p className="text-base font-bold">Total Payment: {computedAttendanceTotals.total.toLocaleString()} DA</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Auto calculation is shown only when salary type is monthly.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No stats available for the selected month.</p>
               )}
             </div>
           )}
@@ -189,25 +407,23 @@ export function AddPaymentModal({
             {/* Payment Type */}
             <div className="space-y-2">
               <Label>Payment Type</Label>
-              <Select value={paymentType} onValueChange={setPaymentType}>
+              <Select value={paymentTypeId} onValueChange={setPaymentTypeId}>
                 <SelectTrigger className={cn(isDeduction && 'border-destructive bg-destructive/5')}>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder={isLoadingTypes ? 'Loading types...' : 'Select type'} />
                 </SelectTrigger>
                 <SelectContent>
                   {paymentTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      <div className="flex items-center gap-2">
-                        <type.icon className={cn(
-                          'h-4 w-4',
-                          type.value === 'deduction' && 'text-destructive',
-                          type.value === 'bonus' && 'text-success'
-                        )} />
-                        {type.label}
+                    <SelectItem key={type.id} value={String(type.id)}>
+                      <div className="flex items-center gap-2 capitalize">
+                        {type.payment_type}
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {errors.paymentType && (
+                <p className="text-sm text-destructive">{errors.paymentType}</p>
+              )}
               {isDeduction && (
                 <p className="text-sm text-destructive flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
@@ -219,9 +435,9 @@ export function AddPaymentModal({
             {/* Amount & Date Row */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="amount">Amount ($)</Label>
+                <Label htmlFor="amount">Amount (DA)</Label>
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Banknote className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="amount"
                     type="number"
@@ -275,7 +491,7 @@ export function AddPaymentModal({
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={isSubmitting || !amount}
+            disabled={isSubmitting || !amount || !paymentTypeId || isLoadingTypes || !selectedEmployee?.id}
             className={cn(isDeduction && 'bg-destructive hover:bg-destructive/90')}
           >
             {isSubmitting ? 'Saving...' : isDeduction ? 'Record Deduction' : 'Save Payment'}

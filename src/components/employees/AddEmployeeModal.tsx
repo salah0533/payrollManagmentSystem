@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -37,42 +37,103 @@ interface AddEmployeeModalProps {
 export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModalProps) {
   const isMobile = useIsMobile();
   const [formData, setFormData] = useState({
-    fullName: '',
+    fullname: '',
     email: '',
     phone: '',
-    jobTitle: '',
-    role: 'employee',
-    department: '',
-    salaryType: 'month',
-    salary: '',
+    joined: '',
+    job_title: '',
+    dues: 0,
+    daily_work_hours: 0,
+    extra_hours_price: 0,
+    hour_price: 0,
+    day_price: 0,
+    monthly_price: 0,
+    vacation_days: 0,
+    salary_type: 0,
+    is_active: true,
+    allowed_late: 0,
+    min_extraTime: 0,
   });
+  const [salaryTypes, setSalaryTypes] = useState([]); // State for salary types
+  const monthPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const monthPrice = Number(e.target.value);
 
-  const handleSubmit = (e: React.FormEvent) => {
+    setFormData((prev) => {
+      const dayPrice = monthPrice / 30;
+      const hourPrice = prev.daily_work_hours > 0 ? dayPrice / prev.daily_work_hours : 0;
+
+      return {
+        ...prev,
+        monthly_price: monthPrice,
+        day_price: Number(dayPrice.toFixed(2)),
+        hour_price: Number(hourPrice.toFixed(2)),
+      };
+    });
+  }
+  const dayPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dayPrice = Number(e.target.value);
+
+    setFormData((prev) => {
+      const hourPrice = prev.daily_work_hours > 0 ? dayPrice / prev.daily_work_hours : 0;
+
+      return {
+        ...prev,
+        day_price: Number(dayPrice.toFixed(2)),
+        hour_price: Number(hourPrice.toFixed(2)),
+      };
+    });
+  }
+  useEffect(() => {
+    // Fetch salary types from the backend
+    const fetchSalaryTypes = async () => {
+      const response = await fetch('http://localhost:8000/salary_types');
+      const data = await response.json();
+      setSalaryTypes(data.data); // Update to access the correct data structure
+    };
+    fetchSalaryTypes();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await fetch('http://localhost:8000/employee/', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    });
     onAdd?.(formData);
     onOpenChange(false);
     setFormData({
-      fullName: '',
+      fullname: '',
       email: '',
       phone: '',
-      jobTitle: '',
-      role: 'employee',
-      department: '',
-      salaryType: 'month',
-      salary: '',
+      joined: '',
+      job_title: '',
+      dues: 0,
+      daily_work_hours: 0,
+      extra_hours_price: 0,
+      hour_price: 0,
+      day_price: 0,
+      monthly_price: 0,
+      vacation_days: 0,
+      salary_type: 0,
+      is_active: true,
+      allowed_late: 0,
+      min_extraTime: 0,
     });
   };
 
   const formContent = (
     <div className="grid gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 m-1">
         <div className="space-y-2">
-          <Label htmlFor="fullName">Full Name</Label>
+          <Label htmlFor="fullname">Full Name</Label>
           <Input
-            id="fullName"
-            value={formData.fullName}
-            onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-            placeholder="John Doe"
+            id="fullname"
+            value={formData.fullname}
+            onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
+            placeholder="ahmed ali"
             required
           />
         </div>
@@ -83,12 +144,10 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            placeholder="john@store.com"
+            placeholder="ahmed@gmail.com"
             required
           />
         </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="phone">Phone</Label>
           <Input
@@ -100,72 +159,169 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="department">Department</Label>
+          <Label htmlFor="job_title">Job Title</Label>
           <Input
-            id="department"
-            value={formData.department}
-            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-            placeholder="Sales"
+            id="job_title"
+            value={formData.job_title}
+            onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
+            placeholder="mecanicien"
             required
           />
         </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="jobTitle">Job Title</Label>
+          <Label htmlFor="joined">Joined Date</Label>
           <Input
-            id="jobTitle"
-            value={formData.jobTitle}
-            onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-            placeholder="Sales Associate"
+            id="joined"
+            type="date"
+            value={formData.joined}
+            onChange={(e) => setFormData({ ...formData, joined: e.target.value })}
             required
           />
         </div>
-        {/*<div className="space-y-2">
-          <Label htmlFor="role">Role</Label>
-          <Select
-            value={formData.role}
-            onValueChange={(value) => setFormData({ ...formData, role: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="manager">Manager</SelectItem>
-              <SelectItem value="employee">Employee</SelectItem>
-            </SelectContent>
-          </Select>
-        </div> */}
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="salaryType">Salary Type</Label>
+          <Label htmlFor="salary_type">Salary Type</Label>
           <Select
-            value={formData.salaryType}
-            onValueChange={(value) => setFormData({ ...formData, salaryType: value })}
+            value={String(formData.salary_type)}
+            onValueChange={(value) => setFormData({ ...formData, salary_type: Number(value) })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="hour">Hourly</SelectItem>
-              <SelectItem value="day">Daily</SelectItem>
-              <SelectItem value="month">Monthly</SelectItem>
-              <SelectItem value="Extra_hours">Extra hour salary</SelectItem> 
+              {salaryTypes.map((type) => (
+                <SelectItem key={type.id} value={type.id}>{type.salary_type}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="salary">Salary Amount (DA)</Label>
+          <Label htmlFor="monthly_price">Monthly Price</Label>
           <Input
-            id="salary"
+            id="monthly_price"
             type="number"
-            value={formData.salary}
-            onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
+            value={formData.monthly_price}
+            onChange={monthPriceChange}
             placeholder="0.00"
             required
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="day_price">Day Price</Label>
+          <Input
+            id="day_price"
+            type="number"
+            value={formData.day_price}
+            onChange={dayPriceChange}
+            placeholder="0.00"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="hour_price">Hour Price</Label>
+          <Input
+            id="hour_price"
+            type="number"
+            value={formData.hour_price}
+            onChange={(e) => setFormData({ ...formData, hour_price: Number(e.target.value) })}
+            placeholder="0.00"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="daily_work_hours">Daily Work Hours</Label>
+          <Input
+            id="daily_work_hours"
+            type="number"
+            min={1}
+            value={formData.daily_work_hours}
+            onChange={(e) =>
+              setFormData({ ...formData, daily_work_hours: Number(e.target.value) || 0 })
+            }
+            placeholder="8"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dues">Dues</Label>
+          <Input
+            id="dues"
+            type="number"
+            value={formData.dues}
+            onChange={(e) => setFormData({ ...formData, dues: Number(e.target.value) || 0 })}
+            placeholder="0"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="extra_hours_price">Extra Hours Price</Label>
+          <Input
+            id="extra_hours_price"
+            type="number"
+            value={formData.extra_hours_price}
+            onChange={(e) =>
+              setFormData({ ...formData, extra_hours_price: Number(e.target.value) || 0 })
+            }
+            placeholder="0"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vacation_days">Vacation Days</Label>
+          <Input
+            id="vacation_days"
+            type="number"
+            value={formData.vacation_days}
+            onChange={(e) =>
+              setFormData({ ...formData, vacation_days: Number(e.target.value) || 0 })
+            }
+            placeholder="0"
+            required
+          />
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="allowed_late">Allowed Late (minutes)</Label>
+          <Input
+            id="allowed_late"
+            type="number"
+            value={formData.allowed_late}
+            onChange={(e) =>
+              setFormData({ ...formData, allowed_late: Number(e.target.value) || 0 })
+            }
+            placeholder="0"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="min_extraTime">Min Extra Time (minutes)</Label>
+          <Input
+            id="min_extraTime"
+            type="number"
+            value={formData.min_extraTime}
+            onChange={(e) =>
+              setFormData({ ...formData, min_extraTime: Number(e.target.value) || 0 })
+            }
+            placeholder="0"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="is_active">Status</Label>
+          <Select
+            value={String(formData.is_active)}
+            onValueChange={(value) =>
+              setFormData({ ...formData, is_active: value === 'true' })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">Active</SelectItem>
+              <SelectItem value="false">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </div>
@@ -175,19 +331,23 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[90vh]">
-          <DrawerHeader className="text-left">
+        <DrawerContent className="h-[90vh] max-h-[90vh] overflow-hidden flex flex-col">
+          <DrawerHeader className="text-left shrink-0">
             <DrawerTitle>Add New Employee</DrawerTitle>
             <DrawerDescription>
               Enter the details for the new employee.
             </DrawerDescription>
           </DrawerHeader>
-          <ScrollArea className="overflow-auto px-4">
-            <form id="add-employee-form" onSubmit={handleSubmit}>
-              {formContent}
-            </form>
-          </ScrollArea>
-          <DrawerFooter className="pt-4">
+
+          <div className="min-h-0 flex-1 px-4">
+            <ScrollArea className="h-full">
+              <form id="add-employee-form" onSubmit={handleSubmit} className="pb-4">
+                {formContent}
+              </form>
+            </ScrollArea>
+          </div>
+
+          <DrawerFooter className="pt-4 shrink-0">
             <Button type="submit" form="add-employee-form">Add Employee</Button>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -201,18 +361,19 @@ export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModal
   // Desktop: Dialog
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl h-[85vh] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Add New Employee</DialogTitle>
           <DialogDescription>
             Enter the details for the new employee. All fields are required.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="py-4">
+
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 flex flex-col">
+          <ScrollArea className="h-full py-4 pr-3">
             {formContent}
-          </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
+          </ScrollArea>
+          <DialogFooter className="flex-col gap-2 sm:flex-row shrink-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

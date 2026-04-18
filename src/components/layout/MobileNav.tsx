@@ -6,7 +6,6 @@ import {
   Clock,
   CreditCard,
   Palmtree,
-  FileText,
   Settings,
   Menu,
   X,
@@ -21,7 +20,6 @@ const navItems = [
   { to: '/attendance', icon: Clock, label: 'Attendance' },
   { to: '/payments', icon: CreditCard, label: 'Payments' },
   { to: '/vacations', icon: Palmtree, label: 'Vacations' },
-  { to: '/reports', icon: FileText, label: 'Reports' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
