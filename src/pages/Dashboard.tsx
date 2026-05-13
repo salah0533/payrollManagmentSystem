@@ -1,12 +1,42 @@
-import { Users, UserCheck, Clock, DollarSign, Palmtree } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, UserCheck, Clock, Palmtree } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { AttendanceChart } from '@/components/dashboard/AttendanceChart';
 import { PayrollChart } from '@/components/dashboard/PayrollChart';
 import { VacationChart } from '@/components/dashboard/VacationChart';
-import { dashboardStats } from '@/data/mockData';
+import { useToast } from '@/hooks/use-toast';
+
+type DashboardStats = {
+  total_emps: number;
+  total_active_emps: number;
+  total_att_percent: number;
+  total_vacation: number;
+};
 
 const Dashboard = () => {
+  const { toast } = useToast();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/stat/dashbord/cards');
+        const json = await res.json();
+        if (json.status && json.data) {
+          setStats(json.data);
+        }
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load dashboard statistics',
+          variant: 'destructive',
+        });
+      }
+    };
+    fetchDashboardStats();
+  }, [toast]);
+
   return (
     <div className="space-y-6 md:space-y-8 animate-fade-in">
       {/* Page Header */}
@@ -15,40 +45,33 @@ const Dashboard = () => {
         <p className="page-description text-sm md:text-base">Welcome back! Here's what's happening today.</p>
       </div>
 
-      {/* KPI Cards - Stack on mobile, 2 columns on tablet, 5 on desktop */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+      {/* KPI Cards - Stack on mobile, 2 columns on tablet, 4 on desktop */}
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard
           title="Total Employees"
-          value={dashboardStats.totalEmployees}
+          value={stats?.total_emps || 0}
           icon={Users}
           variant="default"
         />
         <KPICard
           title="Active Employees"
-          value={dashboardStats.activeEmployees}
+          value={stats?.total_active_emps || 0}
           icon={UserCheck}
           variant="success"
           trend={{ value: 5, isPositive: true }}
         />
         <KPICard
-          title="Today Attendance"
-          value={`${dashboardStats.todayAttendancePercent}%`}
+          title="Attendance Rate"
+          value={`${stats?.total_att_percent?.toFixed(1) || 0}%`}
           icon={Clock}
           variant="info"
         />
         <KPICard
-          title="Monthly Payroll"
-          value={`$${dashboardStats.monthlyPayrollTotal.toLocaleString()}`}
-          icon={DollarSign}
-          variant="warning"
-        />
-        <KPICard
           title="On Vacation"
-          value={dashboardStats.employeesOnVacation}
-          subtitle="employees today"
+          value={stats?.total_vacation || 0}
+          subtitle="employees"
           icon={Palmtree}
           variant="info"
-          className="col-span-2 sm:col-span-1"
         />
       </div>
 
