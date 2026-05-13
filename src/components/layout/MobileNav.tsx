@@ -1,29 +1,13 @@
-import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Users,
-  Clock,
-  CreditCard,
-  Palmtree,
-  Settings,
-  Menu,
-  X,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { useState } from "react";
+import { Menu } from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/employees', icon: Users, label: 'Employees' },
-  { to: '/attendance', icon: Clock, label: 'Attendance' },
-  { to: '/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/vacations', icon: Palmtree, label: 'Vacations' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-];
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import type { NavigationItem } from "@/components/layout/navigation";
+import { cn } from "@/lib/utils";
 
-export function MobileNav() {
+export function MobileNav({ items, brandLabel }: { items: NavigationItem[]; brandLabel: string }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
 
@@ -35,17 +19,20 @@ export function MobileNav() {
           <span className="sr-only">Toggle menu</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-72 bg-sidebar p-0">
+        <SheetContent side="left" className="w-72 bg-sidebar p-0">
         <SheetHeader className="border-b border-sidebar-border p-4">
           <SheetTitle className="flex items-center gap-2 text-sidebar-foreground">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-              <span className="text-sm font-bold text-sidebar-primary-foreground">P</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sm font-semibold text-sidebar-foreground">
+              EM
             </div>
-            <span className="text-lg font-semibold">PayrollPro</span>
+            <div className="text-left">
+              <p className="text-base font-semibold">Employee System</p>
+              <p className="text-xs text-sidebar-muted">{brandLabel}</p>
+            </div>
           </SheetTitle>
         </SheetHeader>
         <nav className="flex flex-col gap-1 p-3">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = location.pathname === item.to || 
               (item.to !== '/' && location.pathname.startsWith(item.to));
             

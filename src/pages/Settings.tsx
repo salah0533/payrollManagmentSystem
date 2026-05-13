@@ -1,143 +1,276 @@
-import { useEffect, useState } from 'react';
-import { Shield } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-const Settings = () => {
-  const { toast } = useToast();
-  const [workSettings, setWorkSettings] = useState({
-    entryTime: '08:00',
-    exitTime: '17:00',
+import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { payrollCycles, workWeekOptions } from "@/components/layout/navigation";
+import { getErrorMessage } from "@/lib/errors";
+import { settingsApi } from "@/services/settingsApi";
+import { toast } from "@/hooks/use-toast";
+
+export default function Settings() {
+  const workScheduleQuery = useQuery({
+    queryKey: ["settings", "work-schedule"],
+    queryFn: () => settingsApi.getWorkSchedule(),
   });
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
 
-  const toTimeInput = (value?: string) => {
-    if (!value) return '';
-    return String(value).slice(0, 5);
-  };
+  const payrollPolicyQuery = useQuery({
+    queryKey: ["settings", "payroll-policy"],
+    queryFn: () => settingsApi.getPayrollPolicy(),
+  });
 
-  const toIsoTime = (hhmm: string) => {
-    const [hours, minutes] = hhmm.split(':').map(Number);
-    const date = new Date();
-    date.setHours(hours || 0, minutes || 0, 0, 0);
-    return date.toISOString();
-  };
+  const [workSchedule, setWorkSchedule] = useState({
+    name: "Default Schedule",
+    start_time: "08:00:00",
+    end_time: "17:00:00",
+    break_minutes: 60,
+    weekly_off_days: ["friday"],
+    timezone: "UTC",
+    is_default: true,
+  });
+
+  const [payrollPolicy, setPayrollPolicy] = useState({
+    name: "default",
+    payroll_cycle: "monthly",
+    minimum_overtime_minutes: 30,
+    allowed_late_minutes: 0,
+    default_currency: "USD",
+    significant_change_threshold: 1,
+    paid_vacation_counts_for_daily: true,
+    overtime_enabled: true,
+    late_makeup_enabled: true,
+    late_deduction_enabled: true,
+    auto_recalculate_draft_payroll: true,
+    lock_payroll_after_payment: true,
+    holidays_json: [] as string[],
+  });
 
   useEffect(() => {
-    const loadSettings = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('http://localhost:8000/settings/');
-        if (!response.ok) throw new Error('Failed to load settings');
-
-        const json = await response.json();
-        setWorkSettings({
-          entryTime: toTimeInput(json?.data?.entry_time) || '08:00',
-          exitTime: toTimeInput(json?.data?.exit_time) || '17:00',
-        });
-      } catch {
-        toast({
-          title: 'Error',
-          description: 'Failed to load work hours settings.',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadSettings();
-  }, [toast]);
-
-  const handleSaveWorkSettings = async () => {
-    if (!workSettings.entryTime || !workSettings.exitTime) {
-      toast({
-        title: 'Validation Error',
-        description: 'Entry and exit time are required.',
-        variant: 'destructive',
+    if (workScheduleQuery.data) {
+      setWorkSchedule({
+        name: workScheduleQuery.data.name,
+        start_time: workScheduleQuery.data.start_time,
+        end_time: workScheduleQuery.data.end_time,
+        break_minutes: workScheduleQuery.data.break_minutes,
+        weekly_off_days: workScheduleQuery.data.weekly_off_days,
+        timezone: workScheduleQuery.data.timezone,
+        is_default: workScheduleQuery.data.is_default,
       });
-      return;
     }
+  }, [workScheduleQuery.data]);
 
-    setSaving(true);
-    try {
-      const payload = {
-        entryTime: toIsoTime(workSettings.entryTime),
-        exitTime: toIsoTime(workSettings.exitTime),
-      };
-
-      const response = await fetch('http://localhost:8000/settings/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+  useEffect(() => {
+    if (payrollPolicyQuery.data) {
+      setPayrollPolicy({
+        name: payrollPolicyQuery.data.name,
+        payroll_cycle: payrollPolicyQuery.data.payroll_cycle,
+        minimum_overtime_minutes: payrollPolicyQuery.data.minimum_overtime_minutes,
+        allowed_late_minutes: payrollPolicyQuery.data.allowed_late_minutes,
+        default_currency: payrollPolicyQuery.data.default_currency,
+        significant_change_threshold: Number(payrollPolicyQuery.data.significant_change_threshold),
+        paid_vacation_counts_for_daily: payrollPolicyQuery.data.paid_vacation_counts_for_daily,
+        overtime_enabled: payrollPolicyQuery.data.overtime_enabled,
+        late_makeup_enabled: payrollPolicyQuery.data.late_makeup_enabled,
+        late_deduction_enabled: payrollPolicyQuery.data.late_deduction_enabled,
+        auto_recalculate_draft_payroll: payrollPolicyQuery.data.auto_recalculate_draft_payroll,
+        lock_payroll_after_payment: payrollPolicyQuery.data.lock_payroll_after_payment,
+        holidays_json: payrollPolicyQuery.data.holidays_json,
       });
-
-      if (!response.ok) throw new Error('Failed to save settings');
-
-      toast({
-        title: 'Settings saved',
-        description: 'Work hours settings have been updated.',
-      });
-    } catch {
-      toast({
-        title: 'Error',
-        description: 'Failed to update work hours settings.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
     }
-  };
+  }, [payrollPolicyQuery.data]);
+
+  const saveWorkSchedule = useMutation({
+    mutationFn: () => settingsApi.updateWorkSchedule(workSchedule),
+    onSuccess: () => {
+      toast({ title: "Work schedule updated", description: "The default work schedule has been saved." });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to save work schedule",
+        description: getErrorMessage(error, "Please review the submitted values."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const savePayrollPolicy = useMutation({
+    mutationFn: () => settingsApi.updatePayrollPolicy(payrollPolicy),
+    onSuccess: () => {
+      toast({ title: "Payroll policy updated", description: "The payroll policy has been saved." });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to save payroll policy",
+        description: getErrorMessage(error, "Please review the submitted values."),
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="page-title">Settings</h1>
-        <p className="page-description">Configure work hours settings.</p>
-      </div>
+      <PageHeader
+        title="Settings and Policies"
+        description="Admin-only configuration for work schedules and payroll policy settings."
+      />
 
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Shield className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Work Hours Settings</h3>
-        </div>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading settings...</p>
-        ) : (
-          <>
-            <div className="grid gap-6 sm:grid-cols-2 max-w-xl">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Default work schedule</CardTitle>
+            <CardDescription>Backed by `/settings/work-schedule`.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="scheduleName">Schedule name</Label>
+              <Input id="scheduleName" value={workSchedule.name} onChange={(event) => setWorkSchedule((value) => ({ ...value, name: event.target.value }))} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="entryTime">Entry Time</Label>
-                <Input
-                  id="entryTime"
-                  type="time"
-                  value={workSettings.entryTime}
-                  onChange={(e) => setWorkSettings({ ...workSettings, entryTime: e.target.value })}
-                />
+                <Label htmlFor="startTime">Start time</Label>
+                <Input id="startTime" value={workSchedule.start_time.slice(0, 5)} onChange={(event) => setWorkSchedule((value) => ({ ...value, start_time: `${event.target.value}:00` }))} type="time" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="exitTime">Exit Time</Label>
-                <Input
-                  id="exitTime"
-                  type="time"
-                  value={workSettings.exitTime}
-                  onChange={(e) => setWorkSettings({ ...workSettings, exitTime: e.target.value })}
-                />
+                <Label htmlFor="endTime">End time</Label>
+                <Input id="endTime" value={workSchedule.end_time.slice(0, 5)} onChange={(event) => setWorkSchedule((value) => ({ ...value, end_time: `${event.target.value}:00` }))} type="time" />
               </div>
             </div>
-            <div className="mt-6">
-              <Button onClick={handleSaveWorkSettings} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="breakMinutes">Break minutes</Label>
+                <Input id="breakMinutes" type="number" value={workSchedule.break_minutes} onChange={(event) => setWorkSchedule((value) => ({ ...value, break_minutes: Number(event.target.value) }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scheduleTimezone">Timezone</Label>
+                <Input id="scheduleTimezone" value={workSchedule.timezone} onChange={(event) => setWorkSchedule((value) => ({ ...value, timezone: event.target.value }))} />
+              </div>
             </div>
-          </>
-        )}
+            <div className="space-y-2">
+              <Label htmlFor="weeklyOffDays">Weekly off days</Label>
+              <Input
+                id="weeklyOffDays"
+                value={workSchedule.weekly_off_days.join(",")}
+                onChange={(event) =>
+                  setWorkSchedule((value) => ({
+                    ...value,
+                    weekly_off_days: event.target.value
+                      .split(",")
+                      .map((item) => item.trim().toLowerCase())
+                      .filter((item) => workWeekOptions.includes(item as never)),
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">Examples: friday or saturday,sunday</p>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <p className="font-medium">Default schedule</p>
+                <p className="text-sm text-muted-foreground">Keep this schedule as the system default.</p>
+              </div>
+              <Switch checked={workSchedule.is_default} onCheckedChange={(checked) => setWorkSchedule((value) => ({ ...value, is_default: checked }))} />
+            </div>
+            <Button onClick={() => saveWorkSchedule.mutate()} disabled={saveWorkSchedule.isPending}>
+              {saveWorkSchedule.isPending ? "Saving..." : "Save work schedule"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Payroll policy</CardTitle>
+            <CardDescription>Backed by `/settings/payroll-policy`.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="policyName">Policy name</Label>
+                <Input id="policyName" value={payrollPolicy.name} onChange={(event) => setPayrollPolicy((value) => ({ ...value, name: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="policyCycle">Payroll cycle</Label>
+                <Input
+                  id="policyCycle"
+                  value={payrollPolicy.payroll_cycle}
+                  onChange={(event) => setPayrollPolicy((value) => ({ ...value, payroll_cycle: event.target.value }))}
+                  list="payroll-cycles"
+                />
+                <datalist id="payroll-cycles">
+                  {payrollCycles.map((cycle) => (
+                    <option key={cycle} value={cycle} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="overtimeMinutes">Minimum overtime minutes</Label>
+                <Input id="overtimeMinutes" type="number" value={payrollPolicy.minimum_overtime_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, minimum_overtime_minutes: Number(event.target.value) }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="allowedLateMinutes">Allowed late minutes</Label>
+                <Input id="allowedLateMinutes" type="number" value={payrollPolicy.allowed_late_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, allowed_late_minutes: Number(event.target.value) }))} />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Input id="currency" value={payrollPolicy.default_currency} onChange={(event) => setPayrollPolicy((value) => ({ ...value, default_currency: event.target.value.toUpperCase() }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="changeThreshold">Significant change threshold</Label>
+                <Input id="changeThreshold" type="number" step="0.01" value={payrollPolicy.significant_change_threshold} onChange={(event) => setPayrollPolicy((value) => ({ ...value, significant_change_threshold: Number(event.target.value) }))} />
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              {[
+                ["paid_vacation_counts_for_daily", "Count paid vacation for daily payroll"],
+                ["overtime_enabled", "Enable overtime"],
+                ["late_makeup_enabled", "Enable late makeup"],
+                ["late_deduction_enabled", "Enable late deductions"],
+                ["auto_recalculate_draft_payroll", "Auto recalculate draft payroll"],
+                ["lock_payroll_after_payment", "Lock payroll after payment"],
+              ].map(([field, label]) => (
+                <div key={field} className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <span className="text-sm">{label}</span>
+                  <Switch
+                    checked={Boolean(payrollPolicy[field as keyof typeof payrollPolicy])}
+                    onCheckedChange={(checked) => setPayrollPolicy((value) => ({ ...value, [field]: checked }))}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="holidays">Holidays</Label>
+              <Textarea
+                id="holidays"
+                value={payrollPolicy.holidays_json.join("\n")}
+                onChange={(event) =>
+                  setPayrollPolicy((value) => ({
+                    ...value,
+                    holidays_json: event.target.value
+                      .split("\n")
+                      .map((item) => item.trim())
+                      .filter(Boolean),
+                  }))
+                }
+              />
+            </div>
+
+            <Button onClick={() => savePayrollPolicy.mutate()} disabled={savePayrollPolicy.isPending}>
+              {savePayrollPolicy.isPending ? "Saving..." : "Save payroll policy"}
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
-};
-
-export default Settings;
+}

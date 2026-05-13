@@ -1,6 +1,7 @@
-import { Bell, Search, User, LogOut, Settings } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { LogOut, KeyRound } from "lucide-react";
+import { Link } from "react-router-dom";
+
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,19 +9,37 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { MobileNav } from './MobileNav';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import type { NavigationItem } from "@/components/layout/navigation";
+import { MobileNav } from "./MobileNav";
+import { useAuth } from "@/providers/AuthProvider";
+import { formatRoleLabel, getPrimaryRole } from "@/lib/roles";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface TopBarProps {
   sidebarCollapsed: boolean;
+  items: NavigationItem[];
+  brandLabel: string;
 }
 
-export function TopBar({ sidebarCollapsed }: TopBarProps) {
+function initials(label: string) {
+  return label
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+export function TopBar({ sidebarCollapsed, items, brandLabel }: TopBarProps) {
   const isMobile = useIsMobile();
+  const { currentUser, homePath, logout } = useAuth();
+  const primaryRole = getPrimaryRole(currentUser);
+  const displayName = currentUser?.employee?.full_name || currentUser?.username || "User";
 
   return (
     <header
@@ -29,89 +48,48 @@ export function TopBar({ sidebarCollapsed }: TopBarProps) {
         isMobile ? 'left-0' : (sidebarCollapsed ? 'left-16' : 'left-64')
       )}
     >
-      {/* Mobile: Hamburger + Logo */}
       <div className="flex items-center gap-3">
-        <MobileNav />
-        
-        {/* Search - Hidden on mobile, visible on tablet+ */}
-        <div className="relative hidden sm:block sm:w-64 lg:w-80">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search employees..."
-            className="pl-10 bg-muted/50 border-0 focus-visible:ring-1"
-          />
+        <MobileNav items={items} brandLabel={brandLabel} />
+        <div className="hidden sm:block">
+          <p className="text-sm font-semibold text-foreground">{brandLabel}</p>
+          <p className="text-xs text-muted-foreground">Role-aware employee operations</p>
         </div>
       </div>
 
-      {/* Right side */}
       <div className="flex items-center gap-2 md:gap-4">
-        {/* Mobile search button */}
-        <Button variant="ghost" size="icon" className="sm:hidden">
-          <Search className="h-5 w-5" />
-        </Button>
+        <NotificationBell />
 
-        {/* Notifications */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center bg-destructive">
-                3
-              </Badge>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex flex-col items-start gap-1 p-3">
-              <span className="font-medium">New vacation request</span>
-              <span className="text-sm text-muted-foreground">
-                Michael Chen requested 2 days off
-              </span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1 p-3">
-              <span className="font-medium">Payroll pending</span>
-              <span className="text-sm text-muted-foreground">
-                1 payment awaiting approval
-              </span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1 p-3">
-              <span className="font-medium">Attendance alert</span>
-              <span className="text-sm text-muted-foreground">
-                James Wilson marked absent today
-              </span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                  SJ
-                </AvatarFallback>
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm">{initials(displayName)}</AvatarFallback>
               </Avatar>
               <div className="hidden text-left lg:block">
-                <p className="text-sm font-medium">Sarah Johnson</p>
-                <p className="text-xs text-muted-foreground">Admin</p>
+                <p className="text-sm font-medium">{displayName}</p>
+                <p className="text-xs text-muted-foreground">{formatRoleLabel(primaryRole)}</p>
               </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Profile
+            <DropdownMenuItem asChild>
+              <Link to="/change-password">
+                <KeyRound className="mr-2 h-4 w-4" />
+                Change Password
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
+            <DropdownMenuItem asChild>
+              <Link to={currentUser?.employee_id ? "/employee/profile" : homePath}>
+                <span className="mr-2 inline-flex h-4 w-4 items-center justify-center text-xs font-semibold">
+                  @
+                </span>
+                {currentUser?.employee_id ? "My Profile" : "Home"}
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="text-destructive" onClick={() => logout()}>
               <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>

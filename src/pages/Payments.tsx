@@ -1,442 +1,484 @@
-import { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
-import { Plus, Search, Filter, Download, DollarSign, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Calculator, DollarSign, WalletCards } from "lucide-react";
+
+import { EmptyState } from "@/components/app/EmptyState";
+import { MetricCard } from "@/components/app/MetricCard";
+import { PageHeader } from "@/components/app/PageHeader";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { StatusBadge } from '@/components/ui/status-badge';
-import { cn } from '@/lib/utils';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { AddPaymentModal } from '@/components/payments/AddPaymentModal';
-import { toast } from '@/hooks/use-toast';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getErrorMessage } from "@/lib/errors";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { payrollApi } from "@/services/payrollApi";
+import { toast } from "@/hooks/use-toast";
 
-type EmployeeRow = {
-  id: number;
-  fullname: string;
-  job_title: string;
-  dues?: number;
-};
+export default function Payments({ scope }: { scope: "manage" | "self" }) {
+  const queryClient = useQueryClient();
+  const [periodId, setPeriodId] = useState("");
+  const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null }>({
+    type: null,
+    payrollId: null,
+  });
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    employee_payroll_id: "",
+    employee_id: "",
+    adjustment_type: "bonus",
+    amount: "0",
+    reason: "",
+  });
+  const [resolveNotes, setResolveNotes] = useState<Record<number, string>>({});
 
-type PaymentTypeRow = {
-  id: number;
-  payment_type: string;
-};
+  const parsedPeriodId = Number(periodId);
+  const canLoadPayroll = Number.isFinite(parsedPeriodId) && parsedPeriodId > 0;
 
-type PaymentRow = {
-  id: number;
-  employee_id: number;
-  date: string;
-  amount: number;
-  description: string;
-  payment_type: number | string;
-  status?: string;
-};
+  const periodQuery = useQuery({
+    queryKey: ["payroll", "period", parsedPeriodId],
+    queryFn: () => payrollApi.getPeriod(parsedPeriodId),
+    enabled: scope === "manage" && canLoadPayroll,
+  });
 
-type PaymentViewRow = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  employeeJobTitle: string;
-  date: string;
-  amount: number;
-  type: string;
-  description: string;
-  status: string;
-};
+  const selfPayrollQuery = useQuery({
+    queryKey: ["payroll", "self", parsedPeriodId],
+    queryFn: () => payrollApi.getSelfPayroll(parsedPeriodId),
+    enabled: scope === "self" && canLoadPayroll,
+  });
 
-const normalizePaymentType = (value: string) => value.trim().toLowerCase().replace(/\s+/g, '_');
+  const discrepanciesQuery = useQuery({
+    queryKey: ["payroll", "discrepancies", parsedPeriodId],
+    queryFn: () => payrollApi.getDiscrepancies(parsedPeriodId),
+    enabled: scope === "manage" && canLoadPayroll,
+  });
 
-const normalizePaymentStatus = (value: string | undefined) => {
-  const normalized = String(value ?? 'paid').trim().toLowerCase();
-  if (normalized === 'done') return 'paid';
-  return normalized;
-};
+  const historyQuery = useQuery({
+    queryKey: ["payroll", "history", selectedPayrollId],
+    queryFn: () => payrollApi.getHistory(selectedPayrollId as number),
+    enabled: scope === "manage" && Boolean(selectedPayrollId),
+  });
 
-const Payments = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
-  const [paymentTypes, setPaymentTypes] = useState<PaymentTypeRow[]>([]);
-  const [paymentRows, setPaymentRows] = useState<PaymentRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingLookup, setLoadingLookup] = useState(false);
-  const isMobile = useIsMobile();
+  const refreshPayroll = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["payroll"] });
+  };
 
-  const paymentTypeMap = useMemo(
-    () =>
-      paymentTypes.reduce((acc: Record<number, string>, type) => {
-        acc[type.id] = normalizePaymentType(type.payment_type);
-        return acc;
-      }, {}),
-    [paymentTypes]
-  );
-
-  const selectedEmployee = useMemo(() => {
-    const match = employees.find((employee) => String(employee.id) === String(selectedEmployeeId));
-    if (!match) return undefined;
-
-    return {
-      id: String(match.id),
-      fullName: match.fullname,
-      jobTitle: match.job_title,
-      dues: match.dues,
-    };
-  }, [employees, selectedEmployeeId]);
-
-  useEffect(() => {
-    const fetchLookups = async () => {
-      setLoadingLookup(true);
-      try {
-        const [employeesResponse, paymentTypesResponse] = await Promise.all([
-          fetch('http://localhost:8000/employee'),
-          fetch('http://localhost:8000/payment_types/'),
-        ]);
-
-        const employeesJson = await employeesResponse.json();
-        const paymentTypesJson = await paymentTypesResponse.json();
-
-        const mappedEmployees: EmployeeRow[] = (employeesJson?.data || []).map((item: any) => item.Employees);
-        const mappedPaymentTypes: PaymentTypeRow[] = paymentTypesJson?.data || [];
-
-        setEmployees(mappedEmployees);
-        setPaymentTypes(mappedPaymentTypes);
-
-        if (!selectedEmployeeId && mappedEmployees.length > 0) {
-          setSelectedEmployeeId(String(mappedEmployees[0].id));
-        }
-      } catch {
-        setEmployees([]);
-        setPaymentTypes([]);
-        toast({
-          title: 'Error',
-          description: 'Failed to load employees or payment types.',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoadingLookup(false);
-      }
-    };
-
-    fetchLookups();
-  }, []);
-
-  const loadPayments = async () => {
-    if (!startDate || !endDate || startDate > endDate) {
-      setPaymentRows([]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`http://localhost:8000/payment/get_all_payment/${startDate}/${endDate}`);
-      if (!response.ok) {
-        throw new Error('Failed to load payments');
-      }
-
-      const json = await response.json();
-      setPaymentRows((json?.data || []) as PaymentRow[]);
-    } catch {
-      setPaymentRows([]);
+  const recalculatePeriod = useMutation({
+    mutationFn: () => payrollApi.recalculatePeriod(parsedPeriodId),
+    onSuccess: async () => {
+      toast({ title: "Payroll recalculated", description: "The full period payroll was recalculated." });
+      await refreshPayroll();
+    },
+    onError: (error) => {
       toast({
-        title: 'Error',
-        description: 'Failed to load payment records.',
-        variant: 'destructive',
+        title: "Unable to recalculate payroll",
+        description: getErrorMessage(error, "The backend rejected the period recalculation."),
+        variant: "destructive",
       });
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  useEffect(() => {
-    loadPayments();
-  }, [startDate, endDate]);
+  const recalculateEmployee = useMutation({
+    mutationFn: ({ employeeId }: { employeeId: number }) => payrollApi.recalculateEmployee(employeeId, parsedPeriodId),
+    onSuccess: async () => {
+      toast({ title: "Employee payroll recalculated", description: "The selected payroll row was recalculated." });
+      await refreshPayroll();
+    },
+  });
 
-  const paymentViewRows = useMemo<PaymentViewRow[]>(() => {
-    return paymentRows.map((payment) => {
-      const employee = employees.find((item) => Number(item.id) === Number(payment.employee_id));
-      const typeLabel = paymentTypeMap[Number(payment.payment_type)] ?? String(payment.payment_type);
+  const approvePayroll = useMutation({
+    mutationFn: (employeePayrollId: number) => payrollApi.approve(employeePayrollId),
+    onSuccess: async () => {
+      toast({ title: "Payroll approved", description: "The payroll row is now approved." });
+      setConfirmAction({ type: null, payrollId: null });
+      await refreshPayroll();
+    },
+  });
 
-      return {
-        id: String(payment.id),
-        employeeId: String(payment.employee_id),
-        employeeName: employee?.fullname ?? `Employee #${payment.employee_id}`,
-        employeeJobTitle: employee?.job_title ?? '-',
-        date: String(payment.date).split('T')[0],
-        amount: Number(payment.amount ?? 0),
-        type: typeLabel,
-        description: payment.description ?? '',
-        status: normalizePaymentStatus(payment.status),
-      };
-    });
-  }, [paymentRows, employees, paymentTypeMap]);
+  const markPayrollPaid = useMutation({
+    mutationFn: (employeePayrollId: number) => payrollApi.markPaid(employeePayrollId),
+    onSuccess: async () => {
+      toast({ title: "Payroll marked paid", description: "The payroll row is now marked as paid." });
+      setConfirmAction({ type: null, payrollId: null });
+      await refreshPayroll();
+    },
+  });
 
-  const filteredPayments = useMemo(() => {
-    return paymentViewRows.filter((payment) => {
-      const matchesSearch = payment.employeeName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter === 'all' || payment.type === typeFilter;
-      const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
-      return matchesSearch && matchesType && matchesStatus;
-    });
-  }, [paymentViewRows, searchQuery, typeFilter, statusFilter]);
+  const addAdjustment = useMutation({
+    mutationFn: () =>
+      payrollApi.addAdjustment({
+        employee_payroll_id: Number(adjustmentForm.employee_payroll_id),
+        payroll_period_id: parsedPeriodId,
+        employee_id: Number(adjustmentForm.employee_id),
+        adjustment_type: adjustmentForm.adjustment_type,
+        amount: Number(adjustmentForm.amount),
+        reason: adjustmentForm.reason,
+      }),
+    onSuccess: async () => {
+      toast({ title: "Adjustment added", description: "The payroll adjustment was sent to the backend." });
+      setAdjustmentOpen(false);
+      setAdjustmentForm({
+        employee_payroll_id: "",
+        employee_id: "",
+        adjustment_type: "bonus",
+        amount: "0",
+        reason: "",
+      });
+      await refreshPayroll();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to add adjustment",
+        description: getErrorMessage(error, "Please review the adjustment data."),
+        variant: "destructive",
+      });
+    },
+  });
 
-  const stats = useMemo(() => {
-    const rangePayments = paymentViewRows;
-    return {
-      totalSalaries: rangePayments.filter((p) => p.type === 'salary').reduce((sum, p) => sum + p.amount, 0),
-      totalBonuses: rangePayments.filter((p) => p.type === 'bonus').reduce((sum, p) => sum + p.amount, 0),
-      totalDeductions: rangePayments.filter((p) => p.type === 'deduction').reduce((sum, p) => sum + Math.abs(p.amount), 0),
-      pendingAmount: rangePayments.filter((p) => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0),
-    };
-  }, [paymentViewRows]);
+  const resolveDiscrepancy = useMutation({
+    mutationFn: ({ discrepancyId, note }: { discrepancyId: number; note: string }) => payrollApi.resolveDiscrepancy(discrepancyId, note),
+    onSuccess: async () => {
+      toast({ title: "Discrepancy resolved", description: "The discrepancy was marked as resolved." });
+      await refreshPayroll();
+    },
+  });
 
-  const handleAddPayment = () => {
-    setModalOpen(true);
-  };
-
-  const drawerEmployees = useMemo(
-    () =>
-      employees.map((employee) => ({
-        id: String(employee.id),
-        fullName: employee.fullname,
-        jobTitle: employee.job_title,
-        dues: employee.dues,
-      })),
-    [employees]
-  );
+  const payrollRows = useMemo(() => periodQuery.data?.payrolls ?? [], [periodQuery.data?.payrolls]);
+  const warningOpenDiscrepancies = (discrepanciesQuery.data || []).filter((item) => item.status !== "resolved").length;
+  const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
+  const selfPayroll = selfPayrollQuery.data;
 
   return (
-    <div className="space-y-4 md:space-y-6 animate-fade-in">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="page-title text-xl md:text-2xl">Payments</h1>
-          <p className="page-description text-sm md:text-base">Manage payroll, bonuses, and deductions.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-          <Button size="sm" className="flex-1 sm:flex-none" onClick={handleAddPayment}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add<span className="hidden sm:inline"> Payment</span>
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title={scope === "manage" ? "Payroll Overview" : "My Payroll"}
+        description={
+          scope === "manage"
+            ? "Review payroll by period id, recalculate, approve, add adjustments, and resolve discrepancies."
+            : "View your own payroll summary. The backend requires a valid `period_id`."
+        }
+        actions={
+          <>
+            <Input className="w-40" value={periodId} onChange={(event) => setPeriodId(event.target.value)} placeholder="Period ID" />
+            {scope === "manage" ? (
+              <Button variant="outline" onClick={() => recalculatePeriod.mutate()} disabled={!canLoadPayroll || recalculatePeriod.isPending}>
+                {recalculatePeriod.isPending ? "Recalculating..." : "Recalculate period"}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-4 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-success/10 flex items-center justify-center shrink-0">
-              <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-success" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Salaries</p>
-              <p className="text-lg md:text-2xl font-bold truncate">{stats.totalSalaries.toLocaleString()} DA</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-info/10 flex items-center justify-center shrink-0">
-              <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-info" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Bonuses</p>
-              <p className="text-lg md:text-2xl font-bold truncate">{stats.totalBonuses.toLocaleString()} DA</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
-              <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-warning" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Deductions</p>
-              <p className="text-lg md:text-2xl font-bold truncate">{stats.totalDeductions.toLocaleString()} DA</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-muted flex items-center justify-center shrink-0">
-              <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-muted-foreground" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Pending</p>
-              <p className="text-lg md:text-2xl font-bold truncate">{stats.pendingAmount.toLocaleString()} DA</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 md:p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="startDate">Start Date</Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="endDate">End Date</Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-        </div>
-        {startDate && endDate && startDate > endDate && (
-          <p className="text-sm text-destructive">Start date must be before end date.</p>
-        )}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by employee name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="flex-1 min-w-[120px] sm:w-36 sm:flex-none">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="salary">Salary</SelectItem>
-              <SelectItem value="bonus">Bonus</SelectItem>
-              <SelectItem value="deduction">Deduction</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 min-w-[120px] sm:w-36 sm:flex-none">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="paid">Paid</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {loading || loadingLookup ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
-          Loading payments...
-        </div>
-      ) : isMobile ? (
-        <div className="grid gap-3">
-          {filteredPayments.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
-              No payment records found
-            </div>
-          ) : filteredPayments.map((payment) => (
-            <div key={payment.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold">{payment.employeeName}</p>
-                <StatusBadge status={payment.status} />
+      {!canLoadPayroll ? (
+        <EmptyState
+          title="Payroll period required"
+          description="The backend exposes period-based payroll endpoints but does not currently expose a payroll period list endpoint for the frontend."
+        />
+      ) : scope === "self" ? (
+        <>
+          {selfPayroll ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Status" value={<StatusBadge status={selfPayroll.status} />} icon={WalletCards} />
+                <MetricCard label="Net salary" value={formatCurrency(selfPayroll.net_salary)} icon={DollarSign} tone="success" />
+                <MetricCard label="Gross salary" value={formatCurrency(selfPayroll.gross_salary)} icon={Calculator} tone="info" />
+                <MetricCard label="Adjustments" value={formatCurrency(selfPayroll.adjustment_amount)} icon={AlertTriangle} tone="warning" />
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground capitalize">{payment.type}</span>
-                <span className={cn(
-                  'text-lg font-bold',
-                  payment.type === 'deduction' ? 'text-destructive' : 'text-success'
-                )}>
-                  {payment.type === 'deduction' ? '-' : '+'}{Math.abs(payment.amount).toLocaleString()} DA
-                </span>
-              </div>
-              <div className="text-sm">
-                <p className="text-muted-foreground">{payment.date}</p>
-                <p className="text-muted-foreground truncate">{payment.description}</p>
-              </div>
-              <p className="text-xs text-muted-foreground">{payment.employeeJobTitle}</p>
-            </div>
-          ))}
-        </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payroll summary</CardTitle>
+                  <CardDescription>Loaded from `/me/payroll?period_id={parsedPeriodId}`.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Base salary</p>
+                    <p className="font-medium">{formatCurrency(selfPayroll.base_salary)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Overtime</p>
+                    <p className="font-medium">{formatCurrency(selfPayroll.overtime_amount)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Late deductions</p>
+                    <p className="font-medium">{formatCurrency(selfPayroll.late_deduction_amount)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Approved at</p>
+                    <p className="font-medium">{formatDateTime(selfPayroll.approved_at)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Paid at</p>
+                    <p className="font-medium">{formatDateTime(selfPayroll.paid_at)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Notes</p>
+                    <p className="font-medium">{selfPayroll.notes || "-"}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <EmptyState
+              title={selfPayrollQuery.isLoading ? "Loading payroll..." : "No payroll found for this period"}
+              description="Try another period id if the current one does not have payroll data."
+            />
+          )}
+        </>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden overflow-x-auto">
-          <table className="data-table w-full table-fixed">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Date</th>
-                <th>Amount</th>
-                <th>Type</th>
-                <th className="hidden lg:table-cell">Description</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPayments.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-muted-foreground">No payment records found</td>
-                </tr>
-              ) : filteredPayments.map((payment) => (
-                <tr key={payment.id}>
-                  <td className="font-medium">{payment.employeeName}</td>
-                  <td>{payment.date}</td>
-                  <td className={cn(
-                    'font-semibold',
-                    payment.type === 'deduction' ? 'text-destructive' : 'text-success'
-                  )}>
-                    {payment.type === 'deduction' ? '-' : '+'}{Math.abs(payment.amount).toLocaleString()} DA
-                  </td>
-                  <td className="capitalize">{payment.type}</td>
-                  <td className="text-muted-foreground hidden lg:table-cell">{payment.description}</td>
-                  <td>
-                    <StatusBadge status={payment.status} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Period" value={periodQuery.data?.name || parsedPeriodId} icon={WalletCards} />
+            <MetricCard label="Payroll rows" value={payrollRows.length} icon={Calculator} tone="success" />
+            <MetricCard label="Discrepancies" value={(discrepanciesQuery.data || []).length} icon={AlertTriangle} tone="warning" />
+            <MetricCard label="Open warnings" value={warningOpenDiscrepancies} icon={AlertTriangle} tone="danger" />
+          </div>
+
+          {warningOpenDiscrepancies > 0 ? (
+            <Card className="border-warning/40">
+              <CardContent className="p-4 text-sm">
+                Payroll warning: this period has open discrepancies. Review them before final approval or payment.
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Payroll rows</CardTitle>
+              <CardDescription>Use the buttons below for recalculate, approve, payment marking, history, and adjustments.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {payrollRows.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee ID</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Net</TableHead>
+                      <TableHead>Gross</TableHead>
+                      <TableHead>Calculated</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payrollRows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.employee_id}</TableCell>
+                        <TableCell><StatusBadge status={row.status} /></TableCell>
+                        <TableCell>{formatCurrency(row.net_salary)}</TableCell>
+                        <TableCell>{formatCurrency(row.gross_salary)}</TableCell>
+                        <TableCell>{formatDateTime(row.calculated_at)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="outline" onClick={() => recalculateEmployee.mutate({ employeeId: row.employee_id })}>
+                              Recalculate
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ type: "approve", payrollId: row.id })}>
+                              Approve
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ type: "paid", payrollId: row.id })}>
+                              Mark paid
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedPayrollId(row.id);
+                                setAdjustmentForm({
+                                  employee_payroll_id: String(row.id),
+                                  employee_id: String(row.employee_id),
+                                  adjustment_type: "bonus",
+                                  amount: "0",
+                                  reason: "",
+                                });
+                                setAdjustmentOpen(true);
+                              }}
+                            >
+                              Adjust
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <EmptyState
+                  title={periodQuery.isLoading ? "Loading payroll..." : "No payroll rows found"}
+                  description="Use a valid period id to load the payroll period and its employee rows."
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Discrepancies</CardTitle>
+                <CardDescription>Loaded from `/payroll/discrepancies/{parsedPeriodId}`.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(discrepanciesQuery.data || []).length ? (
+                  discrepanciesQuery.data?.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{item.description}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Employee #{item.employee_id} • {item.discrepancy_type} • {item.severity}
+                          </p>
+                        </div>
+                        <StatusBadge status={item.status} />
+                      </div>
+                      {item.status !== "resolved" ? (
+                        <div className="mt-3 flex gap-2">
+                          <Input
+                            placeholder="Resolution note"
+                            value={resolveNotes[item.id] || ""}
+                            onChange={(event) => setResolveNotes((value) => ({ ...value, [item.id]: event.target.value }))}
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => resolveDiscrepancy.mutate({ discrepancyId: item.id, note: resolveNotes[item.id] || "Resolved in frontend review." })}
+                          >
+                            Resolve
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState
+                    title={discrepanciesQuery.isLoading ? "Loading discrepancies..." : "No discrepancies found"}
+                    description="Open payroll discrepancies will appear here for the selected period."
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Payroll history</CardTitle>
+                <CardDescription>Select a payroll row and open adjustment/history actions to review backend history.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedPayroll ? (
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="font-medium">Selected payroll #{selectedPayroll.id}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Employee #{selectedPayroll.employee_id} • Period {selectedPayroll.payroll_period_id}
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {(historyQuery.data || []).length ? (
+                        historyQuery.data?.map((item) => (
+                          <div key={item.id} className="rounded-md border border-border p-3">
+                            <p className="text-sm font-medium">{item.reason}</p>
+                            <p className="text-xs text-muted-foreground">{formatDateTime(item.created_at)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Gross {formatCurrency(item.old_gross_salary)} → {formatCurrency(item.new_gross_salary)}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {historyQuery.isLoading ? "Loading history..." : "No history returned for this payroll row yet."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyState title="No payroll row selected" description="Open Adjust on a payroll row to inspect and add a payroll adjustment." />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
 
-      {/* Add Payment Modal */}
-      <AddPaymentModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        employee={selectedEmployee}
-        employees={drawerEmployees}
-        selectedEmployeeId={selectedEmployeeId}
-        onEmployeeChange={setSelectedEmployeeId}
-        onSuccess={loadPayments}
-      />
+      <Dialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Payroll adjustment</DialogTitle>
+            <DialogDescription>Add a backend payroll adjustment when the selected payroll row needs a manual correction.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="adjustmentPayrollId">Employee payroll ID</Label>
+              <Input id="adjustmentPayrollId" value={adjustmentForm.employee_payroll_id} onChange={(event) => setAdjustmentForm((value) => ({ ...value, employee_payroll_id: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjustmentEmployeeId">Employee ID</Label>
+              <Input id="adjustmentEmployeeId" value={adjustmentForm.employee_id} onChange={(event) => setAdjustmentForm((value) => ({ ...value, employee_id: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjustmentType">Adjustment type</Label>
+              <Input id="adjustmentType" value={adjustmentForm.adjustment_type} onChange={(event) => setAdjustmentForm((value) => ({ ...value, adjustment_type: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjustmentAmount">Amount</Label>
+              <Input id="adjustmentAmount" type="number" step="0.01" value={adjustmentForm.amount} onChange={(event) => setAdjustmentForm((value) => ({ ...value, amount: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjustmentReason">Reason</Label>
+              <Textarea id="adjustmentReason" value={adjustmentForm.reason} onChange={(event) => setAdjustmentForm((value) => ({ ...value, reason: event.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustmentOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => addAdjustment.mutate()} disabled={addAdjustment.isPending}>
+              {addAdjustment.isPending ? "Saving..." : "Add adjustment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(confirmAction.type && confirmAction.payrollId)} onOpenChange={(open) => !open && setConfirmAction({ type: null, payrollId: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmAction.type === "approve" ? "Approve payroll" : "Mark payroll paid"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction.type === "approve"
+                ? "This confirms the payroll row after review."
+                : "This marks the payroll as paid and may lock it depending on backend policy."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                confirmAction.payrollId &&
+                (confirmAction.type === "approve"
+                  ? approvePayroll.mutate(confirmAction.payrollId)
+                  : markPayrollPaid.mutate(confirmAction.payrollId))
+              }
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
-};
-
-export default Payments;
+}

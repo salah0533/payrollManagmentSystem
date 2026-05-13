@@ -1,0 +1,448 @@
+export type RoleCode = "admin" | "hr" | "employee" | string;
+
+export interface Permission {
+  id: number;
+  code: string;
+  name: string;
+  description?: string | null;
+  module?: string | null;
+}
+
+export interface Role {
+  id: number;
+  code: string;
+  name: string;
+  description?: string | null;
+  is_system_role: boolean;
+  permissions: Permission[];
+}
+
+export interface AuthMeEmployee {
+  id: number;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email?: string | null;
+  position?: string | null;
+  status: string;
+}
+
+export interface CurrentUser {
+  id: number;
+  employee_id: number | null;
+  username: string;
+  email?: string | null;
+  is_active: boolean;
+  must_change_password: boolean;
+  last_login_at?: string | null;
+  roles: RoleCode[];
+  permissions: string[];
+  employee?: AuthMeEmployee | null;
+}
+
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in_seconds: number;
+  refresh_expires_in_seconds: number;
+  must_change_password: boolean;
+}
+
+export interface User {
+  id: number;
+  employee_id: number | null;
+  username: string;
+  email?: string | null;
+  is_active: boolean;
+  must_change_password: boolean;
+  last_login_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  roles: Role[];
+}
+
+export interface Employee {
+  id: number;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email?: string | null;
+  phone: string;
+  department_id?: number | null;
+  position?: string | null;
+  status: string;
+  hire_date?: string | null;
+  dues: number | string;
+  salary_type: number;
+  monthly_price: number | string;
+  day_price: number | string;
+  hour_price: number | string;
+  extra_hours_price: number | string;
+  vacation_days: number;
+  daily_work_hours: number;
+  allowed_late: number | string;
+  min_extraTime: number | string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  user_id?: number | null;
+}
+
+export interface SalaryType {
+  id: number;
+  salary_type: string;
+}
+
+export interface AttendanceEvent {
+  id: number;
+  employee_id: number;
+  attendance_day_id?: number | null;
+  event_type: string;
+  event_time: string;
+  source: string;
+  note?: string | null;
+  created_at: string;
+  created_by?: number | null;
+}
+
+export interface AttendanceDay {
+  id: number;
+  employee_id: number;
+  work_date: string;
+  work_schedule_id?: number | null;
+  check_in_time?: string | null;
+  break_start_time?: string | null;
+  break_end_time?: string | null;
+  check_out_time?: string | null;
+  expected_work_minutes: number;
+  actual_work_minutes: number;
+  break_minutes: number;
+  normal_paid_minutes: number;
+  late_minutes: number;
+  early_leave_minutes: number;
+  late_makeup_minutes: number;
+  overtime_minutes: number;
+  absence_minutes: number;
+  unpaid_minutes: number;
+  status: string;
+  is_manually_corrected: boolean;
+  calculated_at: string;
+  created_at: string;
+  updated_at: string;
+  events: AttendanceEvent[];
+}
+
+export interface AttendanceType {
+  id: number;
+  attendence_type: string;
+}
+
+export interface AttendanceListRow {
+  id: number;
+  exit_time?: string | null;
+  attendence_type: number;
+  employee_id: number;
+  entry_time?: string | null;
+  date: string;
+}
+
+export interface AttendanceActionPayload {
+  event_time?: string;
+  note?: string;
+}
+
+export interface AttendanceActionResult {
+  event: AttendanceEvent;
+  attendance_day: AttendanceDay;
+}
+
+export interface AttendanceCorrectionPayload {
+  employee_id: number;
+  work_date: string;
+  field_changed: string;
+  new_value?: string | null;
+  original_event_id?: number | null;
+  reason: string;
+}
+
+export interface VacationType {
+  id: number;
+  vacation_type: string;
+}
+
+export interface VacationStatus {
+  id: number;
+  vacation_status: string;
+}
+
+export interface Vacation {
+  id: number;
+  employee_id: number;
+  start_date: string;
+  end_date: string;
+  vacation_type: number | string;
+  vacation_status: number | string;
+  is_paid?: boolean;
+  reason?: string | null;
+}
+
+export interface SelfVacationRequestPayload {
+  start_date: string;
+  end_date: string;
+  vacation_type: number;
+  is_paid: boolean;
+}
+
+export interface VacationPayload extends SelfVacationRequestPayload {
+  employee_id: number;
+  vacation_status: number;
+}
+
+export interface VacationUpdatePayload {
+  id: number;
+  employee_id?: number;
+  start_date?: string;
+  end_date?: string;
+  vacation_type?: number;
+  vacation_status?: number;
+  is_paid?: boolean;
+}
+
+export interface EmployeePayroll {
+  id: number;
+  payroll_period_id: number;
+  employee_id: number;
+  salary_type: string;
+  base_salary: number | string;
+  normal_amount: number | string;
+  overtime_amount: number | string;
+  bonus_amount: number | string;
+  deduction_amount: number | string;
+  late_deduction_amount: number | string;
+  unpaid_vacation_deduction: number | string;
+  adjustment_amount: number | string;
+  gross_salary: number | string;
+  net_salary: number | string;
+  status: string;
+  calculated_at: string;
+  reviewed_at?: string | null;
+  approved_at?: string | null;
+  paid_at?: string | null;
+  notes?: string | null;
+}
+
+export interface PayrollPeriod {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  generated_at: string;
+  reviewed_at?: string | null;
+  approved_at?: string | null;
+  approved_by?: number | null;
+  paid_at?: string | null;
+  locked_at?: string | null;
+  payrolls: EmployeePayroll[];
+}
+
+export interface PayrollDiscrepancy {
+  id: number;
+  employee_payroll_id?: number | null;
+  payroll_period_id: number;
+  employee_id: number;
+  discrepancy_type: string;
+  description: string;
+  severity: string;
+  status: string;
+  created_at: string;
+  resolved_at?: string | null;
+  resolved_by?: number | null;
+  resolution_note?: string | null;
+}
+
+export interface PayrollHistory {
+  id: number;
+  employee_payroll_id: number;
+  payroll_period_id: number;
+  employee_id: number;
+  old_gross_salary?: number | string | null;
+  new_gross_salary: number | string;
+  old_net_salary?: number | string | null;
+  new_net_salary: number | string;
+  reason: string;
+  calculation_data_json: Record<string, unknown>;
+  created_at: string;
+  created_by?: number | null;
+}
+
+export interface PayrollAdjustmentPayload {
+  employee_payroll_id: number;
+  payroll_period_id: number;
+  employee_id: number;
+  adjustment_type: string;
+  amount: number;
+  reason: string;
+}
+
+export interface UserNotification {
+  notification_id: string;
+  recipient_id: string;
+  notification_type: string;
+  title: string;
+  message: string;
+  entity_type?: string | null;
+  entity_id?: number | null;
+  actor_user_id?: number | null;
+  priority: string;
+  created_at: string;
+  expires_at?: string | null;
+  is_read: boolean;
+  read_at?: string | null;
+  is_archived: boolean;
+  archived_at?: string | null;
+  recipient_created_at: string;
+}
+
+export interface UserNotificationList {
+  items: UserNotification[];
+  total: number;
+  unread_count: number;
+  limit: number;
+  offset: number;
+}
+
+export interface NotificationUnreadCount {
+  unread_count: number;
+}
+
+export interface NotificationActionResult {
+  notification_id?: string | null;
+  updated?: number | null;
+  status: string;
+}
+
+export interface AdminNotification {
+  id: string;
+  notification_type: string;
+  title: string;
+  message: string;
+  entity_type?: string | null;
+  entity_id?: number | null;
+  actor_user_id?: number | null;
+  priority: string;
+  created_at: string;
+  expires_at?: string | null;
+  recipient_count: number;
+  read_count: number;
+  archived_count: number;
+}
+
+export interface AdminNotificationList {
+  items: AdminNotification[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface WorkSchedule {
+  id: number;
+  name: string;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+  weekly_off_days: string[];
+  timezone: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkSchedulePayload {
+  name: string;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+  weekly_off_days: string[];
+  timezone: string;
+  is_default: boolean;
+}
+
+export interface PayrollPolicy {
+  id: number;
+  name: string;
+  payroll_cycle: string;
+  minimum_overtime_minutes: number;
+  allowed_late_minutes: number;
+  default_currency: string;
+  significant_change_threshold: number | string;
+  paid_vacation_counts_for_daily: boolean;
+  overtime_enabled: boolean;
+  late_makeup_enabled: boolean;
+  late_deduction_enabled: boolean;
+  auto_recalculate_draft_payroll: boolean;
+  lock_payroll_after_payment: boolean;
+  holidays_json: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollPolicyPayload {
+  name: string;
+  payroll_cycle: string;
+  minimum_overtime_minutes: number;
+  allowed_late_minutes: number;
+  default_currency: string;
+  significant_change_threshold: number;
+  paid_vacation_counts_for_daily: boolean;
+  overtime_enabled: boolean;
+  late_makeup_enabled: boolean;
+  late_deduction_enabled: boolean;
+  auto_recalculate_draft_payroll: boolean;
+  lock_payroll_after_payment: boolean;
+  holidays_json: string[];
+}
+
+export interface AuditLog {
+  id: number;
+  user_id?: number | null;
+  action: string;
+  entity_type: string;
+  entity_id?: number | null;
+  old_data_json?: Record<string, unknown> | null;
+  new_data_json?: Record<string, unknown> | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  created_at: string;
+}
+
+export interface DashboardStats {
+  total_emps: number;
+  total_active_emps: number;
+  total_att_percent: number;
+  total_vacation: number;
+}
+
+export interface ApiEnvelope<T> {
+  message: string;
+  data: T;
+  status: boolean;
+}
+
+export interface ApiValidationError {
+  field: string;
+  message: string;
+}
+
+export interface NotificationDispatchPayload {
+  notification_type: string;
+  title: string;
+  message: string;
+  user_ids: number[];
+  role_codes: string[];
+  entity_type?: string;
+  entity_id?: number;
+  priority: string;
+  expires_at?: string | null;
+}

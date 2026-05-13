@@ -1,448 +1,396 @@
-import { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
-import { Plus, Search, Filter, CheckCircle, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { endOfMonth, startOfMonth } from "date-fns";
+import { CheckCircle2, RotateCcw } from "lucide-react";
+
+import { EmptyState } from "@/components/app/EmptyState";
+import { MetricCard } from "@/components/app/MetricCard";
+import { PageHeader } from "@/components/app/PageHeader";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { StatusBadge } from '@/components/ui/status-badge';
-import { Badge } from '@/components/ui/badge';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { AddAttendanceDrawer } from '@/components/attendance/AddAttendanceDrawer';
-import { toast } from '@/hooks/use-toast';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getErrorMessage } from "@/lib/errors";
+import { formatDate, formatMinutes, formatTime, toIsoDate } from "@/lib/format";
+import { attendanceApi } from "@/services/attendanceApi";
+import { employeeApi } from "@/services/employeeApi";
+import { toast } from "@/hooks/use-toast";
 
-type EmployeeRow = {
-  id: number;
-  fullname: string;
-  job_title: string;
-  daily_work_hours?: number;
-};
+export default function Attendance({ scope }: { scope: "manage" | "self" }) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState(toIsoDate(new Date()));
+  const [range, setRange] = useState({
+    start_date: toIsoDate(startOfMonth(new Date())),
+    end_date: toIsoDate(endOfMonth(new Date())),
+  });
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionForm, setCorrectionForm] = useState({
+    employee_id: "",
+    work_date: "",
+    field_changed: "check_in_time",
+    new_value: "",
+    reason: "",
+  });
 
-type AttendanceTypeRow = {
-  id: number;
-  attendence_type: string;
-};
+  const employeesQuery = useQuery({
+    queryKey: ["attendance", "employees"],
+    queryFn: () => employeeApi.list(),
+    enabled: scope === "manage",
+  });
 
-type AttendanceRow = {
-  id: number;
-  exit_time: string | null;
-  attendence_type: number;
-  employee_id: number;
-  entry_time: string | null;
-  date: string;
-};
+  const attendanceTypesQuery = useQuery({
+    queryKey: ["attendance", "types"],
+    queryFn: () => attendanceApi.getTypes(),
+    enabled: scope === "manage",
+  });
 
-type AttendanceViewRow = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  employeeJobTitle: string;
-  date: string;
-  entryTime: string | null;
-  exitTime: string | null;
-  workedHours: number;
-  type: string;
-  isAuto: boolean;
-};
+  const dailyAttendanceQuery = useQuery({
+    queryKey: ["attendance", "manage", dateFilter],
+    queryFn: () => attendanceApi.listByDate(dateFilter),
+    enabled: scope === "manage",
+  });
 
-const normalizeAttendanceType = (value: string) => {
-  const lowered = value.trim().toLowerCase().replace(/\s+/g, '_');
-  if (lowered === 'over_time') return 'overtime';
-  return lowered;
-};
+  const selfAttendanceQuery = useQuery({
+    queryKey: ["attendance", "self", range.start_date, range.end_date],
+    queryFn: () => attendanceApi.selfList(range.start_date, range.end_date),
+    enabled: scope === "self",
+  });
 
-const toTimeDisplay = (time: string | null) => {
-  if (!time) return null;
-  return String(time).slice(0, 5);
-};
-
-const getWorkedHours = (entryTime: string | null, exitTime: string | null) => {
-  if (!entryTime || !exitTime) return 0;
-
-  const [eH, eM] = entryTime.slice(0, 5).split(':').map(Number);
-  const [xH, xM] = exitTime.slice(0, 5).split(':').map(Number);
-  const diff = (xH * 60 + xM) - (eH * 60 + eM);
-
-  if (diff <= 0) return 0;
-  return Math.round((diff / 60) * 100) / 100;
-};
-
-const Attendance = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
-  const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
-  const [attTypeMap, setAttTypeMap] = useState<Record<number, string>>({});
-  const [loading, setLoading] = useState(false);
-  const [markingAllPresent, setMarkingAllPresent] = useState(false);
-  const isMobile = useIsMobile();
-
-  useEffect(() => {
-    const fetchEmployeesAndTypes = async () => {
-      try {
-        const [employeesRes, typesRes] = await Promise.all([
-          fetch('http://localhost:8000/employee'),
-          fetch('http://localhost:8000/att_types/'),
-        ]);
-
-        const employeesJson = await employeesRes.json();
-        const typesJson = await typesRes.json();
-
-        const employeeRows: EmployeeRow[] = (employeesJson?.data || []).map((row: any) => row.Employees);
-        const typeRows: AttendanceTypeRow[] = typesJson?.data || [];
-
-        setEmployees(employeeRows);
-        if (!selectedEmployeeId && employeeRows.length > 0) {
-          setSelectedEmployeeId(String(employeeRows[0].id));
-        }
-
-        const map = typeRows.reduce((acc: Record<number, string>, typeRow) => {
-          acc[typeRow.id] = normalizeAttendanceType(typeRow.attendence_type);
-          return acc;
-        }, {});
-        setAttTypeMap(map);
-      } catch {
-        setEmployees([]);
-        setAttTypeMap({});
-      }
-    };
-
-    fetchEmployeesAndTypes();
-  }, []);
-
-  const loadAttendanceForDate = async (date: string) => {
-    if (!date) {
-      setAttendanceRows([]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch(`http://localhost:8000/attendance/emps/${date}`);
-      const json = await res.json();
-      setAttendanceRows(json?.data || []);
-    } catch {
-      setAttendanceRows([]);
-      toast({
-        title: 'Error',
-        description: 'Failed to load attendance records.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAttendanceForDate(dateFilter);
-  }, [dateFilter]);
-
-  const rowsForView = useMemo<AttendanceViewRow[]>(() => {
-    return attendanceRows.map((row) => {
-      const employee = employees.find((emp) => Number(emp.id) === Number(row.employee_id));
-      const type = attTypeMap[row.attendence_type] ?? String(row.attendence_type);
-      const entryTime = toTimeDisplay(row.entry_time);
-      const exitTime = toTimeDisplay(row.exit_time);
-
-      return {
-        id: String(row.id),
-        employeeId: String(row.employee_id),
-        employeeName: employee?.fullname ?? `Employee #${row.employee_id}`,
-        employeeJobTitle: employee?.job_title ?? '-',
-        date: row.date,
-        entryTime,
-        exitTime,
-        workedHours: getWorkedHours(entryTime, exitTime),
-        type,
-        isAuto: false,
-      };
-    });
-  }, [attendanceRows, employees, attTypeMap]);
-
-  const filteredRecords = useMemo(() => {
-    return rowsForView.filter((record) => {
-      const matchesSearch = record.employeeName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter === 'all' || record.type === typeFilter;
-      return matchesSearch && matchesType;
-    });
-  }, [rowsForView, searchQuery, typeFilter]);
-
-  const todayStats = useMemo(() => {
-    return {
-      present: filteredRecords.filter((r) => r.type === 'present').length,
-      late: filteredRecords.filter((r) => r.type === 'late').length,
-      absent: filteredRecords.filter((r) => r.type === 'absent').length,
-      vacation: filteredRecords.filter((r) => r.type === 'vacation').length,
-    };
-  }, [filteredRecords]);
-
-  const selectedEmployee = useMemo(() => {
-    if (!selectedEmployeeId) return undefined;
-    const emp = employees.find((item) => String(item.id) === String(selectedEmployeeId));
-    if (!emp) return undefined;
-
-    return {
-      id: String(emp.id),
-      fullName: emp.fullname,
-      jobTitle: emp.job_title,
-      dailyWorkHours: emp.daily_work_hours ?? 8,
-    };
-  }, [selectedEmployeeId, employees]);
-
-  const drawerEmployees = useMemo(
-    () =>
-      employees.map((emp) => ({
-        id: String(emp.id),
-        fullName: emp.fullname,
-        jobTitle: emp.job_title,
-        dailyWorkHours: emp.daily_work_hours ?? 8,
-      })),
-    [employees]
+  const employeeMap = useMemo(
+    () => Object.fromEntries((employeesQuery.data || []).map((employee) => [employee.id, employee])),
+    [employeesQuery.data],
   );
 
-  const handleMarkAllPresent = async () => {
-    setMarkingAllPresent(true);
-    try {
-      let response = await fetch('http://localhost:8000/attendance/mark_all_present', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dateFilter }),
-      });
+  const attendanceTypeMap = useMemo(
+    () => Object.fromEntries((attendanceTypesQuery.data || []).map((item) => [item.id, item.attendence_type.toLowerCase().replace(/\s+/g, "_")])),
+    [attendanceTypesQuery.data],
+  );
 
-      if (!response.ok && (response.status === 404 || response.status === 405)) {
-        response = await fetch('http://localhost:8000/attendance/mark_all_present', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date: dateFilter }),
-        });
-      }
+  const filteredDailyRows = useMemo(() => {
+    return (dailyAttendanceQuery.data || []).filter((row) => {
+      const employee = employeeMap[row.employee_id];
+      const type = attendanceTypeMap[row.attendence_type] || String(row.attendence_type);
+      const employeeName = employee?.full_name || `Employee #${row.employee_id}`;
+      const matchesSearch = employeeName.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = !statusFilter || type.includes(statusFilter.toLowerCase());
+      return matchesSearch && matchesStatus;
+    });
+  }, [attendanceTypeMap, dailyAttendanceQuery.data, employeeMap, search, statusFilter]);
 
-      if (!response.ok) {
-        throw new Error('Failed to mark all present');
-      }
+  const selfRows = useMemo(() => selfAttendanceQuery.data ?? [], [selfAttendanceQuery.data]);
 
-      const json = await response.json();
-      const created = Number(json?.data?.created || 0);
-      const updated = Number(json?.data?.updated || 0);
+  const manageStats = useMemo(() => {
+    const rows = filteredDailyRows;
+    const present = rows.filter((row) => (attendanceTypeMap[row.attendence_type] || "").includes("present")).length;
+    const late = rows.filter((row) => (attendanceTypeMap[row.attendence_type] || "").includes("late")).length;
+    const incomplete = rows.filter((row) => row.entry_time && !row.exit_time).length;
+    const absent = rows.filter((row) => (attendanceTypeMap[row.attendence_type] || "").includes("absent")).length;
+    return { present, late, incomplete, absent };
+  }, [attendanceTypeMap, filteredDailyRows]);
 
-      toast({
-        title: 'Attendance Updated',
-        description: `Created ${created}, updated ${updated} records.`,
-      });
+  const selfStats = useMemo(() => {
+    const worked = selfRows.reduce((sum, row) => sum + row.actual_work_minutes, 0);
+    const lateDays = selfRows.filter((row) => row.late_minutes > 0).length;
+    const missedCheckout = selfRows.filter((row) => row.check_in_time && !row.check_out_time).length;
+    return { worked, lateDays, missedCheckout };
+  }, [selfRows]);
 
-      await loadAttendanceForDate(dateFilter);
-    } catch {
-      toast({
-        title: 'Error',
-        description: 'Failed to mark all employees as present.',
-        variant: 'destructive',
-      });
-    } finally {
-      setMarkingAllPresent(false);
-    }
+  const refreshManageAttendance = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["attendance", "manage"] });
   };
 
-  const handleAddAttendance = () => {
-    setDrawerOpen(true);
+  const refreshSelfAttendance = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["attendance", "self"] });
   };
+
+  const markAllPresent = useMutation({
+    mutationFn: () => attendanceApi.markAllPresent(),
+    onSuccess: async (result) => {
+      toast({
+        title: "Attendance updated",
+        description: `Created ${result.created || 0}, updated ${result.updated || 0} records.`,
+      });
+      await refreshManageAttendance();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to mark attendance",
+        description: getErrorMessage(error, "The backend rejected the mark-all-present request."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const submitCorrection = useMutation({
+    mutationFn: () =>
+      attendanceApi.manualCorrection({
+        employee_id: Number(correctionForm.employee_id),
+        work_date: correctionForm.work_date,
+        field_changed: correctionForm.field_changed,
+        new_value: correctionForm.new_value,
+        reason: correctionForm.reason,
+      }),
+    onSuccess: async () => {
+      toast({ title: "Attendance corrected", description: "The correction request was accepted by the backend." });
+      setCorrectionOpen(false);
+      await refreshManageAttendance();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to save correction",
+        description: getErrorMessage(error, "Please review the correction details."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const recalculateAttendance = useMutation({
+    mutationFn: ({ employeeId, workDate }: { employeeId: number; workDate: string }) =>
+      attendanceApi.recalculate(employeeId, workDate, workDate),
+    onSuccess: async (result) => {
+      toast({
+        title: "Attendance recalculated",
+        description: `Recalculated ${result.recalculated_days} day(s) for employee ${result.employee_id}.`,
+      });
+      await refreshManageAttendance();
+      await refreshSelfAttendance();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to recalculate attendance",
+        description: getErrorMessage(error, "The backend rejected the recalculation request."),
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
-    <div className="space-y-4 md:space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="page-title text-xl md:text-2xl">Attendance</h1>
-          <p className="page-description text-sm md:text-base">Track and manage employee attendance records.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 sm:flex-none"
-            onClick={handleMarkAllPresent}
-            disabled={markingAllPresent || !dateFilter}
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">Mark All </span>{markingAllPresent ? 'Saving...' : 'Present'}
-          </Button>
-          <Button size="sm" className="flex-1 sm:flex-none" onClick={handleAddAttendance}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add<span className="hidden sm:inline"> Attendance</span>
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title={scope === "manage" ? "Attendance Management" : "My Attendance"}
+        description={
+          scope === "manage"
+            ? "Review daily attendance, mark all present, investigate incomplete days, and submit corrections."
+            : "Review your own attendance only through `/me/attendance`."
+        }
+        actions={
+          scope === "manage" ? (
+            <>
+              <Input className="w-40" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+              <Button variant="outline" onClick={() => markAllPresent.mutate()} disabled={markAllPresent.isPending}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {markAllPresent.isPending ? "Saving..." : "Mark all present"}
+              </Button>
+            </>
+          ) : null
+        }
+      />
 
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <div className="rounded-lg border border-border bg-card p-3 md:p-4 flex items-center gap-3">
-          <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-            <span className="text-base md:text-lg font-bold text-success">{todayStats.present}</span>
+      {scope === "manage" ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Present" value={manageStats.present} icon={CheckCircle2} tone="success" />
+            <MetricCard label="Late" value={manageStats.late} icon={RotateCcw} tone="warning" />
+            <MetricCard label="Incomplete" value={manageStats.incomplete} icon={RotateCcw} tone="info" />
+            <MetricCard label="Absent" value={manageStats.absent} icon={RotateCcw} tone="danger" />
           </div>
-          <div className="min-w-0">
-            <p className="text-xs md:text-sm text-muted-foreground">Present</p>
-            <p className="font-semibold text-sm md:text-base">{dateFilter}</p>
-          </div>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-3 md:p-4 flex items-center gap-3">
-          <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
-            <span className="text-base md:text-lg font-bold text-warning">{todayStats.late}</span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs md:text-sm text-muted-foreground">Late</p>
-            <p className="font-semibold text-sm md:text-base">{dateFilter}</p>
-          </div>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-3 md:p-4 flex items-center gap-3">
-          <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
-            <span className="text-base md:text-lg font-bold text-destructive">{todayStats.absent}</span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs md:text-sm text-muted-foreground">Absent</p>
-            <p className="font-semibold text-sm md:text-base">{dateFilter}</p>
-          </div>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-3 md:p-4 flex items-center gap-3">
-          <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-info/10 flex items-center justify-center shrink-0">
-            <span className="text-base md:text-lg font-bold text-info">{todayStats.vacation}</span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs md:text-sm text-muted-foreground">Vacation</p>
-            <p className="font-semibold text-sm md:text-base">{dateFilter}</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 md:p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by employee name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <div className="relative flex-1 min-w-[140px]">
-            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="flex-1 min-w-[120px] sm:w-36 sm:flex-none">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="present">Present</SelectItem>
-              <SelectItem value="late">Late</SelectItem>
-              <SelectItem value="absent">Absent</SelectItem>
-              <SelectItem value="vacation">Vacation</SelectItem>
-              <SelectItem value="overtime">Overtime</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Filters</CardTitle>
+              <CardDescription>Search by employee and filter by attendance status keyword.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Input placeholder="Search employee" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input placeholder="Status filter: present, late, absent" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} />
+            </CardContent>
+          </Card>
 
-      {loading ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
-          Loading attendance records...
-        </div>
-      ) : isMobile ? (
-        <div className="grid gap-3">
-          {filteredRecords.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
-              No attendance records found
-            </div>
-          ) : (
-            filteredRecords.map((record) => (
-              <div key={record.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold">{record.employeeName}</p>
-                  <StatusBadge status={record.type} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Date</p>
-                    <p className="font-medium">{record.date}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Hours</p>
-                    <p className="font-medium">{record.workedHours > 0 ? `${record.workedHours}h` : '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Entry</p>
-                    <p className="font-medium">{record.entryTime || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Exit</p>
-                    <p className="font-medium">{record.exitTime || '-'}</p>
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-xs">{record.employeeJobTitle}</Badge>
-              </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden overflow-x-auto">
-          <table className="data-table w-full table-fixed">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Date</th>
-                <th className="hidden lg:table-cell">Entry Time</th>
-                <th className="hidden lg:table-cell">Exit Time</th>
-                <th>Worked Hours</th>
-                <th>Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-muted-foreground">No attendance records found</td>
-                </tr>
+          <Card>
+            <CardHeader>
+              <CardTitle>Attendance list</CardTitle>
+              <CardDescription>Loaded from `/attendance/emps/{date}` and enhanced with employee names from `/employee`.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {filteredDailyRows.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Exit</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredDailyRows.map((row) => {
+                      const employee = employeeMap[row.employee_id];
+                      const type = attendanceTypeMap[row.attendence_type] || String(row.attendence_type);
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{employee?.full_name || `Employee #${row.employee_id}`}</p>
+                              <p className="text-xs text-muted-foreground">{employee?.position || "-"}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{formatDate(row.date)}</TableCell>
+                          <TableCell>{formatTime(row.entry_time)}</TableCell>
+                          <TableCell>{formatTime(row.exit_time)}</TableCell>
+                          <TableCell><StatusBadge status={type} /></TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setCorrectionForm({
+                                    employee_id: String(row.employee_id),
+                                    work_date: row.date,
+                                    field_changed: "check_in_time",
+                                    new_value: "",
+                                    reason: "",
+                                  });
+                                  setCorrectionOpen(true);
+                                }}
+                              >
+                                Correct
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => recalculateAttendance.mutate({ employeeId: row.employee_id, workDate: row.date })}
+                              >
+                                Recalculate
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id}>
-                    <td className="font-medium">{record.employeeName}</td>
-                    <td>{record.date}</td>
-                    <td className="hidden lg:table-cell">{record.entryTime || '-'}</td>
-                    <td className="hidden lg:table-cell">{record.exitTime || '-'}</td>
-                    <td>{record.workedHours > 0 ? `${record.workedHours}h` : '-'}</td>
-                    <td>
-                      <StatusBadge status={record.type} />
-                    </td>
-                  </tr>
-                ))
+                <EmptyState
+                  title={dailyAttendanceQuery.isLoading ? "Loading attendance..." : "No attendance rows found"}
+                  description="Try another date, or mark all present to generate the daily base records."
+                />
               )}
-            </tbody>
-          </table>
-        </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <MetricCard label="Tracked days" value={selfRows.length} icon={CheckCircle2} tone="success" />
+            <MetricCard label="Worked time" value={formatMinutes(selfStats.worked)} icon={RotateCcw} tone="info" />
+            <MetricCard label="Late / incomplete" value={`${selfStats.lateDays} / ${selfStats.missedCheckout}`} icon={RotateCcw} tone="warning" />
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Date range</CardTitle>
+              <CardDescription>The employee interface always loads attendance through `/me/attendance`.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Input type="date" value={range.start_date} onChange={(event) => setRange((value) => ({ ...value, start_date: event.target.value }))} />
+              <Input type="date" value={range.end_date} onChange={(event) => setRange((value) => ({ ...value, end_date: event.target.value }))} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Attendance history</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selfRows.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Check in</TableHead>
+                      <TableHead>Check out</TableHead>
+                      <TableHead>Worked</TableHead>
+                      <TableHead>Late</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selfRows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{formatDate(row.work_date)}</TableCell>
+                        <TableCell><StatusBadge status={row.status} /></TableCell>
+                        <TableCell>{formatTime(row.check_in_time)}</TableCell>
+                        <TableCell>{formatTime(row.check_out_time)}</TableCell>
+                        <TableCell>{formatMinutes(row.actual_work_minutes)}</TableCell>
+                        <TableCell>{formatMinutes(row.late_minutes)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <EmptyState
+                  title={selfAttendanceQuery.isLoading ? "Loading your attendance..." : "No attendance records yet"}
+                  description="Change the date range or use the self-service attendance actions from the employee home page."
+                />
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
 
-      <AddAttendanceDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        employee={selectedEmployee}
-        employees={drawerEmployees}
-        selectedEmployeeId={selectedEmployeeId}
-        onEmployeeChange={setSelectedEmployeeId}
-        onSuccess={() => loadAttendanceForDate(dateFilter)}
-      />
+      <Dialog open={correctionOpen} onOpenChange={setCorrectionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Attendance correction</DialogTitle>
+            <DialogDescription>Submit a manual correction reason if the backend supports attendance corrections for this role.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="correctionEmployee">Employee ID</Label>
+              <Input id="correctionEmployee" value={correctionForm.employee_id} onChange={(event) => setCorrectionForm((value) => ({ ...value, employee_id: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="correctionDate">Work date</Label>
+              <Input id="correctionDate" type="date" value={correctionForm.work_date} onChange={(event) => setCorrectionForm((value) => ({ ...value, work_date: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="correctionField">Field changed</Label>
+              <Input id="correctionField" value={correctionForm.field_changed} onChange={(event) => setCorrectionForm((value) => ({ ...value, field_changed: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="correctionValue">New value</Label>
+              <Input id="correctionValue" value={correctionForm.new_value} onChange={(event) => setCorrectionForm((value) => ({ ...value, new_value: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="correctionReason">Reason</Label>
+              <Input id="correctionReason" value={correctionForm.reason} onChange={(event) => setCorrectionForm((value) => ({ ...value, reason: event.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCorrectionOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => submitCorrection.mutate()} disabled={submitCorrection.isPending}>
+              {submitCorrection.isPending ? "Saving..." : "Submit correction"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-};
-
-export default Attendance;
+}

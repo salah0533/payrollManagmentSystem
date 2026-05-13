@@ -1,32 +1,18 @@
-import { NavLink, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Users,
-  Clock,
-  CreditCard,
-  Palmtree,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { NavLink, useLocation } from "react-router-dom";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import type { NavigationItem } from "@/components/layout/navigation";
+import { cn } from "@/lib/utils";
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  items: NavigationItem[];
+  brandLabel: string;
 }
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/employees', icon: Users, label: 'Employees' },
-  { to: '/attendance', icon: Clock, label: 'Attendance' },
-  { to: '/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/vacations', icon: Palmtree, label: 'Vacations' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-];
-
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, items, brandLabel }: SidebarProps) {
   const location = useLocation();
 
   return (
@@ -36,26 +22,23 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      {/* Logo */}
-<div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-  {!collapsed && (
-    <div className="flex items-center gap-2">
-      <img
-        src="/assets/PayRollPro_none.png"
-        alt="PayrollPro Logo"
-        className="h-8 w-auto"
-      />
-      <span className="text-lg font-semibold text-sidebar-foreground">
-        PayrollPro
-      </span>
-    </div>
-  )}
-</div>
+      <div className="flex h-16 items-center border-b border-sidebar-border px-4">
+        <div className="flex items-center gap-3 overflow-hidden">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sm font-semibold text-sidebar-foreground">
+            EM
+          </div>
+          {!collapsed ? (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-sidebar-foreground">Employee System</p>
+              <p className="truncate text-xs text-sidebar-muted">{brandLabel}</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
 
-      {/* Navigation */}
       <nav className="flex flex-col gap-1 p-3">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive = location.pathname === item.to || 
             (item.to !== '/' && location.pathname.startsWith(item.to));
           
@@ -75,7 +58,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* Collapse Toggle */}
       <Button
         variant="ghost"
         size="icon"
