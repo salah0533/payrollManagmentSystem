@@ -70,6 +70,7 @@ export interface Employee {
   email?: string | null;
   phone: string;
   department_id?: number | null;
+  position_id?: number | null;
   position?: string | null;
   status: string;
   hire_date?: string | null;
@@ -92,6 +93,12 @@ export interface Employee {
 export interface SalaryType {
   id: number;
   salary_type: string;
+}
+
+export interface EmployeeReference {
+  id: number;
+  name: string;
+  is_active: boolean;
 }
 
 export interface AttendanceEvent {

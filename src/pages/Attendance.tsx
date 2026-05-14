@@ -221,7 +221,9 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
           <Card className="filter-card">
             <CardHeader>
               <CardTitle>Attendance list</CardTitle>
-              <CardDescription>Loaded from `/attendance/emps/{date}` and enhanced with employee names from `/employee`.</CardDescription>
+              <CardDescription>
+                Loaded from <code>/attendance/emps/{"{date}"}</code> and enhanced with employee names from <code>/employee</code>.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {filteredDailyRows.length ? (

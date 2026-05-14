@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
@@ -64,15 +65,21 @@ export default function Users() {
     queryFn: () => employeeApi.list(),
   });
 
-  const availableRoles = useMemo(() => {
-    const roleMap = new Map<number, { id: number; code: string; name: string }>();
-    (usersQuery.data || []).forEach((user) => {
-      user.roles.forEach((role) => {
-        roleMap.set(role.id, { id: role.id, code: role.code, name: role.name });
-      });
-    });
-    return [...roleMap.values()].sort((left, right) => left.code.localeCompare(right.code));
-  }, [usersQuery.data]);
+  const rolesQuery = useQuery({
+    queryKey: ["users", "roles"],
+    queryFn: () => userApi.listRoles(),
+  });
+
+  const availableEmployeesQuery = useQuery({
+    queryKey: ["users", "available-employees", editingUserId],
+    queryFn: () => userApi.listAvailableEmployees(editingUserId),
+    enabled: dialogOpen,
+  });
+
+  const availableRoles = useMemo(
+    () => [...(rolesQuery.data || [])].sort((left, right) => left.code.localeCompare(right.code)),
+    [rolesQuery.data],
+  );
 
   const filteredUsers = useMemo(() => {
     return (usersQuery.data || []).filter((user) => {
@@ -88,6 +95,7 @@ export default function Users() {
 
   const refreshUsers = async () => {
     await queryClient.invalidateQueries({ queryKey: ["users"] });
+    await queryClient.invalidateQueries({ queryKey: ["users", "available-employees"] });
   };
 
   const createUser = useMutation({
@@ -228,7 +236,7 @@ export default function Users() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="User Management"
-        description="Create, edit, deactivate, and reset users. Roles are derived from roles already visible in backend user responses."
+        description="Create, edit, deactivate, and reset users with backend role and employee catalogs."
         actions={
           <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
@@ -241,7 +249,7 @@ export default function Users() {
         <CardHeader>
           <CardTitle>Filters</CardTitle>
           <CardDescription>
-            The backend currently exposes role assignments but not a dedicated role catalog endpoint, so this page uses roles already present on existing users.
+            Search existing accounts by username, email, or assigned role.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -315,7 +323,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle>{editingUserId ? "Edit user" : "Create user"}</DialogTitle>
             <DialogDescription>
-              Create or update a user account. Full role management is limited by the absence of a dedicated backend role list endpoint.
+              Create or update a user account and link it to an employee that does not already have an account.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2 md:grid-cols-2">
@@ -334,8 +342,20 @@ export default function Users() {
               </div>
             ) : null}
             <div className="space-y-2">
-              <Label htmlFor="userEmployeeId">Employee ID</Label>
-              <Input id="userEmployeeId" value={form.employee_id} onChange={(event) => setForm((value) => ({ ...value, employee_id: event.target.value }))} placeholder="Optional employee link" />
+              <Label htmlFor="userEmployee">Employee link</Label>
+              <Select value={form.employee_id || "none"} onValueChange={(value) => setForm((current) => ({ ...current, employee_id: value === "none" ? "" : value }))}>
+                <SelectTrigger id="userEmployee">
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No employee link</SelectItem>
+                  {(availableEmployeesQuery.data || []).map((employee) => (
+                    <SelectItem key={employee.id} value={String(employee.id)}>
+                      {employee.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
               Active account
@@ -373,7 +393,7 @@ export default function Users() {
                 ))
               ) : (
                 <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  No role catalog could be derived yet from existing user data.
+                  {rolesQuery.isLoading ? "Loading roles..." : "No roles are available yet."}
                 </div>
               )}
             </div>

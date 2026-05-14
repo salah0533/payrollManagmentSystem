@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
-import type { Employee, SalaryType } from "@/types/domain";
+import type { Employee, EmployeeReference, SalaryType } from "@/types/domain";
 
 export const employeeApi = {
   list() {
@@ -30,5 +30,23 @@ export const employeeApi = {
   },
   getSalaryTypes() {
     return apiRequest<SalaryType[]>("/salary_types/");
+  },
+  getDepartments() {
+    return apiRequest<EmployeeReference[]>("/employee-references/departments");
+  },
+  createDepartment(name: string) {
+    return apiRequest<EmployeeReference>("/employee-references/departments", {
+      method: "POST",
+      body: { name },
+    });
+  },
+  getPositions() {
+    return apiRequest<EmployeeReference[]>("/employee-references/positions");
+  },
+  createPosition(name: string) {
+    return apiRequest<EmployeeReference>("/employee-references/positions", {
+      method: "POST",
+      body: { name },
+    });
   },
 };

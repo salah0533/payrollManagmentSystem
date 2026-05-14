@@ -1,9 +1,16 @@
 import { apiRequest } from "@/lib/api-client";
-import type { User } from "@/types/domain";
+import { buildQueryString } from "@/lib/api-client";
+import type { Employee, Role, User } from "@/types/domain";
 
 export const userApi = {
   list() {
     return apiRequest<User[]>("/users/");
+  },
+  listRoles() {
+    return apiRequest<Role[]>("/users/roles");
+  },
+  listAvailableEmployees(includeUserId?: number | null) {
+    return apiRequest<Employee[]>(`/users/available-employees${buildQueryString({ include_user_id: includeUserId })}`);
   },
   create(payload: {
     username: string;
