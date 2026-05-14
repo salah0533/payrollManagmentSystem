@@ -315,6 +315,24 @@ export interface PayrollAdjustmentPayload {
   reason: string;
 }
 
+export interface PayrollAdjustment {
+  id: number;
+  employee_payroll_id: number;
+  payroll_period_id: number;
+  employee_id: number;
+  adjustment_type: string;
+  amount: number | string;
+  reason: string;
+  created_by?: number | null;
+  created_at: string;
+}
+
+export interface PayrollAdjustmentUpdatePayload {
+  adjustment_type?: string;
+  amount?: number;
+  reason?: string;
+}
+
 export interface UserNotification {
   notification_id: string;
   recipient_id: string;

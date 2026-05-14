@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, DollarSign, MoreHorizontal, ReceiptText, Scale, WalletCards } from "lucide-react";
+import { DollarSign, MoreHorizontal, Pencil, ReceiptText, Scale, Trash2, WalletCards } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { MetricCard } from "@/components/app/MetricCard";
@@ -45,7 +45,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { payrollApi } from "@/services/payrollApi";
 import { toast } from "@/hooks/use-toast";
-import type { EmployeePayroll } from "@/types/domain";
+import type { EmployeePayroll, PayrollAdjustment, PayrollHistory } from "@/types/domain";
 
 type PayrollAdjustmentType = (typeof payrollAdjustmentTypes)[number];
 
@@ -71,6 +71,21 @@ const breakdownFields: Array<{ key: keyof EmployeePayroll; label: string }> = [
   { key: "balance_amount", label: "Balance" },
 ];
 
+const calculationFields = [
+  { key: "normal_paid_minutes", label: "Paid time", format: "minutes" },
+  { key: "overtime_minutes", label: "Overtime", format: "minutes" },
+  { key: "payable_overtime_minutes", label: "Payable overtime", format: "minutes" },
+  { key: "late_minutes", label: "Late", format: "minutes" },
+  { key: "early_leave_minutes", label: "Early leave", format: "minutes" },
+  { key: "late_makeup_minutes", label: "Late makeup", format: "minutes" },
+  { key: "absence_minutes", label: "Absent time", format: "minutes" },
+  { key: "unpaid_minutes", label: "Unpaid time", format: "minutes" },
+  { key: "absence_days", label: "Absent days", format: "number" },
+  { key: "paid_vacation_days", label: "Paid vacation", format: "number" },
+  { key: "unpaid_vacation_days", label: "Unpaid vacation", format: "number" },
+  { key: "missing_attendance_days", label: "Missing attendance", format: "number" },
+] as const;
+
 function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -84,13 +99,64 @@ function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
   );
 }
 
+function formatCalculationValue(value: unknown, format: "minutes" | "number") {
+  const numericValue = Number(value || 0);
+  if (format === "minutes") {
+    const hours = Math.floor(numericValue / 60);
+    const minutes = Math.round(numericValue % 60);
+    return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+  }
+  return Number.isFinite(numericValue) ? numericValue.toLocaleString() : "0";
+}
+
+function latestCalculationHistory(history: PayrollHistory[] | undefined) {
+  return (history || []).find((item) => Object.keys(item.calculation_data_json || {}).length > 0);
+}
+
+function CalculationGrid({ history }: { history?: PayrollHistory[] }) {
+  const calculation = latestCalculationHistory(history);
+
+  if (!calculation) {
+    return <p className="text-sm text-muted-foreground">No calculation snapshot is available yet. Recalculate this payroll row to create one.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border p-3 text-sm">
+        <p className="font-medium">{calculation.reason}</p>
+        <p className="text-xs text-muted-foreground">{formatDateTime(calculation.created_at)}</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {calculationFields.map((field) => (
+          <div key={field.key} className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">{field.label}</p>
+            <p className="font-medium">{formatCalculationValue(calculation.calculation_data_json[field.key], field.format)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OverviewStat({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-4">
+      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
 export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [periodId, setPeriodId] = useState(searchParams.get("period") || "");
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null);
   const [detailsPayrollId, setDetailsPayrollId] = useState<number | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null; amount: string; note: string }>({
+  const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null);
+  const [deletingAdjustment, setDeletingAdjustment] = useState<PayrollAdjustment | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | "set_paid" | "clear_paid" | null; payrollId: number | null; amount: string; note: string }>({
     type: null,
     payrollId: null,
     amount: "",
@@ -168,6 +234,12 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     enabled: scope === "manage" && Boolean(selectedPayrollId),
   });
 
+  const adjustmentsQuery = useQuery({
+    queryKey: ["payroll", "adjustments", selectedPayrollId],
+    queryFn: () => payrollApi.listAdjustments(selectedPayrollId as number),
+    enabled: scope === "manage" && Boolean(selectedPayrollId),
+  });
+
   const refreshPayroll = async () => {
     await queryClient.invalidateQueries({ queryKey: ["payroll"] });
   };
@@ -214,6 +286,17 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     },
   });
 
+  const resetAdjustmentForm = () => {
+    setEditingAdjustmentId(null);
+    setAdjustmentForm({
+      employee_payroll_id: "",
+      employee_id: "",
+      adjustment_type: "bonus",
+      amount: "",
+      reason: "",
+    });
+  };
+
   const addAdjustment = useMutation({
     mutationFn: () =>
       payrollApi.addAdjustment({
@@ -227,19 +310,51 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     onSuccess: async () => {
       toast({ title: "Adjustment added", description: "The payroll adjustment was sent to the backend." });
       setAdjustmentOpen(false);
-      setAdjustmentForm({
-        employee_payroll_id: "",
-        employee_id: "",
-        adjustment_type: "bonus",
-        amount: "",
-        reason: "",
-      });
+      resetAdjustmentForm();
       await refreshPayroll();
     },
     onError: (error) => {
       toast({
         title: "Unable to add adjustment",
         description: getErrorMessage(error, "Please review the adjustment data."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateAdjustment = useMutation({
+    mutationFn: () =>
+      payrollApi.updateAdjustment(editingAdjustmentId as number, {
+        adjustment_type: adjustmentForm.adjustment_type,
+        amount: Number(adjustmentForm.amount),
+        reason: adjustmentForm.reason.trim(),
+      }),
+    onSuccess: async () => {
+      toast({ title: "Adjustment updated", description: "The payroll row was recalculated with the updated adjustment." });
+      setAdjustmentOpen(false);
+      resetAdjustmentForm();
+      await refreshPayroll();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update adjustment",
+        description: getErrorMessage(error, "Please review the adjustment data."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAdjustment = useMutation({
+    mutationFn: (adjustmentId: number) => payrollApi.deleteAdjustment(adjustmentId),
+    onSuccess: async () => {
+      toast({ title: "Adjustment deleted", description: "The payroll row was recalculated without that adjustment." });
+      setDeletingAdjustment(null);
+      await refreshPayroll();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to delete adjustment",
+        description: getErrorMessage(error, "The backend rejected the adjustment deletion."),
         variant: "destructive",
       });
     },
@@ -257,8 +372,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const warningOpenDiscrepancies = (discrepanciesQuery.data || []).filter((item) => item.status !== "resolved").length;
   const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
   const detailsPayroll = useMemo(() => payrollRows.find((row) => row.id === detailsPayrollId) || null, [detailsPayrollId, payrollRows]);
+  const confirmPayroll = useMemo(() => payrollRows.find((row) => row.id === confirmAction.payrollId) || null, [confirmAction.payrollId, payrollRows]);
   const selfPayroll = selfPayrollQuery.data;
   const payrollReport = reportQuery.data;
+  const selectedAdjustments = adjustmentsQuery.data || [];
   const employeeNameMap = useMemo(
     () => new Map((payrollReport?.employees || []).map((employee) => [employee.employee_id, employee.employee_name])),
     [payrollReport?.employees],
@@ -278,6 +395,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
   const openAdjustmentDialog = (row: EmployeePayroll, adjustmentType: PayrollAdjustmentType) => {
     setSelectedPayrollId(row.id);
+    setEditingAdjustmentId(null);
     setAdjustmentForm({
       employee_payroll_id: String(row.id),
       employee_id: String(row.employee_id),
@@ -285,6 +403,23 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       amount: "",
       reason: "",
     });
+    setAdjustmentOpen(true);
+  };
+
+  const openEditAdjustmentDialog = (adjustment: PayrollAdjustment) => {
+    const payroll = payrollRows.find((row) => row.id === adjustment.employee_payroll_id) || selectedPayroll;
+    setSelectedPayrollId(adjustment.employee_payroll_id);
+    setEditingAdjustmentId(adjustment.id);
+    setAdjustmentForm({
+      employee_payroll_id: String(adjustment.employee_payroll_id),
+      employee_id: String(adjustment.employee_id),
+      adjustment_type: adjustment.adjustment_type as PayrollAdjustmentType,
+      amount: String(adjustment.amount),
+      reason: adjustment.reason,
+    });
+    if (payroll) {
+      setDetailsPayrollId(payroll.id);
+    }
     setAdjustmentOpen(true);
   };
 
@@ -298,7 +433,67 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       return;
     }
 
+    if (editingAdjustmentId) {
+      updateAdjustment.mutate();
+      return;
+    }
+
     addAdjustment.mutate();
+  };
+
+  const openSetPaidDialog = (row: EmployeePayroll) => {
+    setConfirmAction({
+      type: "set_paid",
+      payrollId: row.id,
+      amount: String(row.paid_amount ?? 0),
+      note: "",
+    });
+  };
+
+  const openClearPaidDialog = (row: EmployeePayroll) => {
+    setConfirmAction({
+      type: "clear_paid",
+      payrollId: row.id,
+      amount: String(row.paid_amount ?? 0),
+      note: "Clear recorded paid amount",
+    });
+  };
+
+  const submitConfirmAction = () => {
+    if (!confirmAction.payrollId) {
+      return;
+    }
+
+    if (confirmAction.type === "approve") {
+      approvePayroll.mutate(confirmAction.payrollId);
+      return;
+    }
+
+    if (confirmAction.type === "set_paid") {
+      const targetPaidAmount = Number(confirmAction.amount);
+      const currentPaidAmount = Number(confirmPayroll?.paid_amount || 0);
+      markPayrollPaid.mutate({
+        employeePayrollId: confirmAction.payrollId,
+        amount: targetPaidAmount - currentPaidAmount,
+        note: confirmAction.note || "Correct paid total",
+      });
+      return;
+    }
+
+    if (confirmAction.type === "clear_paid") {
+      markPayrollPaid.mutate({
+        employeePayrollId: confirmAction.payrollId,
+        amount: -Number(confirmPayroll?.paid_amount || 0),
+        note: confirmAction.note || "Clear recorded paid amount",
+      });
+      return;
+    }
+
+    markPayrollPaid.mutate({
+      employeePayrollId: confirmAction.payrollId,
+      amount: Number(confirmAction.amount),
+      note: confirmAction.note,
+    });
   };
 
   return (
@@ -391,20 +586,24 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         </>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-            <MetricCard label="Total" value={formatCurrency(payrollReport?.total_amount)} icon={DollarSign} tone="success" hint="Signed payroll total" />
-            <MetricCard label="Paid" value={formatCurrency(payrollReport?.paid_amount)} icon={ReceiptText} tone="info" />
-            <MetricCard
-              label="Balance"
-              value={formatCurrency(payrollReport?.balance_amount)}
-              icon={Scale}
-              tone={Number(payrollReport?.balance_amount || 0) < 0 ? "danger" : "warning"}
-              hint="Positive company owes, negative employees owe"
-            />
-            <MetricCard label="Company owes" value={formatCurrency(payrollReport?.company_owes_employees)} icon={WalletCards} tone="warning" />
-            <MetricCard label="Employees owe" value={formatCurrency(payrollReport?.employees_owe_company)} icon={Scale} tone="danger" />
-            <MetricCard label="Open warnings" value={warningOpenDiscrepancies} icon={AlertTriangle} tone="danger" />
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Payroll overview</CardTitle>
+              <CardDescription>Period totals and settlement status for the selected payroll period.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <OverviewStat label="Total payroll" value={formatCurrency(payrollReport?.total_amount)} hint="Signed payroll total" />
+              <OverviewStat label="Paid" value={formatCurrency(payrollReport?.paid_amount)} />
+              <OverviewStat
+                label="Balance"
+                value={formatCurrency(payrollReport?.balance_amount)}
+                hint="Positive means company owes employees"
+              />
+              <OverviewStat label="Company owes" value={formatCurrency(payrollReport?.company_owes_employees)} />
+              <OverviewStat label="Employees owe" value={formatCurrency(payrollReport?.employees_owe_company)} />
+              <OverviewStat label="Open warnings" value={warningOpenDiscrepancies} hint="Resolve before final approval" />
+            </CardContent>
+          </Card>
 
           {warningOpenDiscrepancies > 0 ? (
             <Card className="border-warning/40">
@@ -534,6 +733,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                               >
                                 Record payment
                               </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => openSetPaidDialog(row)}>
+                                Correct paid total
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={Number(row.paid_amount || 0) === 0}
+                                onSelect={() => openClearPaidDialog(row)}
+                              >
+                                Clear paid amount
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {payrollAdjustmentTypes.map((type) => (
                                 <DropdownMenuItem key={type} onSelect={() => openAdjustmentDialog(row, type)}>
@@ -641,7 +849,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       )}
 
       <Dialog open={Boolean(detailsPayroll)} onOpenChange={(open) => !open && setDetailsPayrollId(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Payroll details</DialogTitle>
             <DialogDescription>
@@ -665,6 +873,46 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 </div>
               </div>
               <PayrollBreakdownGrid payroll={detailsPayroll} />
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-medium">How this payroll was calculated</h3>
+                  <p className="text-sm text-muted-foreground">Attendance, absence, vacation, and overtime values from the latest calculation snapshot.</p>
+                </div>
+                <CalculationGrid history={historyQuery.data} />
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-medium">Manual adjustments</h3>
+                  <p className="text-sm text-muted-foreground">Bonuses, deductions, and corrections applied to this payroll row.</p>
+                </div>
+                {adjustmentsQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading adjustments...</p>
+                ) : selectedAdjustments.length ? (
+                  <div className="space-y-2">
+                    {selectedAdjustments.map((adjustment) => (
+                      <div key={adjustment.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
+                        <div>
+                          <p className="font-medium">
+                            {adjustmentLabels[adjustment.adjustment_type as PayrollAdjustmentType] || adjustment.adjustment_type} / {formatCurrency(adjustment.amount)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{adjustment.reason}</p>
+                          <p className="text-xs text-muted-foreground">{formatDateTime(adjustment.created_at)}</p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button size="icon" variant="outline" onClick={() => openEditAdjustmentDialog(adjustment)} aria-label={`Edit adjustment ${adjustment.id}`}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="outline" onClick={() => setDeletingAdjustment(adjustment)} aria-label={`Delete adjustment ${adjustment.id}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No manual adjustments have been added to this row.</p>
+                )}
+              </div>
             </div>
           ) : null}
         </DialogContent>
@@ -673,7 +921,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       <Dialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add {adjustmentLabels[adjustmentForm.adjustment_type].toLowerCase()}</DialogTitle>
+            <DialogTitle>{editingAdjustmentId ? "Edit" : "Add"} {adjustmentLabels[adjustmentForm.adjustment_type].toLowerCase()}</DialogTitle>
             <DialogDescription>
               {selectedPayroll ? `${getEmployeeLabel(selectedPayroll.employee_id)} / ${periodQuery.data?.name || `Period ${selectedPayroll.payroll_period_id}`}` : "Select a payroll row before saving an adjustment."}
             </DialogDescription>
@@ -733,27 +981,62 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <Button variant="outline" onClick={() => setAdjustmentOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={submitAdjustment} disabled={addAdjustment.isPending || !canSubmitAdjustment}>
-              {addAdjustment.isPending ? "Saving..." : "Add adjustment"}
+            <Button onClick={submitAdjustment} disabled={addAdjustment.isPending || updateAdjustment.isPending || !canSubmitAdjustment}>
+              {addAdjustment.isPending || updateAdjustment.isPending ? "Saving..." : editingAdjustmentId ? "Save adjustment" : "Add adjustment"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={Boolean(deletingAdjustment)} onOpenChange={(open) => !open && setDeletingAdjustment(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete adjustment</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the selected {deletingAdjustment?.adjustment_type} adjustment and recalculates the payroll row.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deletingAdjustment ? (
+            <div className="rounded-lg border border-border p-3 text-sm">
+              <p className="font-medium">{formatCurrency(deletingAdjustment.amount)}</p>
+              <p className="text-muted-foreground">{deletingAdjustment.reason}</p>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={deleteAdjustment.isPending} onClick={() => deletingAdjustment && deleteAdjustment.mutate(deletingAdjustment.id)}>
+              {deleteAdjustment.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={Boolean(confirmAction.type && confirmAction.payrollId)} onOpenChange={(open) => !open && setConfirmAction({ type: null, payrollId: null, amount: "", note: "" })}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmAction.type === "approve" ? "Approve payroll" : "Record payroll payment"}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {confirmAction.type === "approve"
+                ? "Approve payroll"
+                : confirmAction.type === "set_paid"
+                  ? "Correct paid total"
+                  : confirmAction.type === "clear_paid"
+                    ? "Clear paid amount"
+                    : "Record payroll payment"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction.type === "approve"
                 ? "This confirms the payroll row after review."
-                : "Record the signed amount paid for this payroll. Use a negative amount when the employee pays the company back."}
+                : confirmAction.type === "set_paid"
+                  ? "Set the total paid amount for this payroll row. The system records only the difference from the current paid total."
+                  : confirmAction.type === "clear_paid"
+                    ? "This records a negative payment equal to the current paid amount, bringing paid back to zero."
+                    : "Record the signed amount paid for this payroll. Use a negative amount when the employee pays the company back."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {confirmAction.type === "paid" ? (
+          {confirmAction.type === "paid" || confirmAction.type === "set_paid" ? (
             <div className="grid gap-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="paymentAmount">Payment amount</Label>
+                <Label htmlFor="paymentAmount">{confirmAction.type === "set_paid" ? "Paid total" : "Payment amount"}</Label>
                 <Input
                   id="paymentAmount"
                   type="number"
@@ -761,6 +1044,11 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   value={confirmAction.amount}
                   onChange={(event) => setConfirmAction((value) => ({ ...value, amount: event.target.value }))}
                 />
+                {confirmAction.type === "set_paid" && confirmPayroll ? (
+                  <p className="text-xs text-muted-foreground">
+                    Current paid: {formatCurrency(confirmPayroll.paid_amount)}. Difference to record: {formatCurrency(Number(confirmAction.amount || 0) - Number(confirmPayroll.paid_amount || 0))}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="paymentNote">Note</Label>
@@ -777,20 +1065,16 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={
-                approvePayroll.isPending ||
+            approvePayroll.isPending ||
                 markPayrollPaid.isPending ||
-                (confirmAction.type === "paid" && (!confirmAction.amount || !Number.isFinite(Number(confirmAction.amount)) || Number(confirmAction.amount) === 0))
+                ((confirmAction.type === "paid" || confirmAction.type === "set_paid") &&
+                  (!confirmAction.amount ||
+                    !Number.isFinite(Number(confirmAction.amount)) ||
+                    (confirmAction.type === "paid" && Number(confirmAction.amount) === 0) ||
+                    (confirmAction.type === "set_paid" && Number(confirmAction.amount) === Number(confirmPayroll?.paid_amount || 0)))) ||
+                (confirmAction.type === "clear_paid" && Number(confirmPayroll?.paid_amount || 0) === 0)
               }
-              onClick={() =>
-                confirmAction.payrollId &&
-                (confirmAction.type === "approve"
-                  ? approvePayroll.mutate(confirmAction.payrollId)
-                  : markPayrollPaid.mutate({
-                      employeePayrollId: confirmAction.payrollId,
-                      amount: Number(confirmAction.amount),
-                      note: confirmAction.note,
-                    }))
-              }
+              onClick={submitConfirmAction}
             >
               Confirm
             </AlertDialogAction>

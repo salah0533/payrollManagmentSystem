@@ -2,7 +2,9 @@ import { apiRequest } from "@/lib/api-client";
 import type {
   EmployeePayroll,
   PayrollBalanceReport,
+  PayrollAdjustment,
   PayrollAdjustmentPayload,
+  PayrollAdjustmentUpdatePayload,
   PayrollDiscrepancy,
   PayrollHistory,
   PayrollPeriod,
@@ -69,6 +71,20 @@ export const payrollApi = {
     return apiRequest<unknown>("/payroll/adjustment", {
       method: "POST",
       body: payload,
+    });
+  },
+  listAdjustments(employeePayrollId: number) {
+    return apiRequest<PayrollAdjustment[]>(`/payroll/adjustments/${employeePayrollId}`);
+  },
+  updateAdjustment(adjustmentId: number, payload: PayrollAdjustmentUpdatePayload) {
+    return apiRequest<PayrollAdjustment>(`/payroll/adjustment/${adjustmentId}`, {
+      method: "PUT",
+      body: payload,
+    });
+  },
+  deleteAdjustment(adjustmentId: number) {
+    return apiRequest<{ deleted: boolean; id: number }>(`/payroll/adjustment/${adjustmentId}`, {
+      method: "DELETE",
     });
   },
 };
