@@ -19,14 +19,14 @@ export function MobileNav({ items, brandLabel }: { items: NavigationItem[]; bran
           <span className="sr-only">Toggle menu</span>
         </Button>
       </SheetTrigger>
-        <SheetContent side="left" className="w-72 bg-sidebar p-0">
+        <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0">
         <SheetHeader className="border-b border-sidebar-border p-4">
           <SheetTitle className="flex items-center gap-2 text-sidebar-foreground">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sm font-semibold text-sidebar-foreground">
-              EM
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sidebar-primary text-sm font-extrabold text-sidebar-primary-foreground">
+              PP
             </div>
             <div className="text-left">
-              <p className="text-base font-semibold">Employee System</p>
+              <p className="font-display text-base font-semibold">PayRollPro</p>
               <p className="text-xs text-sidebar-muted">{brandLabel}</p>
             </div>
           </SheetTitle>

@@ -196,7 +196,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       />
 
       {scope === "manage" ? (
-        <Card>
+        <Card className="filter-card">
           <CardHeader>
             <CardTitle>Filters</CardTitle>
             <CardDescription>Filter by vacation type or status using the backend lookup values.</CardDescription>

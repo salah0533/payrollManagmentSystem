@@ -244,7 +244,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
         }
       />
 
-      <Card>
+      <Card className="filter-card">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
           <CardDescription>Search by name, phone, or position and narrow by employee status.</CardDescription>

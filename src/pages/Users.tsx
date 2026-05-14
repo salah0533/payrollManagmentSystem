@@ -237,7 +237,7 @@ export default function Users() {
         }
       />
 
-      <Card>
+      <Card className="filter-card">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
           <CardDescription>

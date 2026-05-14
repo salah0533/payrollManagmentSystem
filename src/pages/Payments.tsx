@@ -345,7 +345,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                         <div>
                           <p className="font-medium">{item.description}</p>
                           <p className="text-sm text-muted-foreground">
-                            Employee #{item.employee_id} • {item.discrepancy_type} • {item.severity}
+                            Employee #{item.employee_id} / {item.discrepancy_type} / {item.severity}
                           </p>
                         </div>
                         <StatusBadge status={item.status} />
@@ -386,7 +386,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <div className="rounded-lg border border-border p-4">
                     <p className="font-medium">Selected payroll #{selectedPayroll.id}</p>
                     <p className="text-sm text-muted-foreground">
-                      Employee #{selectedPayroll.employee_id} • Period {selectedPayroll.payroll_period_id}
+                      Employee #{selectedPayroll.employee_id} / Period {selectedPayroll.payroll_period_id}
                     </p>
                     <div className="mt-3 space-y-2">
                       {(historyQuery.data || []).length ? (
@@ -395,7 +395,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                             <p className="text-sm font-medium">{item.reason}</p>
                             <p className="text-xs text-muted-foreground">{formatDateTime(item.created_at)}</p>
                             <p className="text-xs text-muted-foreground">
-                              Gross {formatCurrency(item.old_gross_salary)} → {formatCurrency(item.new_gross_salary)}
+                              Gross {formatCurrency(item.old_gross_salary)} to {formatCurrency(item.new_gross_salary)}
                             </p>
                           </div>
                         ))

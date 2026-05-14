@@ -146,7 +146,7 @@ export default function Notifications() {
         }
       />
 
-      <Card>
+      <Card className="filter-card">
         <CardHeader>
           <CardTitle>My notifications</CardTitle>
           <CardDescription>Loaded from `/me/notifications` with unread, archived, expired, limit, and offset filters.</CardDescription>

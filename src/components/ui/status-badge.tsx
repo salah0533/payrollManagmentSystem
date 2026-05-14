@@ -60,7 +60,7 @@ const statusLabels: Record<string, string> = {
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
-    <span className={cn("status-badge", statusStyles[status] || "bg-muted text-muted-foreground", className)}>
+    <span className={cn("status-badge shadow-sm ring-1 ring-inset ring-current/10", statusStyles[status] || "bg-muted text-muted-foreground", className)}>
       {statusLabels[status] || formatLabel(status)}
     </span>
   );

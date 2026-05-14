@@ -25,7 +25,7 @@ export function RoleLayout({
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-shell min-h-screen">
       {!isMobile ? (
         <Sidebar
           collapsed={sidebarCollapsed}
@@ -43,7 +43,7 @@ export function RoleLayout({
           isMobile ? "pl-0" : sidebarCollapsed ? "pl-16" : "pl-64",
         )}
       >
-        <div className="p-4 md:p-6">
+        <div className="app-content">
           <Outlet />
         </div>
       </main>

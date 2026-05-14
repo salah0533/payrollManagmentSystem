@@ -207,7 +207,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
             <MetricCard label="Absent" value={manageStats.absent} icon={RotateCcw} tone="danger" />
           </div>
 
-          <Card>
+          <Card className="filter-card">
             <CardHeader>
               <CardTitle>Filters</CardTitle>
               <CardDescription>Search by employee and filter by attendance status keyword.</CardDescription>
@@ -218,7 +218,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="filter-card">
             <CardHeader>
               <CardTitle>Attendance list</CardTitle>
               <CardDescription>Loaded from `/attendance/emps/{date}` and enhanced with employee names from `/employee`.</CardDescription>
@@ -301,7 +301,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
             <MetricCard label="Late / incomplete" value={`${selfStats.lateDays} / ${selfStats.missedCheckout}`} icon={RotateCcw} tone="warning" />
           </div>
 
-          <Card>
+          <Card className="filter-card">
             <CardHeader>
               <CardTitle>Date range</CardTitle>
               <CardDescription>The employee interface always loads attendance through `/me/attendance`.</CardDescription>

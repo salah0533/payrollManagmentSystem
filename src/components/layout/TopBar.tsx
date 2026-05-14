@@ -44,15 +44,15 @@ export function TopBar({ sidebarCollapsed, items, brandLabel }: TopBarProps) {
   return (
     <header
       className={cn(
-        'fixed right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur md:px-6',
-        isMobile ? 'left-0' : (sidebarCollapsed ? 'left-16' : 'left-64')
+        "fixed right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-white/60 bg-card/70 px-4 shadow-[0_18px_60px_-52px_hsl(var(--foreground)/0.8)] backdrop-blur-xl md:px-7",
+        isMobile ? "left-0" : sidebarCollapsed ? "left-16" : "left-64",
       )}
     >
       <div className="flex items-center gap-3">
         <MobileNav items={items} brandLabel={brandLabel} />
         <div className="hidden sm:block">
-          <p className="text-sm font-semibold text-foreground">{brandLabel}</p>
-          <p className="text-xs text-muted-foreground">Role-aware employee operations</p>
+          <p className="font-display text-base font-semibold text-foreground">{brandLabel}</p>
+          <p className="text-xs font-medium text-muted-foreground">Role-aware employee operations</p>
         </div>
       </div>
 
@@ -61,9 +61,9 @@ export function TopBar({ sidebarCollapsed, items, brandLabel }: TopBarProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 px-2">
+            <Button variant="ghost" className="flex h-11 items-center gap-2 rounded-full border border-border/70 bg-card/50 px-2 pr-3">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary text-primary-foreground text-sm">{initials(displayName)}</AvatarFallback>
+                <AvatarFallback className="bg-primary text-sm font-bold text-primary-foreground">{initials(displayName)}</AvatarFallback>
               </Avatar>
               <div className="hidden text-left lg:block">
                 <p className="text-sm font-medium">{displayName}</p>

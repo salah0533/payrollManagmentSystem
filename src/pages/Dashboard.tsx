@@ -4,6 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { EmptyState } from "@/components/app/EmptyState";
 import { MetricCard } from "@/components/app/MetricCard";
 import { PageHeader } from "@/components/app/PageHeader";
+import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
+import { PayrollChart } from "@/components/dashboard/PayrollChart";
+import { VacationChart } from "@/components/dashboard/VacationChart";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
@@ -59,6 +62,14 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
           tone="info"
         />
         <MetricCard label="Employees on vacation" value={stats?.total_vacation ?? 0} icon={Landmark} tone="warning" />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
+        <PayrollChart activeEmployees={stats?.total_active_emps ?? 0} totalEmployees={stats?.total_emps ?? 0} />
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-1">
+          <AttendanceChart attendancePercent={Number(stats?.total_att_percent || 0)} />
+          <VacationChart totalEmployees={stats?.total_emps ?? 0} employeesOnVacation={stats?.total_vacation ?? 0} />
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">

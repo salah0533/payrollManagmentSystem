@@ -20,7 +20,7 @@ export function MetricCard({
     tone === "success"
       ? "bg-success/10 text-success"
       : tone === "warning"
-        ? "bg-warning/10 text-warning"
+        ? "bg-warning/15 text-warning"
         : tone === "info"
           ? "bg-info/10 text-info"
           : tone === "danger"
@@ -28,14 +28,15 @@ export function MetricCard({
             : "bg-primary/10 text-primary";
 
   return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-5">
-        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", toneClass)}>
+    <Card className="group overflow-hidden">
+      <CardContent className="relative flex items-center gap-4 p-5">
+        <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset ring-current/10 transition-transform duration-300 group-hover:scale-105", toneClass)}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="truncate text-2xl font-semibold">{value}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+          <p className="mt-1 truncate font-display text-3xl font-semibold leading-none">{value}</p>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
         </div>
       </CardContent>

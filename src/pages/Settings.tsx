@@ -120,7 +120,7 @@ export default function Settings() {
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+        <Card className="filter-card">
           <CardHeader>
             <CardTitle>Default work schedule</CardTitle>
             <CardDescription>Backed by `/settings/work-schedule`.</CardDescription>
@@ -180,7 +180,7 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="filter-card">
           <CardHeader>
             <CardTitle>Payroll policy</CardTitle>
             <CardDescription>Backed by `/settings/payroll-policy`.</CardDescription>
