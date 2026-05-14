@@ -231,6 +231,9 @@ export interface EmployeePayroll {
   adjustment_amount: number | string;
   gross_salary: number | string;
   net_salary: number | string;
+  total_amount: number | string;
+  paid_amount: number | string;
+  balance_amount: number | string;
   status: string;
   calculated_at: string;
   reviewed_at?: string | null;
@@ -252,6 +255,25 @@ export interface PayrollPeriod {
   paid_at?: string | null;
   locked_at?: string | null;
   payrolls: EmployeePayroll[];
+}
+
+export interface PayrollEmployeeBalance {
+  employee_id: number;
+  employee_name: string;
+  total_amount: number | string;
+  paid_amount: number | string;
+  balance_amount: number | string;
+  payroll_count: number;
+}
+
+export interface PayrollBalanceReport {
+  period_id?: number | null;
+  total_amount: number | string;
+  paid_amount: number | string;
+  balance_amount: number | string;
+  company_owes_employees: number | string;
+  employees_owe_company: number | string;
+  employees: PayrollEmployeeBalance[];
 }
 
 export interface PayrollDiscrepancy {

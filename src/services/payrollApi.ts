@@ -1,6 +1,7 @@
 import { apiRequest } from "@/lib/api-client";
 import type {
   EmployeePayroll,
+  PayrollBalanceReport,
   PayrollAdjustmentPayload,
   PayrollDiscrepancy,
   PayrollHistory,
@@ -16,6 +17,14 @@ export const payrollApi = {
   },
   getPeriod(periodId: number) {
     return apiRequest<PayrollPeriod>(`/payroll/period/${periodId}`);
+  },
+  getReport(periodId?: number) {
+    const query = periodId ? `?period_id=${periodId}` : "";
+    return apiRequest<PayrollBalanceReport>(`/payroll/report${query}`);
+  },
+  getSelfReport(periodId?: number) {
+    const query = periodId ? `?period_id=${periodId}` : "";
+    return apiRequest<PayrollBalanceReport>(`/me/payroll-report${query}`);
   },
   getEmployeePayroll(employeeId: number, periodId: number) {
     return apiRequest<EmployeePayroll>(`/payroll/employee/${employeeId}/${periodId}`);
@@ -38,9 +47,10 @@ export const payrollApi = {
       method: "POST",
     });
   },
-  markPaid(employeePayrollId: number) {
+  markPaid(employeePayrollId: number, payload?: { amount?: number; note?: string }) {
     return apiRequest<EmployeePayroll>(`/payroll/mark-paid/${employeePayrollId}`, {
       method: "POST",
+      body: payload,
     });
   },
   getHistory(employeePayrollId: number) {

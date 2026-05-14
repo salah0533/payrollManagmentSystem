@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, Calculator, DollarSign, WalletCards } from "lucide-react";
+import { AlertTriangle, DollarSign, ReceiptText, Scale, WalletCards } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { MetricCard } from "@/components/app/MetricCard";
@@ -42,9 +42,11 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [periodId, setPeriodId] = useState(searchParams.get("period") || "");
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null }>({
+  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null; amount: string; note: string }>({
     type: null,
     payrollId: null,
+    amount: "",
+    note: "",
   });
   const [adjustmentOpen, setAdjustmentOpen] = useState(false);
   const [adjustmentForm, setAdjustmentForm] = useState({
@@ -106,6 +108,12 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     enabled: scope === "manage" && canLoadPayroll,
   });
 
+  const reportQuery = useQuery({
+    queryKey: ["payroll", "report", scope, parsedPeriodId],
+    queryFn: () => (scope === "manage" ? payrollApi.getReport(parsedPeriodId) : payrollApi.getSelfReport(parsedPeriodId)),
+    enabled: canLoadPayroll,
+  });
+
   const historyQuery = useQuery({
     queryKey: ["payroll", "history", selectedPayrollId],
     queryFn: () => payrollApi.getHistory(selectedPayrollId as number),
@@ -143,16 +151,17 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     mutationFn: (employeePayrollId: number) => payrollApi.approve(employeePayrollId),
     onSuccess: async () => {
       toast({ title: "Payroll approved", description: "The payroll row is now approved." });
-      setConfirmAction({ type: null, payrollId: null });
+      setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
       await refreshPayroll();
     },
   });
 
   const markPayrollPaid = useMutation({
-    mutationFn: (employeePayrollId: number) => payrollApi.markPaid(employeePayrollId),
+    mutationFn: ({ employeePayrollId, amount, note }: { employeePayrollId: number; amount?: number; note?: string }) =>
+      payrollApi.markPaid(employeePayrollId, { amount, note }),
     onSuccess: async () => {
-      toast({ title: "Payroll marked paid", description: "The payroll row is now marked as paid." });
-      setConfirmAction({ type: null, payrollId: null });
+      toast({ title: "Payment recorded", description: "The payroll balance was updated." });
+      setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
       await refreshPayroll();
     },
   });
@@ -200,6 +209,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const warningOpenDiscrepancies = (discrepanciesQuery.data || []).filter((item) => item.status !== "resolved").length;
   const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
   const selfPayroll = selfPayrollQuery.data;
+  const payrollReport = reportQuery.data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -248,9 +258,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Status" value={<StatusBadge status={selfPayroll.status} />} icon={WalletCards} />
-                <MetricCard label="Net salary" value={formatCurrency(selfPayroll.net_salary)} icon={DollarSign} tone="success" />
-                <MetricCard label="Gross salary" value={formatCurrency(selfPayroll.gross_salary)} icon={Calculator} tone="info" />
-                <MetricCard label="Adjustments" value={formatCurrency(selfPayroll.adjustment_amount)} icon={AlertTriangle} tone="warning" />
+                <MetricCard label="Total" value={formatCurrency(selfPayroll.total_amount)} icon={DollarSign} tone="success" hint="Signed payroll total" />
+                <MetricCard label="Paid" value={formatCurrency(selfPayroll.paid_amount)} icon={ReceiptText} tone="info" />
+                <MetricCard
+                  label="Balance"
+                  value={formatCurrency(selfPayroll.balance_amount)}
+                  icon={Scale}
+                  tone={Number(selfPayroll.balance_amount) < 0 ? "danger" : "warning"}
+                  hint={Number(selfPayroll.balance_amount) < 0 ? "You owe company" : "Company owes you"}
+                />
               </div>
               <Card>
                 <CardHeader>
@@ -269,6 +285,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <div className="rounded-lg border border-border p-4">
                     <p className="text-xs text-muted-foreground">Late deductions</p>
                     <p className="font-medium">{formatCurrency(selfPayroll.late_deduction_amount)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Net salary</p>
+                    <p className="font-medium">{formatCurrency(selfPayroll.net_salary)}</p>
                   </div>
                   <div className="rounded-lg border border-border p-4">
                     <p className="text-xs text-muted-foreground">Approved at</p>
@@ -294,10 +314,18 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         </>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Period" value={periodQuery.data?.name || parsedPeriodId} icon={WalletCards} />
-            <MetricCard label="Payroll rows" value={payrollRows.length} icon={Calculator} tone="success" />
-            <MetricCard label="Discrepancies" value={(discrepanciesQuery.data || []).length} icon={AlertTriangle} tone="warning" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <MetricCard label="Total" value={formatCurrency(payrollReport?.total_amount)} icon={DollarSign} tone="success" hint="Signed payroll total" />
+            <MetricCard label="Paid" value={formatCurrency(payrollReport?.paid_amount)} icon={ReceiptText} tone="info" />
+            <MetricCard
+              label="Balance"
+              value={formatCurrency(payrollReport?.balance_amount)}
+              icon={Scale}
+              tone={Number(payrollReport?.balance_amount || 0) < 0 ? "danger" : "warning"}
+              hint="Positive company owes, negative employees owe"
+            />
+            <MetricCard label="Company owes" value={formatCurrency(payrollReport?.company_owes_employees)} icon={WalletCards} tone="warning" />
+            <MetricCard label="Employees owe" value={formatCurrency(payrollReport?.employees_owe_company)} icon={Scale} tone="danger" />
             <MetricCard label="Open warnings" value={warningOpenDiscrepancies} icon={AlertTriangle} tone="danger" />
           </div>
 
@@ -311,6 +339,49 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
           <Card>
             <CardHeader>
+              <CardTitle>Balance report</CardTitle>
+              <CardDescription>Positive balances are owed by the company. Negative balances are owed back by employees.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {payrollReport?.employees.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Paid</TableHead>
+                      <TableHead>Balance</TableHead>
+                      <TableHead className="text-right">Rows</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payrollReport.employees.map((employee) => (
+                      <TableRow key={employee.employee_id}>
+                        <TableCell>
+                          <div className="font-medium">{employee.employee_name}</div>
+                          <div className="text-xs text-muted-foreground">Employee #{employee.employee_id}</div>
+                        </TableCell>
+                        <TableCell>{formatCurrency(employee.total_amount)}</TableCell>
+                        <TableCell>{formatCurrency(employee.paid_amount)}</TableCell>
+                        <TableCell className={Number(employee.balance_amount) < 0 ? "text-destructive" : "text-warning"}>
+                          {formatCurrency(employee.balance_amount)}
+                        </TableCell>
+                        <TableCell className="text-right">{employee.payroll_count}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <EmptyState
+                  title={reportQuery.isLoading ? "Loading balance report..." : "No payroll balances yet"}
+                  description="Once payroll rows are calculated, employee balances will appear here."
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Payroll rows</CardTitle>
               <CardDescription>Use the buttons below for recalculate, approve, payment marking, history, and adjustments.</CardDescription>
             </CardHeader>
@@ -321,8 +392,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                     <TableRow>
                       <TableHead>Employee ID</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Net</TableHead>
-                      <TableHead>Gross</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Paid</TableHead>
+                      <TableHead>Balance</TableHead>
                       <TableHead>Calculated</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -332,19 +404,33 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                       <TableRow key={row.id}>
                         <TableCell>{row.employee_id}</TableCell>
                         <TableCell><StatusBadge status={row.status} /></TableCell>
-                        <TableCell>{formatCurrency(row.net_salary)}</TableCell>
-                        <TableCell>{formatCurrency(row.gross_salary)}</TableCell>
+                        <TableCell>{formatCurrency(row.total_amount)}</TableCell>
+                        <TableCell>{formatCurrency(row.paid_amount)}</TableCell>
+                        <TableCell className={Number(row.balance_amount) < 0 ? "text-destructive" : "text-warning"}>
+                          {formatCurrency(row.balance_amount)}
+                        </TableCell>
                         <TableCell>{formatDateTime(row.calculated_at)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button size="sm" variant="outline" onClick={() => recalculateEmployee.mutate({ employeeId: row.employee_id })}>
                               Recalculate
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ type: "approve", payrollId: row.id })}>
+                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ type: "approve", payrollId: row.id, amount: "", note: "" })}>
                               Approve
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ type: "paid", payrollId: row.id })}>
-                              Mark paid
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setConfirmAction({
+                                  type: "paid",
+                                  payrollId: row.id,
+                                  amount: String(row.balance_amount ?? row.total_amount ?? row.net_salary ?? 0),
+                                  note: "",
+                                })
+                              }
+                            >
+                              Record payment
                             </Button>
                             <Button
                               size="sm"
@@ -501,24 +587,56 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(confirmAction.type && confirmAction.payrollId)} onOpenChange={(open) => !open && setConfirmAction({ type: null, payrollId: null })}>
+      <AlertDialog open={Boolean(confirmAction.type && confirmAction.payrollId)} onOpenChange={(open) => !open && setConfirmAction({ type: null, payrollId: null, amount: "", note: "" })}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmAction.type === "approve" ? "Approve payroll" : "Mark payroll paid"}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmAction.type === "approve" ? "Approve payroll" : "Record payroll payment"}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction.type === "approve"
                 ? "This confirms the payroll row after review."
-                : "This marks the payroll as paid and may lock it depending on backend policy."}
+                : "Record the signed amount paid for this payroll. Use a negative amount when the employee pays the company back."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmAction.type === "paid" ? (
+            <div className="grid gap-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="paymentAmount">Payment amount</Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  step="0.01"
+                  value={confirmAction.amount}
+                  onChange={(event) => setConfirmAction((value) => ({ ...value, amount: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="paymentNote">Note</Label>
+                <Textarea
+                  id="paymentNote"
+                  value={confirmAction.note}
+                  onChange={(event) => setConfirmAction((value) => ({ ...value, note: event.target.value }))}
+                  placeholder="Partial salary payment, repayment, or settlement note"
+                />
+              </div>
+            </div>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              disabled={
+                approvePayroll.isPending ||
+                markPayrollPaid.isPending ||
+                (confirmAction.type === "paid" && (!confirmAction.amount || !Number.isFinite(Number(confirmAction.amount)) || Number(confirmAction.amount) === 0))
+              }
               onClick={() =>
                 confirmAction.payrollId &&
                 (confirmAction.type === "approve"
                   ? approvePayroll.mutate(confirmAction.payrollId)
-                  : markPayrollPaid.mutate(confirmAction.payrollId))
+                  : markPayrollPaid.mutate({
+                      employeePayrollId: confirmAction.payrollId,
+                      amount: Number(confirmAction.amount),
+                      note: confirmAction.note,
+                    }))
               }
             >
               Confirm
