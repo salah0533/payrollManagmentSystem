@@ -36,7 +36,7 @@ export function KPICard({ title, value, subtitle, icon: Icon, trend, variant = '
               'text-sm font-medium',
               trend.isPositive ? 'text-success' : 'text-destructive'
             )}>
-              {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
+              {trend.isPositive ? 'Up' : 'Down'} {Math.abs(trend.value)}%
               <span className="ml-1 text-muted-foreground font-normal">vs last month</span>
             </p>
           )}

@@ -10,7 +10,7 @@ export function DashboardLayout() {
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-transparent">
       {/* Desktop/Tablet Sidebar */}
       {!isMobile && (
         <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
@@ -24,7 +24,7 @@ export function DashboardLayout() {
           isMobile ? 'pl-0' : (sidebarCollapsed ? 'pl-16' : 'pl-64')
         )}
       >
-        <div className="p-4 md:p-6">
+        <div className="mx-auto max-w-[1600px] p-4 md:p-6">
           <Outlet />
         </div>
       </main>

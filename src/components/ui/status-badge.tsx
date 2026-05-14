@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 interface StatusBadgeProps {
-  status: 'active' | 'inactive' | 'pending' | 'approved' | 'rejected' | 'present' | 'late' | 'absent' | 'vacation' | 'paid';
+  status: string;
   className?: string;
 }
 
@@ -16,6 +16,16 @@ const statusStyles: Record<string, string> = {
   absent: 'bg-destructive/10 text-destructive',
   vacation: 'bg-info/10 text-info',
   paid: 'bg-success/10 text-success',
+  draft: 'bg-muted text-muted-foreground',
+  reviewed: 'bg-info/10 text-info',
+  needs_review: 'bg-warning/10 text-warning',
+  locked: 'bg-primary/10 text-primary',
+  not_generated: 'bg-muted text-muted-foreground',
+  cancelled: 'bg-muted text-muted-foreground',
+  suspended: 'bg-warning/10 text-warning',
+  incomplete: 'bg-warning/10 text-warning',
+  unpaid_vacation: 'bg-destructive/10 text-destructive',
+  paid_vacation: 'bg-info/10 text-info',
 };
 
 const statusLabels: Record<string, string> = {
@@ -29,12 +39,24 @@ const statusLabels: Record<string, string> = {
   absent: 'Absent',
   vacation: 'Vacation',
   paid: 'Paid',
+  draft: 'Draft',
+  reviewed: 'Reviewed',
+  needs_review: 'Needs review',
+  locked: 'Locked',
+  not_generated: 'Not generated',
+  cancelled: 'Cancelled',
+  suspended: 'Suspended',
+  incomplete: 'Incomplete',
+  unpaid_vacation: 'Unpaid vacation',
+  paid_vacation: 'Paid vacation',
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const normalized = String(status || 'unknown').toLowerCase();
+  const label = statusLabels[normalized] || normalized.replace(/_/g, ' ');
   return (
-    <span className={cn('status-badge', statusStyles[status], className)}>
-      {statusLabels[status]}
+    <span className={cn('status-badge capitalize', statusStyles[normalized] || 'bg-muted text-muted-foreground', className)}>
+      {label}
     </span>
   );
 }

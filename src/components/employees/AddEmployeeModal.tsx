@@ -28,10 +28,21 @@ import {
 } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+interface AddEmployeeFormData {
+  fullName: string;
+  email: string;
+  phone: string;
+  jobTitle: string;
+  role: string;
+  department: string;
+  salaryType: string;
+  salary: string;
+}
+
 interface AddEmployeeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdd?: (employee: any) => void;
+  onAdd?: (employee: AddEmployeeFormData) => void;
 }
 
 export function AddEmployeeModal({ open, onOpenChange, onAdd }: AddEmployeeModalProps) {
