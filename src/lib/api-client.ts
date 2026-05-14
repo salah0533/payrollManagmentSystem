@@ -73,19 +73,27 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function parseValidationErrors(payload: unknown): ApiValidationError[] {
-  if (!isObject(payload) || !Array.isArray(payload.detail)) {
+  if (!isObject(payload)) {
     return [];
   }
 
-  return payload.detail
+  const rawErrors = Array.isArray(payload.errors) ? payload.errors : Array.isArray(payload.detail) ? payload.detail : [];
+
+  return rawErrors
     .map((item) => {
       if (!isObject(item)) {
         return null;
       }
 
-      const fieldPath = Array.isArray(item.loc) ? item.loc.join(".") : "form";
+      const fieldPath =
+        typeof item.field === "string" && item.field.trim()
+          ? item.field
+          : Array.isArray(item.loc)
+            ? item.loc.join(".")
+            : "form";
       const message = typeof item.msg === "string" ? item.msg : "Invalid value";
-      return { field: fieldPath, message };
+      const resolvedMessage = typeof item.message === "string" ? item.message : message;
+      return { field: fieldPath, message: resolvedMessage };
     })
     .filter(Boolean) as ApiValidationError[];
 }
@@ -107,7 +115,9 @@ function getErrorMessage(payload: unknown, fallback: string) {
 function createError(response: Response, payload: unknown) {
   const fallbackMessage = response.status >= 500 ? "Something went wrong on the server." : "Request failed.";
   const fieldErrors = parseValidationErrors(payload);
-  const message = fieldErrors[0]?.message || getErrorMessage(payload, fallbackMessage);
+  const message = fieldErrors[0]
+    ? `${fieldErrors[0].field || "form"}: ${fieldErrors[0].message}`
+    : getErrorMessage(payload, fallbackMessage);
 
   return new ApiError(message, response.status, payload, fieldErrors);
 }

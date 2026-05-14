@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, Clock3, CreditCard, LogOut, Palmtree } from "lucide-react";
 import { addMonths, endOfMonth, startOfMonth } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,10 +10,12 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime, formatLabel, formatMinutes, toIsoDate } from "@/lib/format";
 import { attendanceApi } from "@/services/attendanceApi";
 import { notificationApi } from "@/services/notificationApi";
+import { payrollApi } from "@/services/payrollApi";
 import { vacationApi } from "@/services/vacationApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
@@ -31,6 +34,7 @@ function resolveAttendanceState(day?: { check_in_time?: string | null; break_sta
 }
 
 export default function Home() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser, refreshUnreadNotificationCount, logout } = useAuth();
   const [selectedPayrollPeriod, setSelectedPayrollPeriod] = useState("");
@@ -65,13 +69,26 @@ export default function Home() {
     queryFn: () => attendanceApi.selfList(currentMonthStart, currentMonthEnd),
   });
 
+  const payrollPeriodsQuery = useQuery({
+    queryKey: ["employee-home", "payroll-periods"],
+    queryFn: () => payrollApi.listSelfPeriods(),
+  });
+
+  useEffect(() => {
+    if (selectedPayrollPeriod || !payrollPeriodsQuery.data?.length) {
+      return;
+    }
+    setSelectedPayrollPeriod(String(payrollPeriodsQuery.data[0].id));
+  }, [payrollPeriodsQuery.data, selectedPayrollPeriod]);
+
   const attendanceAction = useMutation({
     mutationFn: (action: "check-in" | "break-start" | "break-end" | "check-out") => attendanceApi.selfAction(action, {}),
-    onSuccess: async (_, action) => {
+    onSuccess: async (result, action) => {
       toast({
         title: formatLabel(action),
         description: "Attendance event recorded successfully.",
       });
+      queryClient.setQueryData(["employee-home", "attendance", today], [result.attendance_day]);
       await queryClient.invalidateQueries({ queryKey: ["employee-home", "attendance"] });
       await queryClient.invalidateQueries({ queryKey: ["employee-home", "attendance-summary"] });
     },
@@ -262,23 +279,33 @@ export default function Home() {
         <Card>
           <CardHeader>
             <CardTitle>Payroll status</CardTitle>
-            <CardDescription>
-              The backend requires `period_id` for self payroll. A payroll period list endpoint is not currently exposed.
-            </CardDescription>
+            <CardDescription>Select a payroll period to open your payroll page with the right period already chosen.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-lg border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
-              Use the payroll page with a valid period id to load your payroll summary.
+              Payroll is organized by period, which means each salary run belongs to a specific month or payroll cycle.
             </div>
-            <input
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="Optional period id reference"
-              value={selectedPayrollPeriod}
-              onChange={(event) => setSelectedPayrollPeriod(event.target.value)}
-            />
+            <Select value={selectedPayrollPeriod} onValueChange={setSelectedPayrollPeriod}>
+              <SelectTrigger>
+                <SelectValue placeholder={payrollPeriodsQuery.isLoading ? "Loading payroll periods..." : "Select payroll period"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(payrollPeriodsQuery.data || []).map((period) => (
+                  <SelectItem key={period.id} value={String(period.id)}>
+                    {period.name} ({formatDate(period.start_date)} to {formatDate(period.end_date)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
-              Current user: {currentUser?.employee?.full_name || currentUser?.username}. Suggested recent month: {formatDate(toIsoDate(addMonths(new Date(), 0)))}
+              Current user: {currentUser?.employee?.full_name || currentUser?.username}. Latest period: {payrollPeriodsQuery.data?.[0]?.name || formatDate(toIsoDate(addMonths(new Date(), 0)))}
             </p>
+            <Button
+              variant="outline"
+              onClick={() => navigate(selectedPayrollPeriod ? `/employee/payroll?period=${selectedPayrollPeriod}` : "/employee/payroll")}
+            >
+              Open payroll
+            </Button>
           </CardContent>
         </Card>
       </div>

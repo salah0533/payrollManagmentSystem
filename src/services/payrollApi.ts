@@ -8,6 +8,12 @@ import type {
 } from "@/types/domain";
 
 export const payrollApi = {
+  listPeriods() {
+    return apiRequest<PayrollPeriod[]>("/payroll/periods");
+  },
+  listSelfPeriods() {
+    return apiRequest<PayrollPeriod[]>("/me/payroll-periods");
+  },
   getPeriod(periodId: number) {
     return apiRequest<PayrollPeriod>(`/payroll/period/${periodId}`);
   },

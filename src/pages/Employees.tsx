@@ -56,6 +56,8 @@ const defaultForm = {
   dues: "0",
 };
 
+const employeeStatuses = ["active", "inactive", "suspended"];
+
 const employeeFormFields: Array<{
   key: keyof typeof defaultForm;
   label: string;
@@ -480,7 +482,18 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
             ))}
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <Input id="status" value={form.status} onChange={(event) => setForm((value) => ({ ...value, status: event.target.value }))} />
+              <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employeeStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

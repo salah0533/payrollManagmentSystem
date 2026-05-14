@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatLabel } from "@/lib/format";
@@ -87,6 +88,16 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const employeeMap = useMemo(
     () => Object.fromEntries((employeesQuery.data || []).map((employee) => [employee.id, employee.full_name])),
     [employeesQuery.data],
+  );
+
+  const vacationTypeMap = useMemo(
+    () => Object.fromEntries((vacationTypesQuery.data || []).map((item) => [item.id, item.vacation_type])),
+    [vacationTypesQuery.data],
+  );
+
+  const vacationStatusMap = useMemo(
+    () => Object.fromEntries((vacationStatusesQuery.data || []).map((item) => [item.id, item.vacation_status])),
+    [vacationStatusesQuery.data],
   );
 
   const filteredVacations = useMemo(() => {
@@ -202,8 +213,32 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             <CardDescription>Filter by vacation type or status using the backend lookup values.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Input placeholder="Vacation type id or label" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} />
-            <Input placeholder="Status id or label" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} />
+            <Select value={typeFilter || "all"} onValueChange={(value) => setTypeFilter(value === "all" ? "" : value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="All vacation types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All vacation types</SelectItem>
+                {(vacationTypesQuery.data || []).map((type) => (
+                  <SelectItem key={type.id} value={String(type.id)}>
+                    {formatLabel(type.vacation_type)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter || "all"} onValueChange={(value) => setStatusFilter(value === "all" ? "" : value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {(vacationStatusesQuery.data || []).map((status) => (
+                  <SelectItem key={status.id} value={String(status.id)}>
+                    {formatLabel(status.vacation_status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </CardContent>
         </Card>
       ) : null}
@@ -239,8 +274,8 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                     <TableCell>{formatDate(vacation.start_date)}</TableCell>
                     <TableCell>{formatDate(vacation.end_date)}</TableCell>
                     <TableCell>{daysBetween(vacation.start_date, vacation.end_date)}</TableCell>
-                    <TableCell>{formatLabel(String(vacation.vacation_type))}</TableCell>
-                    <TableCell><StatusBadge status={String(vacation.vacation_status)} /></TableCell>
+                    <TableCell>{formatLabel(vacationTypeMap[Number(vacation.vacation_type)] || String(vacation.vacation_type))}</TableCell>
+                    <TableCell><StatusBadge status={vacationStatusMap[Number(vacation.vacation_status)] || String(vacation.vacation_status)} /></TableCell>
                     <TableCell>{vacation.is_paid ? "Yes" : "No"}</TableCell>
                     {scope === "manage" ? (
                       <TableCell className="text-right">
@@ -306,13 +341,19 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
           <div className="grid gap-4 py-2">
             {scope === "manage" ? (
               <div className="space-y-2">
-                <Label htmlFor="vacationEmployee">Employee ID</Label>
-                <Input
-                  id="vacationEmployee"
-                  value={form.employee_id}
-                  onChange={(event) => setForm((value) => ({ ...value, employee_id: event.target.value }))}
-                  placeholder="Employee id"
-                />
+                <Label htmlFor="vacationEmployee">Employee</Label>
+                <Select value={form.employee_id} onValueChange={(value) => setForm((current) => ({ ...current, employee_id: value }))}>
+                  <SelectTrigger id="vacationEmployee">
+                    <SelectValue placeholder="Select employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(employeesQuery.data || []).map((employee) => (
+                      <SelectItem key={employee.id} value={String(employee.id)}>
+                        {employee.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             ) : null}
             <div className="space-y-2">
@@ -324,22 +365,41 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               <Input id="vacationEnd" type="date" value={form.end_date} onChange={(event) => setForm((value) => ({ ...value, end_date: event.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vacationType">Vacation type ID</Label>
-              <Input id="vacationType" value={form.vacation_type} onChange={(event) => setForm((value) => ({ ...value, vacation_type: event.target.value }))} placeholder="Use a value from /vacation_types" />
+              <Label htmlFor="vacationType">Vacation type</Label>
+              <Select value={form.vacation_type} onValueChange={(value) => setForm((current) => ({ ...current, vacation_type: value }))}>
+                <SelectTrigger id="vacationType">
+                  <SelectValue placeholder="Select vacation type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(vacationTypesQuery.data || []).map((type) => (
+                    <SelectItem key={type.id} value={String(type.id)}>
+                      {formatLabel(type.vacation_type)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {scope === "manage" ? (
               <div className="space-y-2">
-                <Label htmlFor="vacationStatus">Vacation status ID</Label>
-                <Input id="vacationStatus" value={form.vacation_status} onChange={(event) => setForm((value) => ({ ...value, vacation_status: event.target.value }))} placeholder={`Default pending id: ${pendingStatusId ?? "unknown"}`} />
+                <Label htmlFor="vacationStatus">Vacation status</Label>
+                <Select value={form.vacation_status || String(pendingStatusId ?? "")} onValueChange={(value) => setForm((current) => ({ ...current, vacation_status: value }))}>
+                  <SelectTrigger id="vacationStatus">
+                    <SelectValue placeholder="Select vacation status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(vacationStatusesQuery.data || []).map((status) => (
+                      <SelectItem key={status.id} value={String(status.id)}>
+                        {formatLabel(status.vacation_status)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             ) : null}
             <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
               Paid vacation
               <input type="checkbox" checked={form.is_paid} onChange={(event) => setForm((value) => ({ ...value, is_paid: event.target.checked }))} />
             </label>
-            <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-              Vacation types are currently backend ids. A dedicated frontend-friendly lookup/value mapping is loaded from `/vacation_types`, but the backend update API still expects ids.
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRequestOpen(false)}>

@@ -93,6 +93,13 @@ export default function Users() {
     [employeesQuery.data],
   );
 
+  const selectedEmployee = useMemo(
+    () => (employeesQuery.data || []).find((employee) => String(employee.id) === form.employee_id),
+    [employeesQuery.data, form.employee_id],
+  );
+
+  const selectedEmployeeHasEmail = Boolean(selectedEmployee?.email);
+
   const refreshUsers = async () => {
     await queryClient.invalidateQueries({ queryKey: ["users"] });
     await queryClient.invalidateQueries({ queryKey: ["users", "available-employees"] });
@@ -209,6 +216,20 @@ export default function Users() {
     setEditingUserId(null);
     setForm(defaultUserForm);
     setDialogOpen(true);
+  };
+
+  const handleEmployeeSelection = (value: string) => {
+    if (value === "none") {
+      setForm((current) => ({ ...current, employee_id: "", email: "" }));
+      return;
+    }
+
+    const employee = (availableEmployeesQuery.data || employeesQuery.data || []).find((item) => String(item.id) === value);
+    setForm((current) => ({
+      ...current,
+      employee_id: value,
+      email: employee?.email || "",
+    }));
   };
 
   const openEdit = (userId: number) => {
@@ -333,7 +354,13 @@ export default function Users() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="userEmail">Email</Label>
-              <Input id="userEmail" value={form.email} onChange={(event) => setForm((value) => ({ ...value, email: event.target.value }))} />
+              <Input
+                id="userEmail"
+                value={form.email}
+                onChange={(event) => setForm((value) => ({ ...value, email: event.target.value }))}
+                disabled={selectedEmployeeHasEmail}
+                placeholder={selectedEmployeeHasEmail ? "Using selected employee email" : "Optional account email"}
+              />
             </div>
             {!editingUserId ? (
               <div className="space-y-2">
@@ -343,7 +370,7 @@ export default function Users() {
             ) : null}
             <div className="space-y-2">
               <Label htmlFor="userEmployee">Employee link</Label>
-              <Select value={form.employee_id || "none"} onValueChange={(value) => setForm((current) => ({ ...current, employee_id: value === "none" ? "" : value }))}>
+              <Select value={form.employee_id || "none"} onValueChange={handleEmployeeSelection}>
                 <SelectTrigger id="userEmployee">
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>

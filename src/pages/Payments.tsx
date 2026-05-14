@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, Calculator, DollarSign, WalletCards } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
@@ -37,7 +39,8 @@ import { toast } from "@/hooks/use-toast";
 
 export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
-  const [periodId, setPeriodId] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [periodId, setPeriodId] = useState(searchParams.get("period") || "");
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null }>({
     type: null,
@@ -55,6 +58,35 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
   const parsedPeriodId = Number(periodId);
   const canLoadPayroll = Number.isFinite(parsedPeriodId) && parsedPeriodId > 0;
+
+  const periodOptionsQuery = useQuery({
+    queryKey: ["payroll", "periods", scope],
+    queryFn: () => (scope === "manage" ? payrollApi.listPeriods() : payrollApi.listSelfPeriods()),
+  });
+
+  useEffect(() => {
+    if (periodId || !periodOptionsQuery.data?.length) {
+      return;
+    }
+    setPeriodId(String(periodOptionsQuery.data[0].id));
+  }, [periodId, periodOptionsQuery.data]);
+
+  useEffect(() => {
+    if (!periodId) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete("period");
+        return next;
+      }, { replace: true });
+      return;
+    }
+
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("period", periodId);
+      return next;
+    }, { replace: true });
+  }, [periodId, setSearchParams]);
 
   const periodQuery = useQuery({
     queryKey: ["payroll", "period", parsedPeriodId],
@@ -176,11 +208,22 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         description={
           scope === "manage"
             ? "Review payroll by period id, recalculate, approve, add adjustments, and resolve discrepancies."
-            : "View your own payroll summary. The backend requires a valid `period_id`."
+            : "View your payroll by selecting a payroll period."
         }
         actions={
           <>
-            <Input className="w-40" value={periodId} onChange={(event) => setPeriodId(event.target.value)} placeholder="Period ID" />
+            <Select value={periodId} onValueChange={setPeriodId}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder={periodOptionsQuery.isLoading ? "Loading periods..." : "Select payroll period"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(periodOptionsQuery.data || []).map((period) => (
+                  <SelectItem key={period.id} value={String(period.id)}>
+                    {period.name} ({formatDate(period.start_date)} to {formatDate(period.end_date)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {scope === "manage" ? (
               <Button variant="outline" onClick={() => recalculatePeriod.mutate()} disabled={!canLoadPayroll || recalculatePeriod.isPending}>
                 {recalculatePeriod.isPending ? "Recalculating..." : "Recalculate period"}
@@ -193,7 +236,11 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       {!canLoadPayroll ? (
         <EmptyState
           title="Payroll period required"
-          description="The backend exposes period-based payroll endpoints but does not currently expose a payroll period list endpoint for the frontend."
+          description={
+            periodOptionsQuery.isLoading
+              ? "Loading payroll periods..."
+              : "No payroll periods are available yet."
+          }
         />
       ) : scope === "self" ? (
         <>
