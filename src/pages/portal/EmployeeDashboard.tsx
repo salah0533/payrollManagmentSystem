@@ -18,6 +18,7 @@ import { payrollService } from '@/services/payrollService';
 import { selfService } from '@/services/selfService';
 import { useAuth } from '@/context/AuthContext';
 import { formatCurrency, monthBounds } from '@/lib/format';
+import { EmployeeProfileRequired } from '@/components/portal/EmployeeProfileRequired';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -31,15 +32,18 @@ export default function EmployeeDashboard() {
   const payrollQuery = useQuery({
     queryKey: ['my-current-payroll'],
     queryFn: payrollService.currentMine,
+    enabled: Boolean(user?.employee_id),
     retry: false,
   });
   const leaveQuery = useQuery({
     queryKey: ['my-leave'],
     queryFn: leaveService.own,
+    enabled: Boolean(user?.employee_id),
   });
   const attendanceQuery = useQuery({
     queryKey: ['my-attendance', month.start, month.end],
     queryFn: () => attendanceService.ownRange(month.start, month.end),
+    enabled: Boolean(user?.employee_id),
   });
 
   const profile = profileQuery.data;
@@ -80,6 +84,10 @@ export default function EmployeeDashboard() {
       absent: record.status === 'absent' ? 1 : 0,
     }));
   }, [attendance]);
+
+  if (!user?.employee_id) {
+    return <EmployeeProfileRequired />;
+  }
 
   if (profileQuery.isLoading || leaveQuery.isLoading || attendanceQuery.isLoading) {
     return <LoadingSkeleton rows={6} />;

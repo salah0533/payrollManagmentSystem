@@ -7,8 +7,11 @@ import { ErrorMessage } from '@/components/common/ErrorMessage';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { attendanceService } from '@/services/attendanceService';
 import { formatTime, monthBounds } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
+import { EmployeeProfileRequired } from '@/components/portal/EmployeeProfileRequired';
 
 export default function MyAttendancePage() {
+  const { user } = useAuth();
   const current = monthBounds();
   const [start, setStart] = useState(current.start);
   const [end, setEnd] = useState(current.end);
@@ -16,7 +19,10 @@ export default function MyAttendancePage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-attendance', start, end],
     queryFn: () => attendanceService.ownRange(start, end),
+    enabled: Boolean(user?.employee_id),
   });
+
+  if (!user?.employee_id) return <EmployeeProfileRequired />;
 
   if (isLoading) return <LoadingSkeleton rows={8} />;
   if (error) return <ErrorMessage message={error instanceof Error ? error.message : undefined} />;

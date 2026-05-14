@@ -7,9 +7,18 @@ import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { StatCard } from '@/components/common/StatCard';
 import { selfService } from '@/services/selfService';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
+import { EmployeeProfileRequired } from '@/components/portal/EmployeeProfileRequired';
 
 export default function MyProfilePage() {
-  const { data: profile, isLoading, error } = useQuery({ queryKey: ['my-profile'], queryFn: selfService.profile });
+  const { user } = useAuth();
+  const { data: profile, isLoading, error } = useQuery({
+    queryKey: ['my-profile'],
+    queryFn: selfService.profile,
+    enabled: Boolean(user?.employee_id),
+  });
+
+  if (!user?.employee_id) return <EmployeeProfileRequired />;
 
   if (isLoading) return <LoadingSkeleton rows={6} />;
   if (error || !profile) return <ErrorMessage />;

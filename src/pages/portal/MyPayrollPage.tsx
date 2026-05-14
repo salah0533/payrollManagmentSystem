@@ -7,12 +7,18 @@ import { StatCard } from '@/components/common/StatCard';
 import { payrollService } from '@/services/payrollService';
 import { formatCurrency } from '@/lib/format';
 import { DollarSign, WalletCards } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { EmployeeProfileRequired } from '@/components/portal/EmployeeProfileRequired';
 
 export default function MyPayrollPage() {
+  const { user } = useAuth();
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-current-payroll'],
     queryFn: payrollService.currentMine,
+    enabled: Boolean(user?.employee_id),
   });
+
+  if (!user?.employee_id) return <EmployeeProfileRequired />;
 
   if (isLoading) return <LoadingSkeleton rows={6} />;
   if (error || !data) return <ErrorMessage message={error instanceof Error ? error.message : undefined} />;

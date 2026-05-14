@@ -20,6 +20,11 @@ export interface EmployeePayload {
   salary_type?: number;
   allowed_late?: number;
   min_extraTime?: number;
+  create_user_account?: boolean;
+  username?: string | null;
+  password?: string | null;
+  user_email?: string | null;
+  role_ids?: number[];
 }
 
 export const employeeService = {
@@ -27,5 +32,6 @@ export const employeeService = {
   get: (id: number) => apiClient.get<EmployeeRead>(`/employee/${id}`),
   create: (payload: EmployeePayload) => apiClient.post<EmployeeRead>('/employee/', payload),
   update: (id: number, payload: Partial<EmployeePayload>) => apiClient.put<EmployeeRead>(`/employee/${id}`, payload),
+  activate: (id: number) => apiClient.put<EmployeeRead>(`/employee/${id}`, { status: 'active' }),
   deactivate: (id: number) => apiClient.put<EmployeeRead>(`/employee/${id}`, { status: 'inactive' }),
 };

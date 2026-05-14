@@ -14,8 +14,11 @@ import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { leaveService } from '@/services/leaveService';
 import { lookupService } from '@/services/lookupService';
 import { daysBetweenInclusive, todayIso } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
+import { EmployeeProfileRequired } from '@/components/portal/EmployeeProfileRequired';
 
 export default function MyLeavePage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
@@ -25,7 +28,7 @@ export default function MyLeavePage() {
     is_paid: 'true',
   });
 
-  const leaveQuery = useQuery({ queryKey: ['my-leave'], queryFn: leaveService.own });
+  const leaveQuery = useQuery({ queryKey: ['my-leave'], queryFn: leaveService.own, enabled: Boolean(user?.employee_id) });
   const typesQuery = useQuery({ queryKey: ['vacation-types'], queryFn: lookupService.vacationTypes });
   const statusesQuery = useQuery({ queryKey: ['vacation-statuses'], queryFn: lookupService.vacationStatuses });
 
@@ -41,6 +44,8 @@ export default function MyLeavePage() {
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not submit leave request'),
   });
+
+  if (!user?.employee_id) return <EmployeeProfileRequired />;
 
   if (leaveQuery.isLoading || typesQuery.isLoading || statusesQuery.isLoading) return <LoadingSkeleton rows={8} />;
   if (leaveQuery.error || typesQuery.error || statusesQuery.error) return <ErrorMessage />;
