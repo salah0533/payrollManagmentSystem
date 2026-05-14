@@ -72,10 +72,8 @@ export const notificationTypes = [
 
 export const payrollAdjustmentTypes = [
   "bonus",
-  "allowance",
   "deduction",
-  "penalty",
-  "manual_correction",
+  "correction",
 ] as const;
 
 export const attendanceCorrectionFields = [

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, DollarSign, ReceiptText, Scale, WalletCards } from "lucide-react";
+import { AlertTriangle, DollarSign, MoreHorizontal, ReceiptText, Scale, WalletCards } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { MetricCard } from "@/components/app/MetricCard";
@@ -29,19 +29,67 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { payrollAdjustmentTypes } from "@/components/layout/navigation";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { payrollApi } from "@/services/payrollApi";
 import { toast } from "@/hooks/use-toast";
+import type { EmployeePayroll } from "@/types/domain";
+
+type PayrollAdjustmentType = (typeof payrollAdjustmentTypes)[number];
+
+const adjustmentLabels: Record<PayrollAdjustmentType, string> = {
+  bonus: "Bonus",
+  deduction: "Deduction",
+  correction: "Correction",
+};
+
+const breakdownFields: Array<{ key: keyof EmployeePayroll; label: string }> = [
+  { key: "base_salary", label: "Base salary" },
+  { key: "normal_amount", label: "Normal pay" },
+  { key: "overtime_amount", label: "Overtime" },
+  { key: "bonus_amount", label: "Bonus" },
+  { key: "deduction_amount", label: "Deductions" },
+  { key: "late_deduction_amount", label: "Late deductions" },
+  { key: "unpaid_vacation_deduction", label: "Unpaid vacation" },
+  { key: "adjustment_amount", label: "Adjustment total" },
+  { key: "gross_salary", label: "Gross salary" },
+  { key: "net_salary", label: "Net salary" },
+  { key: "total_amount", label: "Total" },
+  { key: "paid_amount", label: "Paid" },
+  { key: "balance_amount", label: "Balance" },
+];
+
+function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {breakdownFields.map((field) => (
+        <div key={field.key} className="rounded-lg border border-border p-3">
+          <p className="text-xs text-muted-foreground">{field.label}</p>
+          <p className="font-medium">{formatCurrency(payroll[field.key] as number | string)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [periodId, setPeriodId] = useState(searchParams.get("period") || "");
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null);
+  const [detailsPayrollId, setDetailsPayrollId] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null; amount: string; note: string }>({
     type: null,
     payrollId: null,
@@ -52,7 +100,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const [adjustmentForm, setAdjustmentForm] = useState({
     employee_payroll_id: "",
     employee_id: "",
-    adjustment_type: "bonus",
+    adjustment_type: "bonus" as PayrollAdjustmentType,
     amount: "0",
     reason: "",
   });
@@ -174,7 +222,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         employee_id: Number(adjustmentForm.employee_id),
         adjustment_type: adjustmentForm.adjustment_type,
         amount: Number(adjustmentForm.amount),
-        reason: adjustmentForm.reason,
+        reason: adjustmentForm.reason.trim(),
       }),
     onSuccess: async () => {
       toast({ title: "Adjustment added", description: "The payroll adjustment was sent to the backend." });
@@ -183,7 +231,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         employee_payroll_id: "",
         employee_id: "",
         adjustment_type: "bonus",
-        amount: "0",
+        amount: "",
         reason: "",
       });
       await refreshPayroll();
@@ -208,8 +256,50 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const payrollRows = useMemo(() => periodQuery.data?.payrolls ?? [], [periodQuery.data?.payrolls]);
   const warningOpenDiscrepancies = (discrepanciesQuery.data || []).filter((item) => item.status !== "resolved").length;
   const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
+  const detailsPayroll = useMemo(() => payrollRows.find((row) => row.id === detailsPayrollId) || null, [detailsPayrollId, payrollRows]);
   const selfPayroll = selfPayrollQuery.data;
   const payrollReport = reportQuery.data;
+  const employeeNameMap = useMemo(
+    () => new Map((payrollReport?.employees || []).map((employee) => [employee.employee_id, employee.employee_name])),
+    [payrollReport?.employees],
+  );
+  const adjustmentAmount = Number(adjustmentForm.amount);
+  const canSubmitAdjustment = Boolean(
+    selectedPayroll &&
+      adjustmentForm.employee_payroll_id &&
+      adjustmentForm.employee_id &&
+      payrollAdjustmentTypes.includes(adjustmentForm.adjustment_type) &&
+      Number.isFinite(adjustmentAmount) &&
+      adjustmentAmount > 0 &&
+      adjustmentForm.reason.trim(),
+  );
+
+  const getEmployeeLabel = (employeeId: number) => employeeNameMap.get(employeeId) || `Employee #${employeeId}`;
+
+  const openAdjustmentDialog = (row: EmployeePayroll, adjustmentType: PayrollAdjustmentType) => {
+    setSelectedPayrollId(row.id);
+    setAdjustmentForm({
+      employee_payroll_id: String(row.id),
+      employee_id: String(row.employee_id),
+      adjustment_type: adjustmentType,
+      amount: "",
+      reason: "",
+    });
+    setAdjustmentOpen(true);
+  };
+
+  const submitAdjustment = () => {
+    if (!canSubmitAdjustment) {
+      toast({
+        title: "Adjustment needs review",
+        description: "Choose a type, enter an amount greater than zero, and add a reason.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addAdjustment.mutate();
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -273,23 +363,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <CardTitle>Payroll summary</CardTitle>
                   <CardDescription>Loaded from `/me/payroll?period_id={parsedPeriodId}`.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-lg border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Base salary</p>
-                    <p className="font-medium">{formatCurrency(selfPayroll.base_salary)}</p>
-                  </div>
-                  <div className="rounded-lg border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Overtime</p>
-                    <p className="font-medium">{formatCurrency(selfPayroll.overtime_amount)}</p>
-                  </div>
-                  <div className="rounded-lg border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Late deductions</p>
-                    <p className="font-medium">{formatCurrency(selfPayroll.late_deduction_amount)}</p>
-                  </div>
-                  <div className="rounded-lg border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Net salary</p>
-                    <p className="font-medium">{formatCurrency(selfPayroll.net_salary)}</p>
-                  </div>
+                <CardContent className="space-y-4">
+                  <PayrollBreakdownGrid payroll={selfPayroll} />
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-lg border border-border p-4">
                     <p className="text-xs text-muted-foreground">Approved at</p>
                     <p className="font-medium">{formatDateTime(selfPayroll.approved_at)}</p>
@@ -301,6 +377,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <div className="rounded-lg border border-border p-4">
                     <p className="text-xs text-muted-foreground">Notes</p>
                     <p className="font-medium">{selfPayroll.notes || "-"}</p>
+                  </div>
                   </div>
                 </CardContent>
               </Card>
@@ -383,73 +460,88 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           <Card>
             <CardHeader>
               <CardTitle>Payroll rows</CardTitle>
-              <CardDescription>Use the buttons below for recalculate, approve, payment marking, history, and adjustments.</CardDescription>
+              <CardDescription>Open the row action menu for details, recalculation, approval, payment marking, and adjustments.</CardDescription>
             </CardHeader>
             <CardContent>
               {payrollRows.length ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee ID</TableHead>
+                      <TableHead>Employee</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Gross</TableHead>
+                      <TableHead>Net</TableHead>
+                      <TableHead>Bonus</TableHead>
+                      <TableHead>Deductions</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Balance</TableHead>
-                      <TableHead>Calculated</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {payrollRows.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell>{row.employee_id}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{getEmployeeLabel(row.employee_id)}</div>
+                          <div className="text-xs text-muted-foreground">Payroll #{row.id}</div>
+                        </TableCell>
                         <TableCell><StatusBadge status={row.status} /></TableCell>
+                        <TableCell>{formatCurrency(row.gross_salary)}</TableCell>
+                        <TableCell>{formatCurrency(row.net_salary)}</TableCell>
+                        <TableCell>{formatCurrency(row.bonus_amount)}</TableCell>
+                        <TableCell>{formatCurrency(row.deduction_amount)}</TableCell>
                         <TableCell>{formatCurrency(row.total_amount)}</TableCell>
                         <TableCell>{formatCurrency(row.paid_amount)}</TableCell>
                         <TableCell className={Number(row.balance_amount) < 0 ? "text-destructive" : "text-warning"}>
                           {formatCurrency(row.balance_amount)}
                         </TableCell>
-                        <TableCell>{formatDateTime(row.calculated_at)}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="outline" onClick={() => recalculateEmployee.mutate({ employeeId: row.employee_id })}>
-                              Recalculate
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setConfirmAction({ type: "approve", payrollId: row.id, amount: "", note: "" })}>
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setConfirmAction({
-                                  type: "paid",
-                                  payrollId: row.id,
-                                  amount: String(row.balance_amount ?? row.total_amount ?? row.net_salary ?? 0),
-                                  note: "",
-                                })
-                              }
-                            >
-                              Record payment
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedPayrollId(row.id);
-                                setAdjustmentForm({
-                                  employee_payroll_id: String(row.id),
-                                  employee_id: String(row.employee_id),
-                                  adjustment_type: "bonus",
-                                  amount: "0",
-                                  reason: "",
-                                });
-                                setAdjustmentOpen(true);
-                              }}
-                            >
-                              Adjust
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="outline" aria-label={`Open actions for payroll ${row.id}`}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuLabel>{getEmployeeLabel(row.employee_id)}</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setSelectedPayrollId(row.id);
+                                  setDetailsPayrollId(row.id);
+                                }}
+                              >
+                                Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={recalculateEmployee.isPending}
+                                onSelect={() => recalculateEmployee.mutate({ employeeId: row.employee_id })}
+                              >
+                                Recalculate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => setConfirmAction({ type: "approve", payrollId: row.id, amount: "", note: "" })}>
+                                Approve
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  setConfirmAction({
+                                    type: "paid",
+                                    payrollId: row.id,
+                                    amount: String(row.balance_amount ?? row.total_amount ?? row.net_salary ?? 0),
+                                    note: "",
+                                  })
+                                }
+                              >
+                                Record payment
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {payrollAdjustmentTypes.map((type) => (
+                                <DropdownMenuItem key={type} onSelect={() => openAdjustmentDialog(row, type)}>
+                                  Add {adjustmentLabels[type].toLowerCase()}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -519,7 +611,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <div className="rounded-lg border border-border p-4">
                     <p className="font-medium">Selected payroll #{selectedPayroll.id}</p>
                     <p className="text-sm text-muted-foreground">
-                      Employee #{selectedPayroll.employee_id} / Period {selectedPayroll.payroll_period_id}
+                      {getEmployeeLabel(selectedPayroll.employee_id)} / Period {selectedPayroll.payroll_period_id}
                     </p>
                     <div className="mt-3 space-y-2">
                       {(historyQuery.data || []).length ? (
@@ -540,7 +632,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                     </div>
                   </div>
                 ) : (
-                  <EmptyState title="No payroll row selected" description="Open Adjust on a payroll row to inspect and add a payroll adjustment." />
+                  <EmptyState title="No payroll row selected" description="Open a payroll row to inspect adjustment and calculation history." />
                 )}
               </CardContent>
             </Card>
@@ -548,28 +640,89 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         </>
       )}
 
+      <Dialog open={Boolean(detailsPayroll)} onOpenChange={(open) => !open && setDetailsPayrollId(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Payroll details</DialogTitle>
+            <DialogDescription>
+              {detailsPayroll ? `${getEmployeeLabel(detailsPayroll.employee_id)} / ${periodQuery.data?.name || `Period ${detailsPayroll.payroll_period_id}`}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {detailsPayroll ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <div className="mt-1"><StatusBadge status={detailsPayroll.status} /></div>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Salary type</p>
+                  <p className="font-medium capitalize">{detailsPayroll.salary_type}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Calculated at</p>
+                  <p className="font-medium">{formatDateTime(detailsPayroll.calculated_at)}</p>
+                </div>
+              </div>
+              <PayrollBreakdownGrid payroll={detailsPayroll} />
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Payroll adjustment</DialogTitle>
-            <DialogDescription>Add a backend payroll adjustment when the selected payroll row needs a manual correction.</DialogDescription>
+            <DialogTitle>Add {adjustmentLabels[adjustmentForm.adjustment_type].toLowerCase()}</DialogTitle>
+            <DialogDescription>
+              {selectedPayroll ? `${getEmployeeLabel(selectedPayroll.employee_id)} / ${periodQuery.data?.name || `Period ${selectedPayroll.payroll_period_id}`}` : "Select a payroll row before saving an adjustment."}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="adjustmentPayrollId">Employee payroll ID</Label>
-              <Input id="adjustmentPayrollId" value={adjustmentForm.employee_payroll_id} onChange={(event) => setAdjustmentForm((value) => ({ ...value, employee_payroll_id: event.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="adjustmentEmployeeId">Employee ID</Label>
-              <Input id="adjustmentEmployeeId" value={adjustmentForm.employee_id} onChange={(event) => setAdjustmentForm((value) => ({ ...value, employee_id: event.target.value }))} />
-            </div>
+            {selectedPayroll ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Employee</p>
+                  <p className="font-medium">{getEmployeeLabel(selectedPayroll.employee_id)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Payroll row</p>
+                  <p className="font-medium">#{selectedPayroll.id}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Current net</p>
+                  <p className="font-medium">{formatCurrency(selectedPayroll.net_salary)}</p>
+                </div>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="adjustmentType">Adjustment type</Label>
-              <Input id="adjustmentType" value={adjustmentForm.adjustment_type} onChange={(event) => setAdjustmentForm((value) => ({ ...value, adjustment_type: event.target.value }))} />
+              <Select
+                value={adjustmentForm.adjustment_type}
+                onValueChange={(value) => setAdjustmentForm((current) => ({ ...current, adjustment_type: value as PayrollAdjustmentType }))}
+              >
+                <SelectTrigger id="adjustmentType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {payrollAdjustmentTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {adjustmentLabels[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="adjustmentAmount">Amount</Label>
-              <Input id="adjustmentAmount" type="number" step="0.01" value={adjustmentForm.amount} onChange={(event) => setAdjustmentForm((value) => ({ ...value, amount: event.target.value }))} />
+              <Input
+                id="adjustmentAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={adjustmentForm.amount}
+                onChange={(event) => setAdjustmentForm((value) => ({ ...value, amount: event.target.value }))}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="adjustmentReason">Reason</Label>
@@ -580,7 +733,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <Button variant="outline" onClick={() => setAdjustmentOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => addAdjustment.mutate()} disabled={addAdjustment.isPending}>
+            <Button onClick={submitAdjustment} disabled={addAdjustment.isPending || !canSubmitAdjustment}>
               {addAdjustment.isPending ? "Saving..." : "Add adjustment"}
             </Button>
           </DialogFooter>

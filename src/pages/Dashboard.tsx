@@ -6,6 +6,7 @@ import { MetricCard } from "@/components/app/MetricCard";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
 import { PayrollChart } from "@/components/dashboard/PayrollChart";
+import { QuickActions } from "@/components/dashboard/QuickActions";
 import { VacationChart } from "@/components/dashboard/VacationChart";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +52,8 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
             : "An operational dashboard focused on employee records, attendance, payroll review, and leave handling."
         }
       />
+
+      <QuickActions role={role} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total employees" value={stats?.total_emps ?? 0} icon={Users} />
