@@ -8,8 +8,10 @@ export const authApi = {
       body: payload,
     });
   },
-  getMe() {
-    return apiRequest<CurrentUser>("/auth/me");
+  getMe(accessToken?: string) {
+    return apiRequest<CurrentUser>("/auth/me", {
+      accessToken,
+    });
   },
   changePassword(payload: { current_password: string; new_password: string }) {
     return apiRequest<null>("/auth/change-password", {

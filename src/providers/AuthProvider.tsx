@@ -115,11 +115,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setRefreshToken(stored.refreshToken);
 
       try {
-        const user = await authApi.getMe();
+        const user = await authApi.getMe(stored.accessToken);
         setCurrentUser(user);
 
         if (!user.must_change_password && canReadOwnNotifications(user)) {
-          const unread = await notificationApi.getUnreadCount();
+          const unread = await notificationApi.getUnreadCount(stored.accessToken);
           setUnreadNotificationCount(unread.unread_count);
         }
       } catch {
@@ -142,11 +142,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(session.access_token);
     setRefreshToken(session.refresh_token);
 
-    const user = await authApi.getMe();
+    const user = await authApi.getMe(session.access_token);
     setCurrentUser(user);
 
     if (!user.must_change_password && canReadOwnNotifications(user)) {
-      const unread = await notificationApi.getUnreadCount();
+      const unread = await notificationApi.getUnreadCount(session.access_token);
       setUnreadNotificationCount(unread.unread_count);
     } else {
       setUnreadNotificationCount(0);

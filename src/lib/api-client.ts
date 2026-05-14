@@ -11,6 +11,7 @@ type ApiClientOptions = {
 };
 
 type RequestOptions = Omit<RequestInit, "body"> & {
+  accessToken?: string | null;
   body?: unknown;
   rawResponse?: boolean;
 };
@@ -112,8 +113,8 @@ function createError(response: Response, payload: unknown) {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, headers, rawResponse, ...rest } = options;
-  const token = getAccessToken?.();
+  const { accessToken, body, headers, rawResponse, ...rest } = options;
+  const token = accessToken ?? getAccessToken?.();
   const requestHeaders = new Headers(headers || {});
 
   requestHeaders.set("Accept", "application/json");

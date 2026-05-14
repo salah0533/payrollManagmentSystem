@@ -18,8 +18,10 @@ export const notificationApi = {
   }) {
     return apiRequest<UserNotificationList>(`/me/notifications${buildQueryString(params)}`);
   },
-  getUnreadCount() {
-    return apiRequest<NotificationUnreadCount>("/me/notifications/unread-count");
+  getUnreadCount(accessToken?: string) {
+    return apiRequest<NotificationUnreadCount>("/me/notifications/unread-count", {
+      accessToken,
+    });
   },
   markAsRead(notificationId: string) {
     return apiRequest<UserNotification>(`/me/notifications/${notificationId}/read`, {
