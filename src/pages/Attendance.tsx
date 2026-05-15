@@ -26,6 +26,19 @@ import { formatDate, formatLabel, formatMinutes, formatTime, toIsoDate } from "@
 import { attendanceApi } from "@/services/attendanceApi";
 import { employeeApi } from "@/services/employeeApi";
 import { toast } from "@/hooks/use-toast";
+import type { AttendanceDay } from "@/types/domain";
+
+type AttendanceField = "check_in_time" | "break_start_time" | "break_end_time" | "check_out_time" | "status";
+
+const correctionFields: { value: AttendanceField; label: string }[] = [
+  { value: "check_in_time", label: "Check in" },
+  { value: "break_start_time", label: "Break start" },
+  { value: "break_end_time", label: "Break end" },
+  { value: "check_out_time", label: "Check out" },
+  { value: "status", label: "Status" },
+];
+
+const statusOptions = ["present", "late", "incomplete", "absent", "paid_vacation", "unpaid_vacation", "sick_leave", "weekly_off", "holiday"];
 
 export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
@@ -39,10 +52,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     end_date: toIsoDate(endOfMonth(new Date())),
   });
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [editingAttendance, setEditingAttendance] = useState<AttendanceDay | null>(null);
   const [correctionForm, setCorrectionForm] = useState({
     employee_id: "",
     work_date: "",
-    field_changed: "check_in_time",
+    field_changed: "check_in_time" as AttendanceField,
     new_value: "",
     reason: "",
   });
@@ -154,6 +168,49 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     await queryClient.invalidateQueries({ queryKey: ["attendance", "self"] });
   };
 
+  const selectedCorrectionEmployee = employeeMap[Number(correctionForm.employee_id)];
+  const selectedCorrectionField = correctionFields.find((field) => field.value === correctionForm.field_changed);
+  const correctionFieldIsStatus = correctionForm.field_changed === "status";
+
+  const valueForField = (row: AttendanceDay | null, field: AttendanceField) => {
+    if (!row) {
+      return field === "status" ? "present" : "";
+    }
+    if (field === "status") {
+      return row.status || "present";
+    }
+    return (row[field] || "").slice(0, 5);
+  };
+
+  const canEditCorrectionField = (field: AttendanceField) => {
+    if (field === "check_in_time" || field === "status") {
+      return true;
+    }
+    if (field === "break_start_time") {
+      return Boolean(editingAttendance?.check_in_time);
+    }
+    if (field === "break_end_time") {
+      return Boolean(editingAttendance?.break_start_time);
+    }
+    if (field === "check_out_time") {
+      return Boolean(editingAttendance?.check_in_time && (!editingAttendance.break_start_time || editingAttendance.break_end_time));
+    }
+    return false;
+  };
+
+  const openAttendanceEditor = (row: AttendanceDay | null, employeeId: number, workDate: string) => {
+    const field: AttendanceField = "check_in_time";
+    setEditingAttendance(row);
+    setCorrectionForm({
+      employee_id: String(employeeId),
+      work_date: workDate,
+      field_changed: field,
+      new_value: valueForField(row, field),
+      reason: "",
+    });
+    setCorrectionOpen(true);
+  };
+
   const markAllPresent = useMutation({
     mutationFn: () => attendanceApi.markAllPresent(dateFilter),
     onSuccess: async (result) => {
@@ -174,17 +231,22 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   });
 
   const submitCorrection = useMutation({
-    mutationFn: () =>
-      attendanceApi.manualCorrection({
+    mutationFn: () => {
+      if (!canEditCorrectionField(correctionForm.field_changed)) {
+        throw new Error("Complete the earlier attendance fields before editing this one.");
+      }
+      return attendanceApi.manualCorrection({
         employee_id: Number(correctionForm.employee_id),
         work_date: correctionForm.work_date,
         field_changed: correctionForm.field_changed,
         new_value: correctionForm.new_value,
         reason: correctionForm.reason,
-      }),
+      });
+    },
     onSuccess: async () => {
       toast({ title: "Attendance corrected", description: "The correction request was accepted by the backend." });
       setCorrectionOpen(false);
+      setEditingAttendance(null);
       await refreshManageAttendance();
       await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
     },
@@ -192,6 +254,24 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       toast({
         title: "Unable to save correction",
         description: getErrorMessage(error, "Please review the correction details."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAttendance = useMutation({
+    mutationFn: () => attendanceApi.deleteDay(Number(correctionForm.employee_id), correctionForm.work_date),
+    onSuccess: async () => {
+      toast({ title: "Attendance deleted", description: "The attendance day was removed." });
+      setCorrectionOpen(false);
+      setEditingAttendance(null);
+      await refreshManageAttendance();
+      await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to delete attendance",
+        description: getErrorMessage(error, "The backend rejected the delete request."),
         variant: "destructive",
       });
     },
@@ -306,16 +386,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
-                                  setCorrectionForm({
-                                    employee_id: String(row.employee_id),
-                                    work_date: row.work_date,
-                                    field_changed: "check_in_time",
-                                    new_value: "",
-                                    reason: "",
-                                  });
-                                  setCorrectionOpen(true);
-                                }}
+                                onClick={() => openAttendanceEditor(row, row.employee_id, row.work_date)}
                               >
                                 Correct
                               </Button>
@@ -383,7 +454,13 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   const isoDate = toIsoDate(day);
                   const row = historyRowsByDate[isoDate];
                   return (
-                    <div key={isoDate} className="min-h-24 rounded border bg-background p-2 text-left">
+                    <button
+                      key={isoDate}
+                      type="button"
+                      disabled={!selectedHistoryEmployeeId}
+                      className="min-h-24 rounded border bg-background p-2 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => openAttendanceEditor(row || null, Number(selectedHistoryEmployeeId), isoDate)}
+                    >
                       <span className="text-sm font-semibold">{format(day, "d")}</span>
                       <div className="mt-1">
                         {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">No record</span>}
@@ -395,7 +472,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           <p>{formatLabel(row.status)}</p>
                         </div>
                       ) : null}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -467,41 +544,115 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
         </>
       )}
 
-      <Dialog open={correctionOpen} onOpenChange={setCorrectionOpen}>
+      <Dialog
+        open={correctionOpen}
+        onOpenChange={(open) => {
+          setCorrectionOpen(open);
+          if (!open) {
+            setEditingAttendance(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Attendance correction</DialogTitle>
-            <DialogDescription>Submit a manual correction reason if the backend supports attendance corrections for this role.</DialogDescription>
+            <DialogDescription>
+              {selectedCorrectionEmployee?.full_name || `Employee #${correctionForm.employee_id}`} on {formatDate(correctionForm.work_date)}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="correctionEmployee">Employee ID</Label>
-              <Input id="correctionEmployee" value={correctionForm.employee_id} onChange={(event) => setCorrectionForm((value) => ({ ...value, employee_id: event.target.value }))} />
+              <Label>Employee</Label>
+              <div className="rounded border bg-muted/40 px-3 py-2 text-sm">
+                {selectedCorrectionEmployee?.full_name || `Employee #${correctionForm.employee_id}`}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="correctionDate">Work date</Label>
-              <Input id="correctionDate" type="date" value={correctionForm.work_date} onChange={(event) => setCorrectionForm((value) => ({ ...value, work_date: event.target.value }))} />
+              <Input id="correctionDate" type="date" value={correctionForm.work_date} disabled />
             </div>
             <div className="space-y-2">
               <Label htmlFor="correctionField">Field changed</Label>
-              <Input id="correctionField" value={correctionForm.field_changed} onChange={(event) => setCorrectionForm((value) => ({ ...value, field_changed: event.target.value }))} />
+              <Select
+                value={correctionForm.field_changed}
+                onValueChange={(value) => {
+                  const field = value as AttendanceField;
+                  setCorrectionForm((current) => ({
+                    ...current,
+                    field_changed: field,
+                    new_value: valueForField(editingAttendance, field),
+                  }));
+                }}
+              >
+                <SelectTrigger id="correctionField">
+                  <SelectValue placeholder="Select field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {correctionFields.map((field) => (
+                    <SelectItem key={field.value} value={field.value} disabled={!canEditCorrectionField(field.value)}>
+                      {field.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!canEditCorrectionField(correctionForm.field_changed) ? (
+                <p className="text-xs text-muted-foreground">Complete the earlier attendance fields before editing {selectedCorrectionField?.label.toLowerCase()}.</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="correctionValue">New value</Label>
-              <Input id="correctionValue" value={correctionForm.new_value} onChange={(event) => setCorrectionForm((value) => ({ ...value, new_value: event.target.value }))} />
+              {correctionFieldIsStatus ? (
+                <Select value={correctionForm.new_value || "present"} onValueChange={(value) => setCorrectionForm((current) => ({ ...current, new_value: value }))}>
+                  <SelectTrigger id="correctionValue">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {formatLabel(status)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="correctionValue"
+                  type="time"
+                  value={correctionForm.new_value}
+                  disabled={!canEditCorrectionField(correctionForm.field_changed)}
+                  onChange={(event) => setCorrectionForm((value) => ({ ...value, new_value: event.target.value }))}
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="correctionReason">Reason</Label>
               <Input id="correctionReason" value={correctionForm.reason} onChange={(event) => setCorrectionForm((value) => ({ ...value, reason: event.target.value }))} />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-between">
+            {editingAttendance ? (
+              <Button variant="destructive" onClick={() => deleteAttendance.mutate()} disabled={deleteAttendance.isPending}>
+                {deleteAttendance.isPending ? "Deleting..." : "Delete"}
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCorrectionOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => submitCorrection.mutate()} disabled={submitCorrection.isPending}>
+            <Button
+              onClick={() => submitCorrection.mutate()}
+              disabled={
+                submitCorrection.isPending ||
+                !correctionForm.reason.trim() ||
+                !correctionForm.new_value ||
+                !canEditCorrectionField(correctionForm.field_changed)
+              }
+            >
               {submitCorrection.isPending ? "Saving..." : "Submit correction"}
             </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

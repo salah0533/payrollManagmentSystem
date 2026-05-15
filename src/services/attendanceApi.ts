@@ -45,6 +45,11 @@ export const attendanceApi = {
       body: payload,
     });
   },
+  deleteDay(employeeId: number, workDate: string) {
+    return apiRequest<{ deleted: number }>(`/attendance/day/${employeeId}/${workDate}`, {
+      method: "DELETE",
+    });
+  },
   recalculate(employeeId: number, startDate: string, endDate: string) {
     return apiRequest<{ employee_id: number; recalculated_days: number }>(
       `/attendance/recalculate/${employeeId}/${startDate}/${endDate}`,
