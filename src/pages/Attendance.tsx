@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { endOfMonth, startOfMonth } from "date-fns";
+import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
@@ -19,9 +19,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
-import { formatDate, formatMinutes, formatTime, toIsoDate } from "@/lib/format";
+import { formatDate, formatLabel, formatMinutes, formatTime, toIsoDate } from "@/lib/format";
 import { attendanceApi } from "@/services/attendanceApi";
 import { employeeApi } from "@/services/employeeApi";
 import { toast } from "@/hooks/use-toast";
@@ -31,6 +32,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFilter, setDateFilter] = useState(toIsoDate(new Date()));
+  const [historyEmployeeId, setHistoryEmployeeId] = useState("");
+  const [historyMonth, setHistoryMonth] = useState(format(new Date(), "yyyy-MM"));
   const [range, setRange] = useState({
     start_date: toIsoDate(startOfMonth(new Date())),
     end_date: toIsoDate(endOfMonth(new Date())),
@@ -47,12 +50,6 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const employeesQuery = useQuery({
     queryKey: ["attendance", "employees"],
     queryFn: () => employeeApi.list(),
-    enabled: scope === "manage",
-  });
-
-  const attendanceTypesQuery = useQuery({
-    queryKey: ["attendance", "types"],
-    queryFn: () => attendanceApi.getTypes(),
     enabled: scope === "manage",
   });
 
@@ -73,32 +70,74 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     [employeesQuery.data],
   );
 
-  const attendanceTypeMap = useMemo(
-    () => Object.fromEntries((attendanceTypesQuery.data || []).map((item) => [item.id, item.attendence_type.toLowerCase().replace(/\s+/g, "_")])),
-    [attendanceTypesQuery.data],
-  );
+  const firstEmployeeId = employeesQuery.data?.[0]?.id ? String(employeesQuery.data[0].id) : "";
+  const selectedHistoryEmployeeId = historyEmployeeId || firstEmployeeId;
+
+  const historyRange = useMemo(() => {
+    const monthValue = historyMonth || format(new Date(), "yyyy-MM");
+    const monthStart = startOfMonth(new Date(`${monthValue}-01T00:00:00`));
+    const monthEnd = endOfMonth(monthStart);
+    return {
+      start_date: toIsoDate(monthStart),
+      end_date: toIsoDate(monthEnd),
+      monthStart,
+      monthEnd,
+    };
+  }, [historyMonth]);
+
+  const employeeHistoryQuery = useQuery({
+    queryKey: [
+      "attendance",
+      "manage",
+      "employee-history",
+      selectedHistoryEmployeeId,
+      historyRange.start_date,
+      historyRange.end_date,
+    ],
+    queryFn: () =>
+      attendanceApi.getEmployeeRange(
+        Number(selectedHistoryEmployeeId),
+        historyRange.start_date,
+        historyRange.end_date,
+      ),
+    enabled: scope === "manage" && Boolean(selectedHistoryEmployeeId),
+  });
 
   const filteredDailyRows = useMemo(() => {
     return (dailyAttendanceQuery.data || []).filter((row) => {
       const employee = employeeMap[row.employee_id];
-      const type = attendanceTypeMap[row.attendence_type] || String(row.attendence_type);
       const employeeName = employee?.full_name || `Employee #${row.employee_id}`;
       const matchesSearch = employeeName.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = !statusFilter || type.includes(statusFilter.toLowerCase());
+      const matchesStatus = !statusFilter || row.status.toLowerCase().includes(statusFilter.toLowerCase());
       return matchesSearch && matchesStatus;
     });
-  }, [attendanceTypeMap, dailyAttendanceQuery.data, employeeMap, search, statusFilter]);
+  }, [dailyAttendanceQuery.data, employeeMap, search, statusFilter]);
+
+  const historyRowsByDate = useMemo(
+    () => Object.fromEntries((employeeHistoryQuery.data || []).map((row) => [row.work_date, row])),
+    [employeeHistoryQuery.data],
+  );
+
+  const calendarDays = useMemo(
+    () => eachDayOfInterval({ start: historyRange.monthStart, end: historyRange.monthEnd }),
+    [historyRange.monthEnd, historyRange.monthStart],
+  );
+
+  const calendarLeadingBlanks = useMemo(
+    () => Array.from({ length: (getDay(historyRange.monthStart) + 6) % 7 }),
+    [historyRange.monthStart],
+  );
 
   const selfRows = useMemo(() => selfAttendanceQuery.data ?? [], [selfAttendanceQuery.data]);
 
   const manageStats = useMemo(() => {
     const rows = filteredDailyRows;
-    const present = rows.filter((row) => (attendanceTypeMap[row.attendence_type] || "").includes("present")).length;
-    const late = rows.filter((row) => (attendanceTypeMap[row.attendence_type] || "").includes("late")).length;
-    const incomplete = rows.filter((row) => row.entry_time && !row.exit_time).length;
-    const absent = rows.filter((row) => (attendanceTypeMap[row.attendence_type] || "").includes("absent")).length;
+    const present = rows.filter((row) => row.status.toLowerCase().includes("present")).length;
+    const late = rows.filter((row) => row.status.toLowerCase().includes("late")).length;
+    const incomplete = rows.filter((row) => row.status.toLowerCase().includes("incomplete")).length;
+    const absent = rows.filter((row) => row.status.toLowerCase().includes("absent")).length;
     return { present, late, incomplete, absent };
-  }, [attendanceTypeMap, filteredDailyRows]);
+  }, [filteredDailyRows]);
 
   const selfStats = useMemo(() => {
     const worked = selfRows.reduce((sum, row) => sum + row.actual_work_minutes, 0);
@@ -116,13 +155,14 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   };
 
   const markAllPresent = useMutation({
-    mutationFn: () => attendanceApi.markAllPresent(),
+    mutationFn: () => attendanceApi.markAllPresent(dateFilter),
     onSuccess: async (result) => {
       toast({
         title: "Attendance updated",
         description: `Created ${result.created || 0}, updated ${result.updated || 0} records.`,
       });
       await refreshManageAttendance();
+      await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
     },
     onError: (error) => {
       toast({
@@ -146,6 +186,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       toast({ title: "Attendance corrected", description: "The correction request was accepted by the backend." });
       setCorrectionOpen(false);
       await refreshManageAttendance();
+      await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
     },
     onError: (error) => {
       toast({
@@ -165,6 +206,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
         description: `Recalculated ${result.recalculated_days} day(s) for employee ${result.employee_id}.`,
       });
       await refreshManageAttendance();
+      await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
       await refreshSelfAttendance();
     },
     onError: (error) => {
@@ -183,7 +225,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
         description={
           scope === "manage"
             ? "Review daily attendance, mark all present, investigate incomplete days, and submit corrections."
-            : "Review your own attendance only through `/me/attendance`."
+            : "Review your attendance history and worked time."
         }
         actions={
           scope === "manage" ? (
@@ -221,9 +263,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
           <Card className="filter-card">
             <CardHeader>
               <CardTitle>Attendance list</CardTitle>
-              <CardDescription>
-                Loaded from <code>/attendance/emps/{"{date}"}</code> and enhanced with employee names from <code>/employee</code>.
-              </CardDescription>
+              <CardDescription>Daily attendance records for the selected date.</CardDescription>
             </CardHeader>
             <CardContent>
               {filteredDailyRows.length ? (
@@ -232,8 +272,10 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                     <TableRow>
                       <TableHead>Employee</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead>Entry</TableHead>
-                      <TableHead>Exit</TableHead>
+                      <TableHead>Check in</TableHead>
+                      <TableHead>Break</TableHead>
+                      <TableHead>Check out</TableHead>
+                      <TableHead>Worked</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -241,7 +283,6 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   <TableBody>
                     {filteredDailyRows.map((row) => {
                       const employee = employeeMap[row.employee_id];
-                      const type = attendanceTypeMap[row.attendence_type] || String(row.attendence_type);
                       return (
                         <TableRow key={row.id}>
                           <TableCell>
@@ -250,10 +291,16 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                               <p className="text-xs text-muted-foreground">{employee?.position || "-"}</p>
                             </div>
                           </TableCell>
-                          <TableCell>{formatDate(row.date)}</TableCell>
-                          <TableCell>{formatTime(row.entry_time)}</TableCell>
-                          <TableCell>{formatTime(row.exit_time)}</TableCell>
-                          <TableCell><StatusBadge status={type} /></TableCell>
+                          <TableCell>{formatDate(row.work_date)}</TableCell>
+                          <TableCell>{formatTime(row.check_in_time)}</TableCell>
+                          <TableCell>
+                            {row.break_start_time || row.break_end_time
+                              ? `${formatTime(row.break_start_time)} - ${formatTime(row.break_end_time)}`
+                              : "-"}
+                          </TableCell>
+                          <TableCell>{formatTime(row.check_out_time)}</TableCell>
+                          <TableCell>{formatMinutes(row.actual_work_minutes)}</TableCell>
+                          <TableCell><StatusBadge status={row.status} /></TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button
@@ -262,7 +309,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                                 onClick={() => {
                                   setCorrectionForm({
                                     employee_id: String(row.employee_id),
-                                    work_date: row.date,
+                                    work_date: row.work_date,
                                     field_changed: "check_in_time",
                                     new_value: "",
                                     reason: "",
@@ -275,7 +322,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => recalculateAttendance.mutate({ employeeId: row.employee_id, workDate: row.date })}
+                                onClick={() => recalculateAttendance.mutate({ employeeId: row.employee_id, workDate: row.work_date })}
                               >
                                 Recalculate
                               </Button>
@@ -294,6 +341,71 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               )}
             </CardContent>
           </Card>
+
+          <Card className="filter-card">
+            <CardHeader>
+              <CardTitle>Employee history</CardTitle>
+              <CardDescription>Select an employee and month to review attendance by day.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
+                <div className="space-y-2">
+                  <Label htmlFor="historyEmployee">Employee</Label>
+                  <Select value={selectedHistoryEmployeeId} onValueChange={setHistoryEmployeeId}>
+                    <SelectTrigger id="historyEmployee">
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(employeesQuery.data || []).map((employee) => (
+                        <SelectItem key={employee.id} value={String(employee.id)}>
+                          {employee.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="historyMonth">Month</Label>
+                  <Input id="historyMonth" type="month" value={historyMonth} onChange={(event) => setHistoryMonth(event.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase text-muted-foreground">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                  <div key={day}>{day}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-2">
+                {calendarLeadingBlanks.map((_, index) => (
+                  <div key={`blank-${index}`} className="min-h-24 rounded border border-dashed border-transparent" />
+                ))}
+                {calendarDays.map((day) => {
+                  const isoDate = toIsoDate(day);
+                  const row = historyRowsByDate[isoDate];
+                  return (
+                    <div key={isoDate} className="min-h-24 rounded border bg-background p-2 text-left">
+                      <span className="text-sm font-semibold">{format(day, "d")}</span>
+                      <div className="mt-1">
+                        {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">No record</span>}
+                      </div>
+                      {row ? (
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <p>{formatTime(row.check_in_time)} - {formatTime(row.check_out_time)}</p>
+                          <p>{formatMinutes(row.actual_work_minutes)}</p>
+                          <p>{formatLabel(row.status)}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              {!selectedHistoryEmployeeId || employeeHistoryQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">
+                  {employeeHistoryQuery.isLoading ? "Loading monthly attendance..." : "Select an employee to load the calendar."}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
         </>
       ) : (
         <>
@@ -306,7 +418,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
           <Card className="filter-card">
             <CardHeader>
               <CardTitle>Date range</CardTitle>
-              <CardDescription>The employee interface always loads attendance through `/me/attendance`.</CardDescription>
+              <CardDescription>Choose the dates you want to review.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <Input type="date" value={range.start_date} onChange={(event) => setRange((value) => ({ ...value, start_date: event.target.value }))} />

@@ -4,7 +4,6 @@ import type {
   AttendanceActionResult,
   AttendanceCorrectionPayload,
   AttendanceDay,
-  AttendanceListRow,
   AttendanceType,
 } from "@/types/domain";
 
@@ -13,7 +12,7 @@ export const attendanceApi = {
     return apiRequest<AttendanceType[]>("/att_types/");
   },
   listByDate(date: string) {
-    return apiRequest<AttendanceListRow[]>(`/attendance/emps/${date}`);
+    return apiRequest<AttendanceDay[]>(`/attendance/days/${date}`);
   },
   getEmployeeRange(employeeId: number, startDate: string, endDate: string) {
     return apiRequest<AttendanceDay[]>(`/attendance/employee/${employeeId}/${startDate}/${endDate}`);
@@ -21,10 +20,13 @@ export const attendanceApi = {
   getDay(employeeId: number, workDate: string) {
     return apiRequest<AttendanceDay>(`/attendance/day/${employeeId}/${workDate}`);
   },
-  markAllPresent() {
-    return apiRequest<{ created?: number; updated?: number }>("/attendance/mark_all_present", {
-      method: "PUT",
-    });
+  markAllPresent(workDate?: string) {
+    return apiRequest<{ created?: number; updated?: number }>(
+      `/attendance/mark_all_present${buildQueryString({ work_date: workDate })}`,
+      {
+        method: "PUT",
+      },
+    );
   },
   selfList(startDate: string, endDate: string) {
     return apiRequest<AttendanceDay[]>(
