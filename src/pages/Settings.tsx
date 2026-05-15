@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { payrollCycles, workWeekOptions } from "@/components/layout/navigation";
+import { currencyOptions, isAllowedCurrency } from "@/lib/currencies";
 import { getErrorMessage } from "@/lib/errors";
+import { formatCurrency, setDefaultCurrency } from "@/lib/format";
 import { settingsApi } from "@/services/settingsApi";
 import { toast } from "@/hooks/use-toast";
 
 export default function Settings() {
+  const queryClient = useQueryClient();
   const workScheduleQuery = useQuery({
     queryKey: ["settings", "work-schedule"],
     queryFn: () => settingsApi.getWorkSchedule(),
@@ -100,7 +104,11 @@ export default function Settings() {
 
   const savePayrollPolicy = useMutation({
     mutationFn: () => settingsApi.updatePayrollPolicy(payrollPolicy),
-    onSuccess: () => {
+    onSuccess: async (policy) => {
+      setDefaultCurrency(policy.default_currency);
+      queryClient.setQueryData(["settings", "payroll-policy"], policy);
+      queryClient.setQueryData(["settings", "payroll-currency"], { default_currency: policy.default_currency });
+      await queryClient.invalidateQueries({ queryKey: ["settings", "payroll-currency"] });
       toast({ title: "Payroll policy updated", description: "The payroll policy has been saved." });
     },
     onError: (error) => {
@@ -221,7 +229,24 @@ export default function Settings() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="currency">Currency</Label>
-                <Input id="currency" value={payrollPolicy.default_currency} onChange={(event) => setPayrollPolicy((value) => ({ ...value, default_currency: event.target.value.toUpperCase() }))} />
+                <Select
+                  value={isAllowedCurrency(payrollPolicy.default_currency) ? payrollPolicy.default_currency : "USD"}
+                  onValueChange={(currency) => setPayrollPolicy((value) => ({ ...value, default_currency: currency }))}
+                >
+                  <SelectTrigger id="currency">
+                    <SelectValue placeholder="Select currency" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {currencyOptions.map((currency) => (
+                      <SelectItem key={currency.code} value={currency.code}>
+                        {currency.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Preview: {formatCurrency(1234.56, payrollPolicy.default_currency)}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="changeThreshold">Significant change threshold</Label>

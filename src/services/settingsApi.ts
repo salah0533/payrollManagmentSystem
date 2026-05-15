@@ -23,6 +23,9 @@ export const settingsApi = {
   getPayrollPolicy() {
     return apiRequest<PayrollPolicy>("/settings/payroll-policy");
   },
+  getPayrollCurrency() {
+    return apiRequest<{ default_currency: string }>("/settings/payroll-currency");
+  },
   updatePayrollPolicy(payload: PayrollPolicyPayload) {
     return apiRequest<PayrollPolicy>("/settings/payroll-policy", {
       method: "PUT",

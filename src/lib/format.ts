@@ -1,5 +1,21 @@
 import { format } from "date-fns";
 
+const CURRENCY_STORAGE_KEY = "payroll_default_currency";
+let defaultCurrency =
+  typeof window !== "undefined" ? window.localStorage.getItem(CURRENCY_STORAGE_KEY) || "USD" : "USD";
+
+export function setDefaultCurrency(currency: string) {
+  const normalized = currency?.toUpperCase() || "USD";
+  defaultCurrency = normalized;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(CURRENCY_STORAGE_KEY, normalized);
+  }
+}
+
+export function getDefaultCurrency() {
+  return defaultCurrency;
+}
+
 export function formatDate(value?: string | null, output = "MMM d, yyyy") {
   if (!value) {
     return "-";
@@ -34,13 +50,21 @@ export function formatTime(value?: string | null) {
   return format(date, "HH:mm");
 }
 
-export function formatCurrency(value?: number | string | null, currency = "USD") {
+export function formatCurrency(value?: number | string | null, currency = defaultCurrency) {
   const numeric = Number(value ?? 0);
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(numeric) ? numeric : 0);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(numeric) ? numeric : 0);
+  } catch {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(numeric) ? numeric : 0);
+  }
 }
 
 export function formatMinutes(minutes?: number | null) {
