@@ -82,12 +82,11 @@ export default function Profile() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-lg border border-border p-4">
-                  <p className="text-xs text-muted-foreground">Daily work hours</p>
-                  <p className="font-medium">{profile.daily_work_hours}</p>
-                </div>
-                <div className="rounded-lg border border-border p-4">
                   <p className="text-xs text-muted-foreground">Vacation days</p>
                   <p className="font-medium">{profile.vacation_days}</p>
+                </div>
+                <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Attendance rules and work schedules are managed centrally by HR/Admin from Settings.
                 </div>
               </div>
             </CardContent>

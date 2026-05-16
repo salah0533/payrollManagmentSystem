@@ -81,9 +81,6 @@ export interface Employee {
   hour_price: number | string;
   extra_hours_price: number | string;
   vacation_days: number;
-  daily_work_hours: number;
-  allowed_late: number | string;
-  min_extraTime: number | string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

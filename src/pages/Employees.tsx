@@ -54,10 +54,7 @@ const defaultForm = {
   day_price: "0",
   hour_price: "0",
   extra_hours_price: "0",
-  daily_work_hours: "8",
   vacation_days: "21",
-  allowed_late: "0",
-  min_extraTime: "0",
   dues: "0",
 };
 
@@ -83,8 +80,6 @@ const compensationFormFields: Array<{
   { key: "day_price", label: "Day price", type: "number" },
   { key: "hour_price", label: "Hour price", type: "number" },
   { key: "extra_hours_price", label: "Extra hours price", type: "number" },
-  { key: "allowed_late", label: "Allowed late", type: "number" },
-  { key: "min_extraTime", label: "Minimum extra time", type: "number" },
   { key: "dues", label: "Dues", type: "number" },
 ];
 
@@ -105,10 +100,7 @@ function toPayload(form: typeof defaultForm) {
     day_price: Number(form.day_price || 0),
     hour_price: Number(form.hour_price || 0),
     extra_hours_price: Number(form.extra_hours_price || 0),
-    daly_work_hours: Number(form.daily_work_hours || 8),
     vacation_days: Number(form.vacation_days || 0),
-    allowed_late: Number(form.allowed_late || 0),
-    min_extraTime: Number(form.min_extraTime || 0),
     dues: Number(form.dues || 0),
   };
 }
@@ -290,10 +282,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       day_price: String(employee.day_price || 0),
       hour_price: String(employee.hour_price || 0),
       extra_hours_price: String(employee.extra_hours_price || 0),
-      daily_work_hours: String(employee.daily_work_hours || 8),
       vacation_days: String(employee.vacation_days || 0),
-      allowed_late: String(employee.allowed_late || 0),
-      min_extraTime: String(employee.min_extraTime || 0),
       dues: String(employee.dues || 0),
     });
     setIsDialogOpen(true);
@@ -574,12 +563,8 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
             </TabsContent>
 
             <TabsContent value="attendance" className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="dailyWorkHours">Daily work hours</Label>
-                <Input id="dailyWorkHours" type="number" value={form.daily_work_hours} onChange={(event) => setForm((value) => ({ ...value, daily_work_hours: event.target.value }))} />
-              </div>
-              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Monthly attendance summaries and trend history are available from the Attendance page in Phase 1.
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
+                Work hours, allowed late minutes, and overtime thresholds are managed centrally from Settings and Payroll Policy.
               </div>
             </TabsContent>
 
