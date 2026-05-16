@@ -1,0 +1,69 @@
+import type { AttendanceDay, EmployeePayroll, PayrollDiscrepancy } from "@/types/domain";
+
+export const attendanceStatuses = [
+  "present",
+  "late",
+  "absent",
+  "paid_vacation",
+  "unpaid_vacation",
+  "sick_leave",
+  "weekly_off",
+  "holiday",
+  "incomplete",
+] as const;
+
+export const smartAttendanceStatuses = [
+  "present",
+  "late",
+  "absent",
+  "paid_vacation",
+  "unpaid_vacation",
+  "sick_leave",
+  "weekly_off",
+] as const;
+
+export const attendanceReviewStatuses = ["draft", "needs_review", "approved", "locked"] as const;
+
+export const payrollFinalStatuses = ["approved", "partially_paid", "paid", "locked"] as const;
+export const payrollPaidStatuses = ["partially_paid", "paid", "locked"] as const;
+export const notificationTypes = ["general", "attendance", "payroll", "vacation", "employee", "system"] as const;
+export const notificationPriorities = ["low", "normal", "high"] as const;
+export const roleCodes = ["admin", "hr", "employee"] as const;
+
+export type AttendanceReviewStatus = (typeof attendanceReviewStatuses)[number];
+
+export function getAttendanceReviewStatus(day?: Pick<AttendanceDay, "review_status"> | null): AttendanceReviewStatus {
+  const status = day?.review_status || "draft";
+  return attendanceReviewStatuses.includes(status as AttendanceReviewStatus) ? (status as AttendanceReviewStatus) : "draft";
+}
+
+export function isAttendanceLocked(day?: Pick<AttendanceDay, "review_status" | "locked_at"> | null) {
+  return getAttendanceReviewStatus(day) === "locked" || Boolean(day?.locked_at);
+}
+
+export function hasOpenDiscrepancyForPayroll(payroll: EmployeePayroll, discrepancies: PayrollDiscrepancy[] = []) {
+  return discrepancies.some(
+    (item) =>
+      item.status !== "resolved" &&
+      (item.employee_payroll_id === payroll.id ||
+        (item.employee_payroll_id == null &&
+          item.employee_id === payroll.employee_id &&
+          item.payroll_period_id === payroll.payroll_period_id)),
+  );
+}
+
+export function canRecalculatePayroll(payroll?: Pick<EmployeePayroll, "status"> | null) {
+  return Boolean(payroll && !payrollFinalStatuses.includes(payroll.status as never));
+}
+
+export function canAdjustPayroll(payroll?: Pick<EmployeePayroll, "status"> | null) {
+  return Boolean(payroll && !payrollFinalStatuses.includes(payroll.status as never));
+}
+
+export function canApprovePayroll(payroll?: EmployeePayroll | null, discrepancies: PayrollDiscrepancy[] = []) {
+  return Boolean(payroll && payroll.status !== "locked" && !payrollPaidStatuses.includes(payroll.status as never) && !hasOpenDiscrepancyForPayroll(payroll, discrepancies));
+}
+
+export function canRecordPayrollPayment(payroll?: Pick<EmployeePayroll, "status"> | null) {
+  return payroll?.status === "approved";
+}

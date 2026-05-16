@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { DollarSign, MoreHorizontal, Pencil, ReceiptText, Scale, Trash2, WalletCards } from "lucide-react";
+import { AlertTriangle, DollarSign, Lock, MoreHorizontal, Pencil, ReceiptText, Scale, Trash2, WalletCards } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { MetricCard } from "@/components/app/MetricCard";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +45,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { payrollAdjustmentTypes } from "@/components/layout/navigation";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { hasPermission } from "@/lib/roles";
+import {
+  canAdjustPayroll,
+  canApprovePayroll,
+  canRecalculatePayroll,
+  canRecordPayrollPayment,
+  hasOpenDiscrepancyForPayroll,
+} from "@/lib/workflow";
 import { payrollApi } from "@/services/payrollApi";
+import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 import type { EmployeePayroll, PayrollAdjustment, PayrollHistory } from "@/types/domain";
 
@@ -150,13 +161,18 @@ function OverviewStat({ label, value, hint }: { label: string; value: React.Reac
 
 export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
+  const canCalculate = hasPermission(currentUser, "payroll.calculate");
+  const canAdjust = hasPermission(currentUser, "payroll.adjust");
+  const canApprove = hasPermission(currentUser, "payroll.approve");
+  const canMarkPaid = hasPermission(currentUser, "payroll.mark_paid");
   const [searchParams, setSearchParams] = useSearchParams();
   const [periodId, setPeriodId] = useState(searchParams.get("period") || "");
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null);
   const [detailsPayrollId, setDetailsPayrollId] = useState<number | null>(null);
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null);
   const [deletingAdjustment, setDeletingAdjustment] = useState<PayrollAdjustment | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | "set_paid" | "clear_paid" | null; payrollId: number | null; amount: string; note: string }>({
+  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null; amount: string; note: string }>({
     type: null,
     payrollId: null,
     amount: "",
@@ -369,7 +385,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   });
 
   const payrollRows = useMemo(() => periodQuery.data?.payrolls ?? [], [periodQuery.data?.payrolls]);
-  const warningOpenDiscrepancies = (discrepanciesQuery.data || []).filter((item) => item.status !== "resolved").length;
+  const allDiscrepancies = discrepanciesQuery.data || [];
+  const warningOpenDiscrepancies = allDiscrepancies.filter((item) => item.status !== "resolved").length;
   const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
   const detailsPayroll = useMemo(() => payrollRows.find((row) => row.id === detailsPayrollId) || null, [detailsPayrollId, payrollRows]);
   const confirmPayroll = useMemo(() => payrollRows.find((row) => row.id === confirmAction.payrollId) || null, [confirmAction.payrollId, payrollRows]);
@@ -382,13 +399,18 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   );
   const adjustmentAmount = Number(adjustmentForm.amount);
   const canSubmitAdjustment = Boolean(
-    selectedPayroll &&
+    canAdjust &&
+      selectedPayroll &&
+      canAdjustPayroll(selectedPayroll) &&
       adjustmentForm.employee_payroll_id &&
       adjustmentForm.employee_id &&
       payrollAdjustmentTypes.includes(adjustmentForm.adjustment_type) &&
       Number.isFinite(adjustmentAmount) &&
       adjustmentAmount > 0 &&
       adjustmentForm.reason.trim(),
+  );
+  const periodCanRecalculate = Boolean(
+    canCalculate && periodQuery.data && !["approved", "paid", "locked", "cancelled"].includes(periodQuery.data.status),
   );
 
   const getEmployeeLabel = (employeeId: number) => employeeNameMap.get(employeeId) || `Employee #${employeeId}`;
@@ -441,50 +463,29 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     addAdjustment.mutate();
   };
 
-  const openSetPaidDialog = (row: EmployeePayroll) => {
-    setConfirmAction({
-      type: "set_paid",
-      payrollId: row.id,
-      amount: String(row.paid_amount ?? 0),
-      note: "",
-    });
-  };
-
-  const openClearPaidDialog = (row: EmployeePayroll) => {
-    setConfirmAction({
-      type: "clear_paid",
-      payrollId: row.id,
-      amount: String(row.paid_amount ?? 0),
-      note: "Clear recorded paid amount",
-    });
-  };
-
   const submitConfirmAction = () => {
     if (!confirmAction.payrollId) {
       return;
     }
 
     if (confirmAction.type === "approve") {
+      if (!canApprovePayroll(confirmPayroll, allDiscrepancies)) {
+        toast({
+          title: "Payroll approval blocked",
+          description: "Resolve open discrepancies before approving this row.",
+          variant: "destructive",
+        });
+        return;
+      }
       approvePayroll.mutate(confirmAction.payrollId);
       return;
     }
 
-    if (confirmAction.type === "set_paid") {
-      const targetPaidAmount = Number(confirmAction.amount);
-      const currentPaidAmount = Number(confirmPayroll?.paid_amount || 0);
-      markPayrollPaid.mutate({
-        employeePayrollId: confirmAction.payrollId,
-        amount: targetPaidAmount - currentPaidAmount,
-        note: confirmAction.note || "Correct paid total",
-      });
-      return;
-    }
-
-    if (confirmAction.type === "clear_paid") {
-      markPayrollPaid.mutate({
-        employeePayrollId: confirmAction.payrollId,
-        amount: -Number(confirmPayroll?.paid_amount || 0),
-        note: confirmAction.note || "Clear recorded paid amount",
+    if (!canRecordPayrollPayment(confirmPayroll)) {
+      toast({
+        title: "Payment recording blocked",
+        description: "Payroll must be approved before payment is recorded.",
+        variant: "destructive",
       });
       return;
     }
@@ -502,8 +503,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         title={scope === "manage" ? "Payroll Overview" : "My Payroll"}
         description={
           scope === "manage"
-            ? "Review payroll by period id, recalculate, approve, add adjustments, and resolve discrepancies."
-            : "View your payroll by selecting a payroll period."
+            ? "Run payroll safely: validate attendance, resolve discrepancies, review totals, approve rows, and record approved payments."
+            : "View your payslip-style payroll details by selecting a payroll period."
         }
         actions={
           <>
@@ -520,7 +521,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               </SelectContent>
             </Select>
             {scope === "manage" ? (
-              <Button variant="outline" onClick={() => recalculatePeriod.mutate()} disabled={!canLoadPayroll || recalculatePeriod.isPending}>
+              <Button variant="outline" onClick={() => recalculatePeriod.mutate()} disabled={!canLoadPayroll || !periodCanRecalculate || recalculatePeriod.isPending}>
                 {recalculatePeriod.isPending ? "Recalculating..." : "Recalculate period"}
               </Button>
             ) : null}
@@ -606,12 +607,37 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           </Card>
 
           {warningOpenDiscrepancies > 0 ? (
-            <Card className="border-warning/40">
-              <CardContent className="p-4 text-sm">
-                Payroll warning: this period has open discrepancies. Review them before final approval or payment.
-              </CardContent>
-            </Card>
+            <Alert className="border-warning/40">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Payroll validation needs review</AlertTitle>
+              <AlertDescription>
+                This period has open discrepancies. Approval and payment controls stay blocked where those discrepancies affect a payroll row.
+              </AlertDescription>
+            </Alert>
           ) : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Payroll run workflow</CardTitle>
+              <CardDescription>Use the existing backend controls in order; unsupported exports and locks stay unavailable until backend endpoints exist.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {[
+                ["1", "Select period", periodId ? "Complete" : "Required"],
+                ["2", "Validate attendance", warningOpenDiscrepancies ? `${warningOpenDiscrepancies} open issue(s)` : "No open issues"],
+                ["3", "Review payroll totals", payrollRows.length ? `${payrollRows.length} row(s)` : "No rows"],
+                ["4", "Approve payroll rows", "Blocked per row when discrepancies exist"],
+                ["5", "Record payment", "Only after row approval"],
+                ["6", "Lock / export / payslips", "Backend endpoint needed"],
+              ].map(([step, title, status]) => (
+                <div key={step} className="rounded-lg border border-border p-4">
+                  <Badge variant="outline">Step {step}</Badge>
+                  <p className="mt-2 font-medium">{title}</p>
+                  <p className="text-sm text-muted-foreground">{status}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -679,13 +705,24 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payrollRows.map((row) => (
+                    {payrollRows.map((row) => {
+                      const rowHasOpenDiscrepancy = hasOpenDiscrepancyForPayroll(row, allDiscrepancies);
+                      const rowCanRecalculate = canCalculate && canRecalculatePayroll(row);
+                      const rowCanApprove = canApprove && canApprovePayroll(row, allDiscrepancies);
+                      const rowCanRecordPayment = canMarkPaid && canRecordPayrollPayment(row);
+                      const rowCanAdjust = canAdjust && canAdjustPayroll(row);
+                      return (
                       <TableRow key={row.id}>
                         <TableCell>
                           <div className="font-medium">{getEmployeeLabel(row.employee_id)}</div>
                           <div className="text-xs text-muted-foreground">Payroll #{row.id}</div>
                         </TableCell>
-                        <TableCell><StatusBadge status={row.status} /></TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            <StatusBadge status={row.status} />
+                            {rowHasOpenDiscrepancy ? <Badge variant="destructive">Open issue</Badge> : null}
+                          </div>
+                        </TableCell>
                         <TableCell>{formatCurrency(row.gross_salary)}</TableCell>
                         <TableCell>{formatCurrency(row.net_salary)}</TableCell>
                         <TableCell>{formatCurrency(row.bonus_amount)}</TableCell>
@@ -713,15 +750,16 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                                 Details
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                disabled={recalculateEmployee.isPending}
+                                disabled={!rowCanRecalculate || recalculateEmployee.isPending}
                                 onSelect={() => recalculateEmployee.mutate({ employeeId: row.employee_id })}
                               >
                                 Recalculate
                               </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => setConfirmAction({ type: "approve", payrollId: row.id, amount: "", note: "" })}>
+                              <DropdownMenuItem disabled={!rowCanApprove} onSelect={() => setConfirmAction({ type: "approve", payrollId: row.id, amount: "", note: "" })}>
                                 Approve
                               </DropdownMenuItem>
                               <DropdownMenuItem
+                                disabled={!rowCanRecordPayment}
                                 onSelect={() =>
                                   setConfirmAction({
                                     type: "paid",
@@ -733,18 +771,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                               >
                                 Record payment
                               </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => openSetPaidDialog(row)}>
-                                Correct paid total
+                              <DropdownMenuItem disabled>
+                                Lock period unavailable
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                disabled={Number(row.paid_amount || 0) === 0}
-                                onSelect={() => openClearPaidDialog(row)}
-                              >
-                                Clear paid amount
+                              <DropdownMenuItem disabled>
+                                Export / PDF unavailable
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {payrollAdjustmentTypes.map((type) => (
-                                <DropdownMenuItem key={type} onSelect={() => openAdjustmentDialog(row, type)}>
+                                <DropdownMenuItem key={type} disabled={!rowCanAdjust} onSelect={() => openAdjustmentDialog(row, type)}>
                                   Add {adjustmentLabels[type].toLowerCase()}
                                 </DropdownMenuItem>
                               ))}
@@ -752,7 +787,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (
@@ -851,13 +887,18 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       <Dialog open={Boolean(detailsPayroll)} onOpenChange={(open) => !open && setDetailsPayrollId(null)}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Payroll details</DialogTitle>
+            <DialogTitle>Payslip preview</DialogTitle>
             <DialogDescription>
               {detailsPayroll ? `${getEmployeeLabel(detailsPayroll.employee_id)} / ${periodQuery.data?.name || `Period ${detailsPayroll.payroll_period_id}`}` : ""}
             </DialogDescription>
           </DialogHeader>
           {detailsPayroll ? (
             <div className="space-y-4">
+              <Alert>
+                <Lock className="h-4 w-4" />
+                <AlertTitle>Preview only</AlertTitle>
+                <AlertDescription>PDF download, export, and period lock are not active because this backend does not expose those endpoints yet.</AlertDescription>
+              </Alert>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">Status</p>
@@ -873,6 +914,20 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 </div>
               </div>
               <PayrollBreakdownGrid payroll={detailsPayroll} />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Approved date</p>
+                  <p className="font-medium">{formatDateTime(detailsPayroll.approved_at)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Paid date</p>
+                  <p className="font-medium">{formatDateTime(detailsPayroll.paid_at)}</p>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-border p-3">
+                  <Button variant="outline" disabled>Download PDF</Button>
+                  <Button variant="outline" disabled>Export</Button>
+                </div>
+              </div>
               <div className="space-y-3">
                 <div>
                   <h3 className="font-medium">How this payroll was calculated</h3>
@@ -899,10 +954,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                           <p className="text-xs text-muted-foreground">{formatDateTime(adjustment.created_at)}</p>
                         </div>
                         <div className="flex shrink-0 gap-2">
-                          <Button size="icon" variant="outline" onClick={() => openEditAdjustmentDialog(adjustment)} aria-label={`Edit adjustment ${adjustment.id}`}>
+                          <Button size="icon" variant="outline" disabled={!canAdjustPayroll(detailsPayroll)} onClick={() => openEditAdjustmentDialog(adjustment)} aria-label={`Edit adjustment ${adjustment.id}`}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="outline" onClick={() => setDeletingAdjustment(adjustment)} aria-label={`Delete adjustment ${adjustment.id}`}>
+                          <Button size="icon" variant="outline" disabled={!canAdjustPayroll(detailsPayroll)} onClick={() => setDeletingAdjustment(adjustment)} aria-label={`Delete adjustment ${adjustment.id}`}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -1017,38 +1072,26 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <AlertDialogTitle>
               {confirmAction.type === "approve"
                 ? "Approve payroll"
-                : confirmAction.type === "set_paid"
-                  ? "Correct paid total"
-                  : confirmAction.type === "clear_paid"
-                    ? "Clear paid amount"
-                    : "Record payroll payment"}
+                : "Record payroll payment"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction.type === "approve"
-                ? "This confirms the payroll row after review."
-                : confirmAction.type === "set_paid"
-                  ? "Set the total paid amount for this payroll row. The system records only the difference from the current paid total."
-                  : confirmAction.type === "clear_paid"
-                    ? "This records a negative payment equal to the current paid amount, bringing paid back to zero."
-                    : "Record the signed amount paid for this payroll. Use a negative amount when the employee pays the company back."}
+                ? "This confirms the payroll row after discrepancy review."
+                : "Record a positive payment amount for an approved payroll row. The backend rejects negative payments and paid-total corrections."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {confirmAction.type === "paid" || confirmAction.type === "set_paid" ? (
+          {confirmAction.type === "paid" ? (
             <div className="grid gap-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="paymentAmount">{confirmAction.type === "set_paid" ? "Paid total" : "Payment amount"}</Label>
+                <Label htmlFor="paymentAmount">Payment amount</Label>
                 <Input
                   id="paymentAmount"
                   type="number"
+                  min="0.01"
                   step="0.01"
                   value={confirmAction.amount}
                   onChange={(event) => setConfirmAction((value) => ({ ...value, amount: event.target.value }))}
                 />
-                {confirmAction.type === "set_paid" && confirmPayroll ? (
-                  <p className="text-xs text-muted-foreground">
-                    Current paid: {formatCurrency(confirmPayroll.paid_amount)}. Difference to record: {formatCurrency(Number(confirmAction.amount || 0) - Number(confirmPayroll.paid_amount || 0))}
-                  </p>
-                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="paymentNote">Note</Label>
@@ -1056,7 +1099,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   id="paymentNote"
                   value={confirmAction.note}
                   onChange={(event) => setConfirmAction((value) => ({ ...value, note: event.target.value }))}
-                  placeholder="Partial salary payment, repayment, or settlement note"
+                  placeholder="Partial salary payment, bank transfer reference, or settlement note"
                 />
               </div>
             </div>
@@ -1065,14 +1108,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={
-            approvePayroll.isPending ||
+                approvePayroll.isPending ||
                 markPayrollPaid.isPending ||
-                ((confirmAction.type === "paid" || confirmAction.type === "set_paid") &&
+                (confirmAction.type === "approve" && !canApprovePayroll(confirmPayroll, allDiscrepancies)) ||
+                (confirmAction.type === "paid" && !canRecordPayrollPayment(confirmPayroll)) ||
+                (confirmAction.type === "paid" &&
                   (!confirmAction.amount ||
                     !Number.isFinite(Number(confirmAction.amount)) ||
-                    (confirmAction.type === "paid" && Number(confirmAction.amount) === 0) ||
-                    (confirmAction.type === "set_paid" && Number(confirmAction.amount) === Number(confirmPayroll?.paid_amount || 0)))) ||
-                (confirmAction.type === "clear_paid" && Number(confirmPayroll?.paid_amount || 0) === 0)
+                    Number(confirmAction.amount) <= 0 ||
+                    Number(confirmAction.amount) > Number(confirmPayroll?.balance_amount || 0)))
               }
               onClick={submitConfirmAction}
             >

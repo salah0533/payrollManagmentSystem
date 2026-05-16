@@ -133,25 +133,15 @@ export interface AttendanceDay {
   absence_minutes: number;
   unpaid_minutes: number;
   status: string;
+  review_status?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: number | null;
+  locked_at?: string | null;
   is_manually_corrected: boolean;
   calculated_at: string;
   created_at: string;
   updated_at: string;
   events: AttendanceEvent[];
-}
-
-export interface AttendanceType {
-  id: number;
-  attendence_type: string;
-}
-
-export interface AttendanceListRow {
-  id: number;
-  exit_time?: string | null;
-  attendence_type: number;
-  employee_id: number;
-  entry_time?: string | null;
-  date: string;
 }
 
 export interface AttendanceActionPayload {
@@ -164,13 +154,54 @@ export interface AttendanceActionResult {
   attendance_day: AttendanceDay;
 }
 
+export interface AttendanceCorrection {
+  id: number;
+  attendance_day_id: number;
+  employee_id: number;
+  original_event_id?: number | null;
+  field_changed: string;
+  correction_type: string;
+  target_status?: string | null;
+  old_value?: string | null;
+  new_value?: string | null;
+  old_values_json?: Record<string, unknown> | null;
+  new_values_json?: Record<string, unknown> | null;
+  options_json?: Record<string, unknown> | null;
+  reason: string;
+  corrected_by?: number | null;
+  corrected_at: string;
+}
+
 export interface AttendanceCorrectionPayload {
   employee_id: number;
   work_date: string;
+  correction_type?: "field" | "smart_status";
   field_changed: string;
   new_value?: string | null;
+  target_status?: string | null;
+  options?: Record<string, unknown>;
   original_event_id?: number | null;
   reason: string;
+}
+
+export interface AttendanceSmartCorrectionPayload {
+  target_status: string;
+  reason: string;
+  options?: {
+    late_minutes?: number;
+    check_in_time?: string;
+    check_out_time?: string;
+  };
+}
+
+export interface AttendanceReviewPayload {
+  review_status: "draft" | "needs_review" | "approved" | "locked";
+  note?: string | null;
+}
+
+export interface AttendanceCorrectionResult {
+  correction: AttendanceCorrection;
+  attendance_day: AttendanceDay;
 }
 
 export interface VacationType {
@@ -469,6 +500,16 @@ export interface DashboardStats {
   total_active_emps: number;
   total_att_percent: number;
   total_vacation: number;
+  present_days?: number;
+  late_days?: number;
+  absent_days?: number;
+  vacation_days?: number;
+  weekly_off_days?: number;
+  incomplete_days?: number;
+  needs_review_days?: number;
+  total_paid_minutes?: number;
+  total_unpaid_minutes?: number;
+  overtime_minutes?: number;
 }
 
 export interface ApiEnvelope<T> {

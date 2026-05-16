@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,14 +32,18 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { composePhoneNumber, defaultPhoneCountryIso, getPhoneCountryByIso, phoneCountries, splitPhoneNumber } from "@/lib/phone-countries";
+import { hasPermission } from "@/lib/roles";
 import { employeeApi } from "@/services/employeeApi";
+import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 
 const defaultForm = {
   first_name: "",
   last_name: "",
   email: "",
-  phone: "",
+  phone_country_iso: defaultPhoneCountryIso,
+  phone_number: "",
   department_id: "",
   position_id: "",
   position: "",
@@ -58,7 +63,7 @@ const defaultForm = {
 
 const employeeStatuses = ["active", "inactive", "suspended"];
 
-const employeeFormFields: Array<{
+const basicFormFields: Array<{
   key: keyof typeof defaultForm;
   label: string;
   type: "text" | "email" | "number" | "date";
@@ -66,14 +71,18 @@ const employeeFormFields: Array<{
   { key: "first_name", label: "First name", type: "text" },
   { key: "last_name", label: "Last name", type: "text" },
   { key: "email", label: "Email", type: "email" },
-  { key: "phone", label: "Phone", type: "text" },
   { key: "hire_date", label: "Hire date", type: "date" },
+];
+
+const compensationFormFields: Array<{
+  key: keyof typeof defaultForm;
+  label: string;
+  type: "number";
+}> = [
   { key: "monthly_price", label: "Monthly salary", type: "number" },
   { key: "day_price", label: "Day price", type: "number" },
   { key: "hour_price", label: "Hour price", type: "number" },
   { key: "extra_hours_price", label: "Extra hours price", type: "number" },
-  { key: "daily_work_hours", label: "Daily work hours", type: "number" },
-  { key: "vacation_days", label: "Vacation days", type: "number" },
   { key: "allowed_late", label: "Allowed late", type: "number" },
   { key: "min_extraTime", label: "Minimum extra time", type: "number" },
   { key: "dues", label: "Dues", type: "number" },
@@ -84,7 +93,7 @@ function toPayload(form: typeof defaultForm) {
     first_name: form.first_name,
     last_name: form.last_name,
     email: form.email || null,
-    phone: form.phone,
+    phone: composePhoneNumber(form.phone_country_iso, form.phone_number),
     department_id: form.department_id ? Number(form.department_id) : null,
     position_id: form.position_id ? Number(form.position_id) : null,
     position: form.position || null,
@@ -106,6 +115,10 @@ function toPayload(form: typeof defaultForm) {
 
 export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
+  const canCreateEmployee = hasPermission(currentUser, "employees.create");
+  const canUpdateEmployee = hasPermission(currentUser, "employees.update");
+  const canDeleteEmployee = hasPermission(currentUser, "employees.delete");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -258,12 +271,15 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       return;
     }
 
+    const parsedPhone = splitPhoneNumber(employee.phone);
+
     setEditingId(employee.id);
     setForm({
       first_name: employee.first_name,
       last_name: employee.last_name,
       email: employee.email || "",
-      phone: employee.phone,
+      phone_country_iso: parsedPhone.countryIso,
+      phone_number: parsedPhone.nationalNumber,
       department_id: employee.department_id ? String(employee.department_id) : "",
       position_id: employee.position_id ? String(employee.position_id) : "",
       position: employee.position || "",
@@ -291,7 +307,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
         title={scope === "admin" ? "Employee Management" : "HR Employee Management"}
         description="Create, edit, and review employee profiles with backend-compatible `/employee` APIs."
         actions={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} disabled={!canCreateEmployee}>
             <Plus className="mr-2 h-4 w-4" />
             Add employee
           </Button>
@@ -355,10 +371,10 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                     <TableCell>{formatCurrency(employee.monthly_price)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button size="icon" variant="outline" onClick={() => openEdit(employee.id)}>
+                        <Button size="icon" variant="outline" disabled={!canUpdateEmployee} onClick={() => openEdit(employee.id)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="outline" onClick={() => setDeletingEmployee(employee.id)}>
+                        <Button size="icon" variant="outline" disabled={!canDeleteEmployee} onClick={() => setDeletingEmployee(employee.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -384,123 +400,214 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
               This form writes to the backend `/employee` endpoint and keeps the frontend aligned with the new employee architecture.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-2 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
-              <Select value={form.department_id || "none"} onValueChange={(value) => setForm((current) => ({ ...current, department_id: value === "none" ? "" : value }))}>
-                <SelectTrigger id="department">
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No department</SelectItem>
-                  {(departmentsQuery.data || []).map((department) => (
-                    <SelectItem key={department.id} value={String(department.id)}>
-                      {department.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Input placeholder="New department" value={newDepartmentName} onChange={(event) => setNewDepartmentName(event.target.value)} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => createDepartment.mutate()}
-                  disabled={!newDepartmentName.trim() || createDepartment.isPending}
+          <Tabs defaultValue="basic" className="py-2">
+            <TabsList className="grid h-auto w-full grid-cols-3 lg:grid-cols-6">
+              <TabsTrigger value="basic">Basic</TabsTrigger>
+              <TabsTrigger value="job">Job</TabsTrigger>
+              <TabsTrigger value="compensation">Compensation</TabsTrigger>
+              <TabsTrigger value="attendance">Attendance</TabsTrigger>
+              <TabsTrigger value="leave">Leave</TabsTrigger>
+              <TabsTrigger value="account">Account</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="basic" className="grid gap-4 md:grid-cols-2">
+              {basicFormFields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  <Label htmlFor={field.key}>{field.label}</Label>
+                  <Input
+                    id={field.key}
+                    type={field.type}
+                    value={form[field.key]}
+                    onChange={(event) => setForm((value) => ({ ...value, [field.key]: event.target.value }))}
+                  />
+                </div>
+              ))}
+              <div className="space-y-2">
+                <Label htmlFor="phoneCountry">Country code</Label>
+                <Select
+                  value={form.phone_country_iso}
+                  onValueChange={(phone_country_iso) => setForm((value) => ({ ...value, phone_country_iso }))}
                 >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                  <SelectTrigger id="phoneCountry">
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {phoneCountries.map((country) => (
+                      <SelectItem key={country.iso2} value={country.iso2}>
+                        {country.name} ({country.dialCode})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="position">Position</Label>
-              <Select
-                value={form.position_id || "none"}
-                onValueChange={(value) => {
-                  const selectedPosition = (positionsQuery.data || []).find((position) => String(position.id) === value);
-                  setForm((current) => ({
-                    ...current,
-                    position_id: value === "none" ? "" : value,
-                    position: selectedPosition?.name || "",
-                  }));
-                }}
-              >
-                <SelectTrigger id="position">
-                  <SelectValue placeholder="Select position" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No position</SelectItem>
-                  {(positionsQuery.data || []).map((position) => (
-                    <SelectItem key={position.id} value={String(position.id)}>
-                      {position.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Input placeholder="New position" value={newPositionName} onChange={(event) => setNewPositionName(event.target.value)} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => createPosition.mutate()}
-                  disabled={!newPositionName.trim() || createPosition.isPending}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="salaryType">Salary type</Label>
-              <Select value={form.salary_type} onValueChange={(value) => setForm((current) => ({ ...current, salary_type: value }))}>
-                <SelectTrigger id="salaryType">
-                  <SelectValue placeholder="Select salary type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(salaryTypesQuery.data || []).map((salaryType) => (
-                    <SelectItem key={salaryType.id} value={String(salaryType.id)}>
-                      {salaryType.salary_type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {employeeFormFields.map((field) => (
-              <div key={field.key} className="space-y-2">
-                <Label htmlFor={field.key}>{field.label}</Label>
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Phone number</Label>
                 <Input
-                  id={field.key}
-                  type={field.type}
-                  value={form[field.key]}
-                  onChange={(event) => setForm((value) => ({ ...value, [field.key]: event.target.value }))}
+                  id="phoneNumber"
+                  inputMode="tel"
+                  placeholder="Local number"
+                  value={form.phone_number}
+                  onChange={(event) => setForm((value) => ({ ...value, phone_number: event.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Saved as {composePhoneNumber(form.phone_country_iso, form.phone_number) || `${getPhoneCountryByIso(form.phone_country_iso)?.dialCode || ""}...`}
+                </p>
               </div>
-            ))}
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
-                <SelectTrigger id="status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employeeStatuses.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            </TabsContent>
+
+            <TabsContent value="job" className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Select value={form.department_id || "none"} onValueChange={(value) => setForm((current) => ({ ...current, department_id: value === "none" ? "" : value }))}>
+                  <SelectTrigger id="department">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No department</SelectItem>
+                    {(departmentsQuery.data || []).map((department) => (
+                      <SelectItem key={department.id} value={String(department.id)}>
+                        {department.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Input placeholder="New department" value={newDepartmentName} onChange={(event) => setNewDepartmentName(event.target.value)} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => createDepartment.mutate()}
+                    disabled={!newDepartmentName.trim() || createDepartment.isPending}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="position">Position</Label>
+                <Select
+                  value={form.position_id || "none"}
+                  onValueChange={(value) => {
+                    const selectedPosition = (positionsQuery.data || []).find((position) => String(position.id) === value);
+                    setForm((current) => ({
+                      ...current,
+                      position_id: value === "none" ? "" : value,
+                      position: selectedPosition?.name || "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger id="position">
+                    <SelectValue placeholder="Select position" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No position</SelectItem>
+                    {(positionsQuery.data || []).map((position) => (
+                      <SelectItem key={position.id} value={String(position.id)}>
+                        {position.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Input placeholder="New position" value={newPositionName} onChange={(event) => setNewPositionName(event.target.value)} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => createPosition.mutate()}
+                    disabled={!newPositionName.trim() || createPosition.isPending}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Employment status</Label>
+                <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
+                  <SelectTrigger id="status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employeeStatuses.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="compensation" className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="salaryType">Salary type</Label>
+                <Select value={form.salary_type} onValueChange={(value) => setForm((current) => ({ ...current, salary_type: value }))}>
+                  <SelectTrigger id="salaryType">
+                    <SelectValue placeholder="Select salary type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(salaryTypesQuery.data || []).map((salaryType) => (
+                      <SelectItem key={salaryType.id} value={String(salaryType.id)}>
+                        {salaryType.salary_type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {compensationFormFields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  <Label htmlFor={field.key}>{field.label}</Label>
+                  <Input
+                    id={field.key}
+                    type={field.type}
+                    value={form[field.key]}
+                    onChange={(event) => setForm((value) => ({ ...value, [field.key]: event.target.value }))}
+                  />
+                </div>
+              ))}
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
+                Compensation history needs a backend compensation endpoint before it can be edited safely here.
+              </div>
+            </TabsContent>
+
+            <TabsContent value="attendance" className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="dailyWorkHours">Daily work hours</Label>
+                <Input id="dailyWorkHours" type="number" value={form.daily_work_hours} onChange={(event) => setForm((value) => ({ ...value, daily_work_hours: event.target.value }))} />
+              </div>
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Monthly attendance summaries and trend history are available from the Attendance page in Phase 1.
+              </div>
+            </TabsContent>
+
+            <TabsContent value="leave" className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="vacationDays">Vacation days</Label>
+                <Input id="vacationDays" type="number" value={form.vacation_days} onChange={(event) => setForm((value) => ({ ...value, vacation_days: event.target.value }))} />
+              </div>
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Leave balance history needs a backend balance endpoint before it can be shown as an authoritative ledger.
+              </div>
+            </TabsContent>
+
+            <TabsContent value="account" className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs text-muted-foreground">Linked user</p>
+                <p className="font-medium">{editingId ? employeesQuery.data?.find((employee) => employee.id === editingId)?.user_id ?? "none" : "Created after user linking"}</p>
+              </div>
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Role assignment, last login, and password reset remain in Users until dedicated account endpoints are added to this profile view.
+              </div>
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => (editingId ? updateEmployee.mutate() : createEmployee.mutate())} disabled={isSaving}>
+            <Button onClick={() => (editingId ? updateEmployee.mutate() : createEmployee.mutate())} disabled={isSaving || (editingId ? !canUpdateEmployee : !canCreateEmployee)}>
               {isSaving ? "Saving..." : editingId ? "Save changes" : "Create employee"}
             </Button>
           </DialogFooter>
@@ -517,7 +624,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deletingEmployee && deleteEmployee.mutate(deletingEmployee)}>
+            <AlertDialogAction disabled={!canDeleteEmployee || deleteEmployee.isPending} onClick={() => deletingEmployee && deleteEmployee.mutate(deletingEmployee)}>
               Delete employee
             </AlertDialogAction>
           </AlertDialogFooter>

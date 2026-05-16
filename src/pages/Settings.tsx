@@ -13,11 +13,15 @@ import { payrollCycles, workWeekOptions } from "@/components/layout/navigation";
 import { currencyOptions, isAllowedCurrency } from "@/lib/currencies";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, setDefaultCurrency } from "@/lib/format";
+import { hasPermission } from "@/lib/roles";
 import { settingsApi } from "@/services/settingsApi";
+import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 
 export default function Settings() {
   const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
+  const canUpdateSettings = hasPermission(currentUser, "settings.update");
   const workScheduleQuery = useQuery({
     queryKey: ["settings", "work-schedule"],
     queryFn: () => settingsApi.getWorkSchedule(),
@@ -182,7 +186,7 @@ export default function Settings() {
               </div>
               <Switch checked={workSchedule.is_default} onCheckedChange={(checked) => setWorkSchedule((value) => ({ ...value, is_default: checked }))} />
             </div>
-            <Button onClick={() => saveWorkSchedule.mutate()} disabled={saveWorkSchedule.isPending}>
+            <Button onClick={() => saveWorkSchedule.mutate()} disabled={!canUpdateSettings || saveWorkSchedule.isPending}>
               {saveWorkSchedule.isPending ? "Saving..." : "Save work schedule"}
             </Button>
           </CardContent>
@@ -290,7 +294,7 @@ export default function Settings() {
               />
             </div>
 
-            <Button onClick={() => savePayrollPolicy.mutate()} disabled={savePayrollPolicy.isPending}>
+            <Button onClick={() => savePayrollPolicy.mutate()} disabled={!canUpdateSettings || savePayrollPolicy.isPending}>
               {savePayrollPolicy.isPending ? "Saving..." : "Save payroll policy"}
             </Button>
           </CardContent>

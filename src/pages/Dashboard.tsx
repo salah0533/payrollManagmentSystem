@@ -1,4 +1,4 @@
-import { Bell, Clock3, Landmark, Users } from "lucide-react";
+import { AlertTriangle, Bell, Clock3, Landmark, ReceiptText, ShieldCheck, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { EmptyState } from "@/components/app/EmptyState";
@@ -10,10 +10,11 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { VacationChart } from "@/components/dashboard/VacationChart";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDateTime, formatMinutes } from "@/lib/format";
 import { adminDashboardFocus, hrDashboardFocus } from "@/components/layout/navigation";
 import { dashboardApi } from "@/services/dashboardApi";
 import { notificationApi } from "@/services/notificationApi";
+import { payrollApi } from "@/services/payrollApi";
 import { vacationApi } from "@/services/vacationApi";
 
 export default function Dashboard({ role }: { role: "admin" | "hr" }) {
@@ -39,8 +40,23 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
     queryFn: () => vacationApi.listCurrent(),
   });
 
+  const payrollPeriodsQuery = useQuery({
+    queryKey: ["dashboard", role, "payroll-periods"],
+    queryFn: () => payrollApi.listPeriods(),
+  });
+
+  const currentPayrollPeriod = payrollPeriodsQuery.data?.[0];
+
+  const payrollDiscrepanciesQuery = useQuery({
+    queryKey: ["dashboard", role, "payroll-discrepancies", currentPayrollPeriod?.id],
+    queryFn: () => payrollApi.getDiscrepancies(currentPayrollPeriod?.id as number),
+    enabled: Boolean(currentPayrollPeriod?.id),
+  });
+
   const stats = statsQuery.data;
   const focusItems = role === "admin" ? adminDashboardFocus : hrDashboardFocus;
+  const openPayrollDiscrepancies = (payrollDiscrepanciesQuery.data || []).filter((item) => item.status !== "resolved").length;
+  const pendingNotifications = notificationsQuery.data?.unread_count ?? notificationsQuery.data?.items.filter((item) => !item.is_read).length ?? 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -67,6 +83,26 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
         <MetricCard label="Employees on vacation" value={stats?.total_vacation ?? 0} icon={Landmark} tone="warning" />
       </div>
 
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Action required</h2>
+          <p className="text-sm text-muted-foreground">Work queues from the AttendanceDay, payroll, vacation, and notification APIs.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Attendance review" value={stats?.needs_review_days ?? 0} icon={ShieldCheck} tone="warning" hint="Attendance days needing review" />
+          <MetricCard label="Incomplete days" value={stats?.incomplete_days ?? 0} icon={AlertTriangle} tone="danger" hint="Missing checkout or incomplete status" />
+          <MetricCard label="Payroll issues" value={openPayrollDiscrepancies} icon={ReceiptText} tone={openPayrollDiscrepancies ? "danger" : "success"} hint={currentPayrollPeriod?.name || "No payroll period"} />
+          <MetricCard label="Unread notices" value={pendingNotifications} icon={Bell} tone={pendingNotifications ? "warning" : "success"} hint="Personal notification queue" />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Today/month present" value={stats?.present_days ?? 0} icon={Clock3} tone="success" />
+        <MetricCard label="Late days" value={stats?.late_days ?? 0} icon={Clock3} tone="warning" />
+        <MetricCard label="Absent days" value={stats?.absent_days ?? 0} icon={AlertTriangle} tone="danger" />
+        <MetricCard label="Paid / unpaid time" value={`${formatMinutes(stats?.total_paid_minutes || 0)} / ${formatMinutes(stats?.total_unpaid_minutes || 0)}`} icon={ReceiptText} tone="info" />
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
         <PayrollChart activeEmployees={stats?.total_active_emps ?? 0} totalEmployees={stats?.total_emps ?? 0} />
         <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-1">
@@ -79,7 +115,7 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
         <Card>
           <CardHeader>
             <CardTitle>Operational focus</CardTitle>
-            <CardDescription>Role-based quick direction for today.</CardDescription>
+            <CardDescription>Role-based quick direction for today. Current payroll total: {formatCurrency(currentPayrollPeriod?.payrolls?.reduce((sum, row) => sum + Number(row.total_amount || 0), 0) || 0)}.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {focusItems.map((item) => (

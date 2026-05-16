@@ -2,15 +2,14 @@ import { apiRequest, buildQueryString } from "@/lib/api-client";
 import type {
   AttendanceActionPayload,
   AttendanceActionResult,
+  AttendanceCorrectionResult,
   AttendanceCorrectionPayload,
   AttendanceDay,
-  AttendanceType,
+  AttendanceReviewPayload,
+  AttendanceSmartCorrectionPayload,
 } from "@/types/domain";
 
 export const attendanceApi = {
-  getTypes() {
-    return apiRequest<AttendanceType[]>("/att_types/");
-  },
   listByDate(date: string) {
     return apiRequest<AttendanceDay[]>(`/attendance/days/${date}`);
   },
@@ -40,7 +39,19 @@ export const attendanceApi = {
     });
   },
   manualCorrection(payload: AttendanceCorrectionPayload) {
-    return apiRequest<AttendanceActionResult>("/attendance/manual-correction", {
+    return apiRequest<AttendanceCorrectionResult>("/attendance/manual-correction", {
+      method: "POST",
+      body: payload,
+    });
+  },
+  smartCorrection(employeeId: number, workDate: string, payload: AttendanceSmartCorrectionPayload) {
+    return apiRequest<AttendanceCorrectionResult>(`/attendance/day/${employeeId}/${workDate}/smart-correction`, {
+      method: "POST",
+      body: payload,
+    });
+  },
+  reviewDay(employeeId: number, workDate: string, payload: AttendanceReviewPayload) {
+    return apiRequest<AttendanceDay>(`/attendance/day/${employeeId}/${workDate}/review`, {
       method: "POST",
       body: payload,
     });

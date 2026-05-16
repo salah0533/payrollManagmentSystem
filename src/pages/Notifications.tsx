@@ -4,15 +4,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import { hasPermission } from "@/lib/roles";
+import { notificationPriorities, notificationTypes, roleCodes } from "@/lib/workflow";
 import { notificationApi } from "@/services/notificationApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
@@ -37,6 +40,35 @@ export default function Notifications() {
 
   const canReadAll = hasPermission(currentUser, "notifications.read_all");
   const canSend = hasPermission(currentUser, "notifications.send");
+  const parsedUserIds = useMemo(() => {
+    const rawValues = composer.user_ids
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const parsed = rawValues.map((value) => Number(value));
+    return {
+      valid: parsed.filter((value) => Number.isInteger(value) && value > 0),
+      invalid: rawValues.filter((value, index) => !Number.isInteger(parsed[index]) || parsed[index] <= 0),
+    };
+  }, [composer.user_ids]);
+  const parsedRoleCodes = useMemo(
+    () =>
+      composer.role_codes
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    [composer.role_codes],
+  );
+  const unknownRoleCodes = parsedRoleCodes.filter((role) => !roleCodes.includes(role as never));
+  const canSubmitNotification = Boolean(
+    composer.title.trim() &&
+      composer.message.trim() &&
+      notificationTypes.includes(composer.notification_type as never) &&
+      notificationPriorities.includes(composer.priority as never) &&
+      parsedUserIds.invalid.length === 0 &&
+      unknownRoleCodes.length === 0 &&
+      (parsedUserIds.valid.length > 0 || parsedRoleCodes.length > 0),
+  );
 
   const myNotificationsQuery = useQuery({
     queryKey: ["my-notifications", unreadOnly, showArchived, includeExpired, offset],
@@ -87,14 +119,8 @@ export default function Notifications() {
         notification_type: composer.notification_type,
         title: composer.title,
         message: composer.message,
-        user_ids: composer.user_ids
-          .split(",")
-          .map((value) => Number(value.trim()))
-          .filter((value) => Number.isFinite(value)),
-        role_codes: composer.role_codes
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
+        user_ids: parsedUserIds.valid,
+        role_codes: parsedRoleCodes,
         priority: composer.priority,
       }),
     onSuccess: async () => {
@@ -231,8 +257,32 @@ export default function Notifications() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input placeholder="Filter by notification type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} />
-              <Input placeholder="Filter by priority" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} />
+              <Select value={typeFilter || "all"} onValueChange={(value) => setTypeFilter(value === "all" ? "" : value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All notification types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All notification types</SelectItem>
+                  {notificationTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {formatLabel(type)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={priorityFilter || "all"} onValueChange={(value) => setPriorityFilter(value === "all" ? "" : value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All priorities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All priorities</SelectItem>
+                  {notificationPriorities.map((priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {formatLabel(priority)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {systemNotifications.length ? (
               <div className="space-y-3">
@@ -284,11 +334,18 @@ export default function Notifications() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notificationType">Type</Label>
-                <Input
-                  id="notificationType"
-                  value={composer.notification_type}
-                  onChange={(event) => setComposer((value) => ({ ...value, notification_type: event.target.value }))}
-                />
+                <Select value={composer.notification_type} onValueChange={(notification_type) => setComposer((value) => ({ ...value, notification_type }))}>
+                  <SelectTrigger id="notificationType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {notificationTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatLabel(type)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2">
@@ -302,11 +359,18 @@ export default function Notifications() {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="notificationPriority">Priority</Label>
-                <Input
-                  id="notificationPriority"
-                  value={composer.priority}
-                  onChange={(event) => setComposer((value) => ({ ...value, priority: event.target.value }))}
-                />
+                <Select value={composer.priority} onValueChange={(priority) => setComposer((value) => ({ ...value, priority }))}>
+                  <SelectTrigger id="notificationPriority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {notificationPriorities.map((priority) => (
+                      <SelectItem key={priority} value={priority}>
+                        {formatLabel(priority)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notificationUsers">User ids</Label>
@@ -327,7 +391,27 @@ export default function Notifications() {
                 />
               </div>
             </div>
-            <Button onClick={() => sendNotification.mutate()} disabled={sendNotification.isPending}>
+            <div className="rounded-lg border border-border p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">Preview before send</p>
+                  <p className="text-sm text-muted-foreground">{composer.title || "Notification title"} / {formatLabel(composer.notification_type)} / {formatLabel(composer.priority)}</p>
+                </div>
+                <StatusBadge status={composer.priority} />
+              </div>
+              <p className="text-sm text-muted-foreground">{composer.message || "Notification message preview will appear here."}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {parsedUserIds.valid.map((id) => <Badge key={`user-${id}`} variant="secondary">User #{id}</Badge>)}
+                {parsedRoleCodes.map((role) => <Badge key={`role-${role}`} variant="outline">Role {role}</Badge>)}
+                {!parsedUserIds.valid.length && !parsedRoleCodes.length ? <span className="text-xs text-muted-foreground">Add at least one user id or role code.</span> : null}
+              </div>
+              {parsedUserIds.invalid.length || unknownRoleCodes.length ? (
+                <p className="mt-2 text-sm text-destructive">
+                  Review invalid recipients: {[...parsedUserIds.invalid, ...unknownRoleCodes].join(", ")}
+                </p>
+              ) : null}
+            </div>
+            <Button onClick={() => sendNotification.mutate()} disabled={sendNotification.isPending || !canSubmitNotification}>
               {sendNotification.isPending ? "Sending..." : "Send notification"}
             </Button>
           </CardContent>

@@ -24,7 +24,7 @@ export interface Employee {
 }
 
 export interface Attendance {
-  [x: string]: string;
+  [x: string]: unknown;
   id: string;
   employeeId: string;
   employeeName: string;
@@ -32,7 +32,7 @@ export interface Attendance {
   entryTime: string | null;
   exitTime: string | null;
   workedHours: number;
-  attendence_type: 'present' | 'late' | 'absent' | 'vacation' | 'Overtime';
+  status: 'present' | 'late' | 'absent' | 'vacation' | 'overtime';
 }
 
 export interface Payment {
@@ -41,8 +41,9 @@ export interface Payment {
   employeeName: string;
   date: string;
   amount: number;
-  payment_type: string;
+  type: string;
   description: string;
+  status: string;
 }
 
 export interface Vacation {
@@ -54,6 +55,7 @@ export interface Vacation {
   end_date: string;
   days: number;
   vacation_status: string;
+  reason?: string;
 }
 
 export const employees: Employee[] = [
@@ -228,17 +230,17 @@ export const employees: Employee[] = [
 ];
 
 export const attendanceRecords: Attendance[] = [
-  { id: '1', employeeId: '1', employeeName: 'Sarah Johnson', date: '2026-01-13', entryTime: '08:55', exitTime: '17:05', workedHours: 8.17, type: 'present', isAuto: true },
-  { id: '2', employeeId: '2', employeeName: 'Michael Chen', date: '2026-01-13', entryTime: '09:15', exitTime: '17:30', workedHours: 8.25, type: 'late', isAuto: false },
-  { id: '3', employeeId: '3', employeeName: 'Emily Rodriguez', date: '2026-01-13', entryTime: '08:45', exitTime: '17:00', workedHours: 8.25, type: 'present', isAuto: true },
-  { id: '4', employeeId: '4', employeeName: 'James Wilson', date: '2026-01-13', entryTime: null, exitTime: null, workedHours: 0, type: 'absent', isAuto: false },
-  { id: '5', employeeId: '5', employeeName: 'Amanda Foster', date: '2026-01-13', entryTime: '09:00', exitTime: '17:00', workedHours: 8, type: 'present', isAuto: true },
-  { id: '6', employeeId: '7', employeeName: 'Lisa Martinez', date: '2026-01-13', entryTime: '08:50', exitTime: '17:10', workedHours: 8.33, type: 'present', isAuto: false },
-  { id: '7', employeeId: '8', employeeName: 'Robert Kim', date: '2026-01-13', entryTime: null, exitTime: null, workedHours: 0, type: 'vacation', isAuto: false },
+  { id: '1', employeeId: '1', employeeName: 'Sarah Johnson', date: '2026-01-13', entryTime: '08:55', exitTime: '17:05', workedHours: 8.17, status: 'present', isAuto: true },
+  { id: '2', employeeId: '2', employeeName: 'Michael Chen', date: '2026-01-13', entryTime: '09:15', exitTime: '17:30', workedHours: 8.25, status: 'late', isAuto: false },
+  { id: '3', employeeId: '3', employeeName: 'Emily Rodriguez', date: '2026-01-13', entryTime: '08:45', exitTime: '17:00', workedHours: 8.25, status: 'present', isAuto: true },
+  { id: '4', employeeId: '4', employeeName: 'James Wilson', date: '2026-01-13', entryTime: null, exitTime: null, workedHours: 0, status: 'absent', isAuto: false },
+  { id: '5', employeeId: '5', employeeName: 'Amanda Foster', date: '2026-01-13', entryTime: '09:00', exitTime: '17:00', workedHours: 8, status: 'present', isAuto: true },
+  { id: '6', employeeId: '7', employeeName: 'Lisa Martinez', date: '2026-01-13', entryTime: '08:50', exitTime: '17:10', workedHours: 8.33, status: 'present', isAuto: false },
+  { id: '7', employeeId: '8', employeeName: 'Robert Kim', date: '2026-01-13', entryTime: null, exitTime: null, workedHours: 0, status: 'vacation', isAuto: false },
   // Previous days
-  { id: '8', employeeId: '1', employeeName: 'Sarah Johnson', date: '2026-01-12', entryTime: '09:00', exitTime: '17:00', workedHours: 8, type: 'present', isAuto: true },
-  { id: '9', employeeId: '2', employeeName: 'Michael Chen', date: '2026-01-12', entryTime: '09:00', exitTime: '17:00', workedHours: 8, type: 'present', isAuto: false },
-  { id: '10', employeeId: '3', employeeName: 'Emily Rodriguez', date: '2026-01-12', entryTime: '09:05', exitTime: '17:15', workedHours: 8.17, type: 'present', isAuto: true },
+  { id: '8', employeeId: '1', employeeName: 'Sarah Johnson', date: '2026-01-12', entryTime: '09:00', exitTime: '17:00', workedHours: 8, status: 'present', isAuto: true },
+  { id: '9', employeeId: '2', employeeName: 'Michael Chen', date: '2026-01-12', entryTime: '09:00', exitTime: '17:00', workedHours: 8, status: 'present', isAuto: false },
+  { id: '10', employeeId: '3', employeeName: 'Emily Rodriguez', date: '2026-01-12', entryTime: '09:05', exitTime: '17:15', workedHours: 8.17, status: 'present', isAuto: true },
 ];
 
 export const payments: Payment[] = [
@@ -255,14 +257,13 @@ export const payments: Payment[] = [
 ];
 
 export const vacations: Vacation[] = [
-  { id: '1', employeeId: '8', employeeName: 'Robert Kim', type: 'annual', startDate: '2026-01-13', endDate: '2026-01-17', days: 5, status: 'approved', reason: 'Family vacation' },
-  { id: '2', employeeId: '2', employeeName: 'Michael Chen', type: 'sick', startDate: '2026-01-20', endDate: '2026-01-21', days: 2, status: 'pending', reason: 'Medical appointment' },
-  { id: '3', employeeId: '5', employeeName: 'Amanda Foster', type: 'personal', startDate: '2026-01-25', endDate: '2026-01-25', days: 1, status: 'approved', reason: 'Personal matters' },
-  { id: '4', employeeId: '1', employeeName: 'Sarah Johnson', type: 'annual', startDate: '2026-02-01', endDate: '2026-02-07', days: 7, status: 'pending', reason: 'Winter vacation' },
-  { id: '5', employeeId: '3', employeeName: 'Emily Rodriguez', type: 'annual', startDate: '2025-12-24', endDate: '2025-12-31', days: 6, status: 'approved', reason: 'Holiday break' },
+  { id: '1', employeeId: '8', employeeName: 'Robert Kim', vacation_type: 'annual', start_date: '2026-01-13', end_date: '2026-01-17', days: 5, vacation_status: 'approved', reason: 'Family vacation' },
+  { id: '2', employeeId: '2', employeeName: 'Michael Chen', vacation_type: 'sick', start_date: '2026-01-20', end_date: '2026-01-21', days: 2, vacation_status: 'pending', reason: 'Medical appointment' },
+  { id: '3', employeeId: '5', employeeName: 'Amanda Foster', vacation_type: 'personal', start_date: '2026-01-25', end_date: '2026-01-25', days: 1, vacation_status: 'approved', reason: 'Personal matters' },
+  { id: '4', employeeId: '1', employeeName: 'Sarah Johnson', vacation_type: 'annual', start_date: '2026-02-01', end_date: '2026-02-07', days: 7, vacation_status: 'pending', reason: 'Winter vacation' },
+  { id: '5', employeeId: '3', employeeName: 'Emily Rodriguez', vacation_type: 'annual', start_date: '2025-12-24', end_date: '2025-12-31', days: 6, vacation_status: 'approved', reason: 'Holiday break' },
 ];
 
-export const attendanceTypes = ['Present', 'Late', 'Absent', 'Vacation', 'Half Day'];
 export const paymentTypes = ['Salary', 'Bonus', 'Deduction', 'Overtime', 'Commission'];
 export const vacationTypes = ['Annual', 'Sick', 'Personal', 'Unpaid', 'Maternity/Paternity'];
 export const roles = ['Admin', 'Manager', 'Employee', 'Viewer'];
@@ -272,7 +273,7 @@ export const dashboardStats = {
   activeEmployees: employees.filter(e => e.status === 'active').length,
   todayAttendancePercent: 85,
   monthlyPayrollTotal: payments.filter(p => p.date.startsWith('2026-01') && p.type === 'salary').reduce((sum, p) => sum + p.amount, 0),
-  employeesOnVacation: vacations.filter(v => v.status === 'approved' && v.startDate <= '2026-01-13' && v.endDate >= '2026-01-13').length,
+  employeesOnVacation: vacations.filter(v => v.vacation_status === 'approved' && v.start_date <= '2026-01-13' && v.end_date >= '2026-01-13').length,
 };
 
 export const attendanceTrendData = [
