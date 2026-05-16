@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +14,7 @@ import { payrollCycles, workWeekOptions } from "@/components/layout/navigation";
 import { currencyOptions, isAllowedCurrency } from "@/lib/currencies";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, setDefaultCurrency } from "@/lib/format";
+import { timezoneOptions } from "@/lib/timezones";
 import { hasPermission } from "@/lib/roles";
 import { settingsApi } from "@/services/settingsApi";
 import { useAuth } from "@/providers/AuthProvider";
@@ -37,8 +39,8 @@ export default function Settings() {
     start_time: "08:00:00",
     end_time: "17:00:00",
     break_minutes: 60,
-    weekly_off_days: ["friday"],
-    timezone: "UTC",
+    weekly_off_days: ["friday", "saturday"],
+    timezone: "Africa/Algiers",
     is_default: true,
   });
 
@@ -47,7 +49,7 @@ export default function Settings() {
     payroll_cycle: "monthly",
     minimum_overtime_minutes: 30,
     allowed_late_minutes: 0,
-    default_currency: "USD",
+    default_currency: "DZD",
     significant_change_threshold: 1,
     paid_vacation_counts_for_daily: true,
     overtime_enabled: true,
@@ -159,25 +161,44 @@ export default function Settings() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scheduleTimezone">Timezone</Label>
-                <Input id="scheduleTimezone" value={workSchedule.timezone} onChange={(event) => setWorkSchedule((value) => ({ ...value, timezone: event.target.value }))} />
+                <Select
+                  value={workSchedule.timezone}
+                  onValueChange={(timezone) => setWorkSchedule((value) => ({ ...value, timezone }))}
+                >
+                  <SelectTrigger id="scheduleTimezone">
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {timezoneOptions.map((timezone) => (
+                      <SelectItem key={timezone} value={timezone}>
+                        {timezone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="weeklyOffDays">Weekly off days</Label>
-              <Input
-                id="weeklyOffDays"
-                value={workSchedule.weekly_off_days.join(",")}
-                onChange={(event) =>
-                  setWorkSchedule((value) => ({
-                    ...value,
-                    weekly_off_days: event.target.value
-                      .split(",")
-                      .map((item) => item.trim().toLowerCase())
-                      .filter((item) => workWeekOptions.includes(item as never)),
-                  }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">Examples: friday or saturday,sunday</p>
+              <Label>Weekly off days</Label>
+              <div className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
+                {workWeekOptions.map((day) => (
+                  <label key={day} className="flex items-center gap-3 text-sm">
+                    <Checkbox
+                      checked={workSchedule.weekly_off_days.includes(day)}
+                      onCheckedChange={(checked) =>
+                        setWorkSchedule((value) => ({
+                          ...value,
+                          weekly_off_days: Boolean(checked)
+                            ? workWeekOptions.filter((option) => option === day || value.weekly_off_days.includes(option))
+                            : value.weekly_off_days.filter((option) => option !== day),
+                        }))
+                      }
+                    />
+                    <span className="capitalize">{day}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Select one or more days that count as the weekly off schedule.</p>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-border p-3">
               <div>
@@ -234,7 +255,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label htmlFor="currency">Currency</Label>
                 <Select
-                  value={isAllowedCurrency(payrollPolicy.default_currency) ? payrollPolicy.default_currency : "USD"}
+                  value={isAllowedCurrency(payrollPolicy.default_currency) ? payrollPolicy.default_currency : "DZD"}
                   onValueChange={(currency) => setPayrollPolicy((value) => ({ ...value, default_currency: currency }))}
                 >
                   <SelectTrigger id="currency">

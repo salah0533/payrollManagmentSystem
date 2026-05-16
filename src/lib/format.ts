@@ -2,10 +2,10 @@ import { format } from "date-fns";
 
 const CURRENCY_STORAGE_KEY = "payroll_default_currency";
 let defaultCurrency =
-  typeof window !== "undefined" ? window.localStorage.getItem(CURRENCY_STORAGE_KEY) || "USD" : "USD";
+  typeof window !== "undefined" ? window.localStorage.getItem(CURRENCY_STORAGE_KEY) || "DZD" : "DZD";
 
 export function setDefaultCurrency(currency: string) {
-  const normalized = currency?.toUpperCase() || "USD";
+  const normalized = currency?.toUpperCase() || "DZD";
   defaultCurrency = normalized;
   if (typeof window !== "undefined") {
     window.localStorage.setItem(CURRENCY_STORAGE_KEY, normalized);
@@ -61,7 +61,7 @@ export function formatCurrency(value?: number | string | null, currency = defaul
   } catch {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
-      currency: "USD",
+      currency: "DZD",
       maximumFractionDigits: 2,
     }).format(Number.isFinite(numeric) ? numeric : 0);
   }
