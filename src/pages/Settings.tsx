@@ -48,13 +48,14 @@ export default function Settings() {
     name: "default",
     payroll_cycle: "monthly",
     minimum_overtime_minutes: 30,
+    minimum_auto_pay_minutes: 0,
     allowed_late_minutes: 0,
     default_currency: "DZD",
     significant_change_threshold: 1,
     paid_vacation_counts_for_daily: true,
     overtime_enabled: true,
     late_makeup_enabled: true,
-    late_deduction_enabled: true,
+    late_deduction_enabled: false,
     auto_recalculate_draft_payroll: true,
     lock_payroll_after_payment: true,
     holidays_json: [] as string[],
@@ -80,6 +81,7 @@ export default function Settings() {
         name: payrollPolicyQuery.data.name,
         payroll_cycle: payrollPolicyQuery.data.payroll_cycle,
         minimum_overtime_minutes: payrollPolicyQuery.data.minimum_overtime_minutes,
+        minimum_auto_pay_minutes: payrollPolicyQuery.data.minimum_auto_pay_minutes,
         allowed_late_minutes: payrollPolicyQuery.data.allowed_late_minutes,
         default_currency: payrollPolicyQuery.data.default_currency,
         significant_change_threshold: Number(payrollPolicyQuery.data.significant_change_threshold),
@@ -246,6 +248,13 @@ export default function Settings() {
                 <Input id="overtimeMinutes" type="number" value={payrollPolicy.minimum_overtime_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, minimum_overtime_minutes: Number(event.target.value) }))} />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="minimumAutoPayMinutes">Minimum auto-pay minutes</Label>
+                <Input id="minimumAutoPayMinutes" type="number" value={payrollPolicy.minimum_auto_pay_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, minimum_auto_pay_minutes: Number(event.target.value) }))} />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
                 <Label htmlFor="allowedLateMinutes">Allowed late minutes</Label>
                 <Input id="allowedLateMinutes" type="number" value={payrollPolicy.allowed_late_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, allowed_late_minutes: Number(event.target.value) }))} />
               </div>
@@ -284,7 +293,7 @@ export default function Settings() {
                 ["paid_vacation_counts_for_daily", "Count paid vacation for daily payroll"],
                 ["overtime_enabled", "Enable overtime"],
                 ["late_makeup_enabled", "Enable late makeup"],
-                ["late_deduction_enabled", "Enable late deductions"],
+                ["late_deduction_enabled", "Enable separate late penalty"],
                 ["auto_recalculate_draft_payroll", "Auto recalculate draft payroll"],
                 ["lock_payroll_after_payment", "Lock payroll after payment"],
               ].map(([field, label]) => (

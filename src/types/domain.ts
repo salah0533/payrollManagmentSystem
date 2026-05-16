@@ -247,6 +247,23 @@ export interface VacationUpdatePayload {
   is_paid?: boolean;
 }
 
+export interface PayrollCalculationData extends Record<string, unknown> {
+  actual_work_minutes?: number;
+  normal_paid_minutes?: number;
+  paid_minutes?: number;
+  unpaid_minutes?: number;
+  overtime_minutes?: number;
+  period_expected_minutes?: number;
+  missing_workday_minutes?: number;
+  partial_unpaid_minutes?: number;
+  auto_minute_rate?: number | string;
+  attendance_deduction?: number | string;
+  manual_deduction_amount?: number | string;
+  late_penalty_amount?: number | string;
+  final_net_salary?: number | string;
+  needs_review_reasons?: string[];
+}
+
 export interface EmployeePayroll {
   id: number;
   payroll_period_id: number;
@@ -271,6 +288,11 @@ export interface EmployeePayroll {
   approved_at?: string | null;
   paid_at?: string | null;
   notes?: string | null;
+  attendance_deduction_amount?: number | string;
+  manual_deduction_amount?: number | string;
+  late_penalty_amount?: number | string;
+  calculation_data_json?: PayrollCalculationData;
+  needs_review_reason?: string | null;
 }
 
 export interface PayrollPeriod {
@@ -332,7 +354,7 @@ export interface PayrollHistory {
   old_net_salary?: number | string | null;
   new_net_salary: number | string;
   reason: string;
-  calculation_data_json: Record<string, unknown>;
+  calculation_data_json: PayrollCalculationData;
   created_at: string;
   created_by?: number | null;
 }
@@ -452,6 +474,7 @@ export interface PayrollPolicy {
   name: string;
   payroll_cycle: string;
   minimum_overtime_minutes: number;
+  minimum_auto_pay_minutes: number;
   allowed_late_minutes: number;
   default_currency: string;
   significant_change_threshold: number | string;
@@ -470,6 +493,7 @@ export interface PayrollPolicyPayload {
   name: string;
   payroll_cycle: string;
   minimum_overtime_minutes: number;
+  minimum_auto_pay_minutes: number;
   allowed_late_minutes: number;
   default_currency: string;
   significant_change_threshold: number;

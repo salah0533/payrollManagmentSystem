@@ -71,19 +71,21 @@ const breakdownFields: Array<{ key: keyof EmployeePayroll; label: string }> = [
   { key: "normal_amount", label: "Normal pay" },
   { key: "overtime_amount", label: "Overtime" },
   { key: "bonus_amount", label: "Bonus" },
-  { key: "deduction_amount", label: "Deductions" },
-  { key: "late_deduction_amount", label: "Late deductions" },
-  { key: "unpaid_vacation_deduction", label: "Unpaid vacation" },
+  { key: "attendance_deduction_amount", label: "Attendance deduction" },
+  { key: "manual_deduction_amount", label: "Manual deductions" },
+  { key: "late_penalty_amount", label: "Late penalty" },
   { key: "adjustment_amount", label: "Adjustment total" },
   { key: "gross_salary", label: "Gross salary" },
   { key: "net_salary", label: "Net salary" },
-  { key: "total_amount", label: "Total" },
   { key: "paid_amount", label: "Paid" },
   { key: "balance_amount", label: "Balance" },
 ];
 
 const calculationFields = [
+  { key: "actual_work_minutes", label: "Worked time", format: "minutes" },
   { key: "normal_paid_minutes", label: "Paid time", format: "minutes" },
+  { key: "paid_minutes", label: "Payroll paid time", format: "minutes" },
+  { key: "period_expected_minutes", label: "Expected time", format: "minutes" },
   { key: "overtime_minutes", label: "Overtime", format: "minutes" },
   { key: "payable_overtime_minutes", label: "Payable overtime", format: "minutes" },
   { key: "late_minutes", label: "Late", format: "minutes" },
@@ -91,10 +93,17 @@ const calculationFields = [
   { key: "late_makeup_minutes", label: "Late makeup", format: "minutes" },
   { key: "absence_minutes", label: "Absent time", format: "minutes" },
   { key: "unpaid_minutes", label: "Unpaid time", format: "minutes" },
+  { key: "missing_workday_minutes", label: "Missing workdays", format: "minutes" },
+  { key: "partial_unpaid_minutes", label: "Partial unpaid", format: "minutes" },
   { key: "absence_days", label: "Absent days", format: "number" },
   { key: "paid_vacation_days", label: "Paid vacation", format: "number" },
   { key: "unpaid_vacation_days", label: "Unpaid vacation", format: "number" },
   { key: "missing_attendance_days", label: "Missing attendance", format: "number" },
+  { key: "auto_minute_rate", label: "Auto minute rate", format: "currency" },
+  { key: "attendance_deduction", label: "Attendance deduction", format: "currency" },
+  { key: "manual_deduction_amount", label: "Manual deductions", format: "currency" },
+  { key: "late_penalty_amount", label: "Late penalty", format: "currency" },
+  { key: "final_net_salary", label: "Final net", format: "currency" },
 ] as const;
 
 function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
@@ -110,12 +119,15 @@ function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
   );
 }
 
-function formatCalculationValue(value: unknown, format: "minutes" | "number") {
+function formatCalculationValue(value: unknown, format: "minutes" | "number" | "currency") {
   const numericValue = Number(value || 0);
   if (format === "minutes") {
     const hours = Math.floor(numericValue / 60);
     const minutes = Math.round(numericValue % 60);
     return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+  }
+  if (format === "currency") {
+    return formatCurrency(numericValue);
   }
   return Number.isFinite(numericValue) ? numericValue.toLocaleString() : "0";
 }
@@ -385,6 +397,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   });
 
   const payrollRows = useMemo(() => periodQuery.data?.payrolls ?? [], [periodQuery.data?.payrolls]);
+  const showLatePenaltyColumn = useMemo(
+    () =>
+      payrollRows.some(
+        (row) =>
+          Boolean(row.calculation_data_json?.late_penalty_enabled) ||
+          Number(row.late_penalty_amount ?? row.late_deduction_amount ?? 0) > 0,
+      ),
+    [payrollRows],
+  );
   const allDiscrepancies = discrepanciesQuery.data || [];
   const warningOpenDiscrepancies = allDiscrepancies.filter((item) => item.status !== "resolved").length;
   const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
@@ -695,10 +716,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                       <TableHead>Employee</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Gross</TableHead>
+                      <TableHead>Attendance deduction</TableHead>
+                      <TableHead>Manual deductions</TableHead>
+                      {showLatePenaltyColumn ? <TableHead>Late penalty</TableHead> : null}
                       <TableHead>Net</TableHead>
-                      <TableHead>Bonus</TableHead>
-                      <TableHead>Deductions</TableHead>
-                      <TableHead>Total</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Balance</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -722,12 +743,13 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                             <StatusBadge status={row.status} />
                             {rowHasOpenDiscrepancy ? <Badge variant="destructive">Open issue</Badge> : null}
                           </div>
+                          {row.needs_review_reason ? <div className="mt-1 text-xs text-muted-foreground">{row.needs_review_reason}</div> : null}
                         </TableCell>
                         <TableCell>{formatCurrency(row.gross_salary)}</TableCell>
+                        <TableCell>{formatCurrency(row.attendance_deduction_amount ?? row.deduction_amount ?? 0)}</TableCell>
+                        <TableCell>{formatCurrency(row.manual_deduction_amount ?? 0)}</TableCell>
+                        {showLatePenaltyColumn ? <TableCell>{formatCurrency(row.late_penalty_amount ?? row.late_deduction_amount ?? 0)}</TableCell> : null}
                         <TableCell>{formatCurrency(row.net_salary)}</TableCell>
-                        <TableCell>{formatCurrency(row.bonus_amount)}</TableCell>
-                        <TableCell>{formatCurrency(row.deduction_amount)}</TableCell>
-                        <TableCell>{formatCurrency(row.total_amount)}</TableCell>
                         <TableCell>{formatCurrency(row.paid_amount)}</TableCell>
                         <TableCell className={Number(row.balance_amount) < 0 ? "text-destructive" : "text-warning"}>
                           {formatCurrency(row.balance_amount)}
@@ -899,6 +921,13 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 <AlertTitle>Preview only</AlertTitle>
                 <AlertDescription>PDF download, export, and period lock are not active because this backend does not expose those endpoints yet.</AlertDescription>
               </Alert>
+              {detailsPayroll.needs_review_reason ? (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Needs review</AlertTitle>
+                  <AlertDescription>{detailsPayroll.needs_review_reason}</AlertDescription>
+                </Alert>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">Status</p>
