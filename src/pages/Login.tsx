@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BarChart3, Clock3, Eye, EyeOff, ShieldCheck, Sparkles } from "lucide-react";
 
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/lib/errors";
+import { APP_LANGUAGES, APP_LANGUAGE_LABELS, changeAppLanguage, normalizeAppLanguage } from "@/lib/i18n";
 import { getRoleHomePath } from "@/lib/roles";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
@@ -14,12 +16,14 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const { t, i18n } = useTranslation();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const from = location.state?.from;
+  const activeLanguage = normalizeAppLanguage(i18n.resolvedLanguage);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -29,8 +33,8 @@ export default function Login() {
       const user = await login({ identifier, password });
 
       toast({
-        title: "Signed in",
-        description: "Your account is ready.",
+        title: t("login.signedIn"),
+        description: t("login.signedInDescription"),
       });
 
       if (user.must_change_password) {
@@ -41,8 +45,8 @@ export default function Login() {
       navigate(from || getRoleHomePath(user), { replace: true });
     } catch (error) {
       toast({
-        title: "Login failed",
-        description: getErrorMessage(error, "Unable to sign in with those credentials."),
+        title: t("login.loginFailed"),
+        description: getErrorMessage(error, t("login.loginFailedDescription")),
         variant: "destructive",
       });
     } finally {
@@ -59,24 +63,24 @@ export default function Login() {
           <div className="relative">
             <div className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur">
               <Sparkles className="h-4 w-4" />
-              Payroll and workforce command center
+              {t("login.productTag")}
             </div>
             <div className="mt-16 max-w-xl">
               <p className="mb-4 text-sm font-bold uppercase tracking-[0.24em] text-white/60">PayRollPro</p>
               <h1 className="font-display text-6xl font-semibold leading-[0.98] tracking-tight">
-                Run people, payroll, and time with calm precision.
+                {t("login.heroTitle")}
               </h1>
               <p className="mt-6 text-lg leading-8 text-white/72">
-                A role-aware workspace for admins, HR teams, and employees to keep operations visible, auditable, and moving.
+                {t("login.heroDescription")}
               </p>
             </div>
           </div>
 
           <div className="relative grid gap-4 sm:grid-cols-3">
             {[
-              { label: "Secure roles", value: "3", icon: ShieldCheck },
-              { label: "Live attendance", value: "24/7", icon: Clock3 },
-              { label: "Payroll clarity", value: "100%", icon: BarChart3 },
+              { label: t("login.secureRoles"), value: "3", icon: ShieldCheck },
+              { label: t("login.liveAttendance"), value: "24/7", icon: Clock3 },
+              { label: t("login.payrollClarity"), value: "100%", icon: BarChart3 },
             ].map((item) => (
               <div key={item.label} className="rounded-[1.4rem] border border-white/15 bg-white/10 p-4 backdrop-blur">
                 <item.icon className="mb-5 h-5 w-5 text-white/70" />
@@ -89,44 +93,57 @@ export default function Login() {
 
         <section className="flex items-center justify-center p-6 md:p-10">
           <div className="w-full max-w-md">
+            <div className="mb-6 flex flex-wrap justify-end gap-2">
+              {APP_LANGUAGES.map((language) => (
+                <Button
+                  key={language}
+                  type="button"
+                  variant={activeLanguage === language ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => void changeAppLanguage(language)}
+                >
+                  {APP_LANGUAGE_LABELS[language]}
+                </Button>
+              ))}
+            </div>
             <div className="mb-10 lg:hidden">
               <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-lg font-extrabold text-primary-foreground">
                 PP
               </div>
               <p className="text-sm font-bold uppercase tracking-[0.22em] text-primary/70">PayRollPro</p>
-              <h1 className="mt-3 font-display text-4xl font-semibold">Welcome back</h1>
+              <h1 className="mt-3 font-display text-4xl font-semibold">{t("login.welcomeBack")}</h1>
             </div>
 
             <div className="rounded-[1.7rem] border border-white/70 bg-white/70 p-6 shadow-[0_24px_80px_-46px_hsl(var(--foreground)/0.85)] backdrop-blur-xl md:p-8">
               <div className="mb-8">
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary/70">Secure sign in</p>
-                <h2 className="mt-3 font-display text-4xl font-semibold">Enter your workspace</h2>
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary/70">{t("login.secureSignIn")}</p>
+                <h2 className="mt-3 font-display text-4xl font-semibold">{t("login.enterWorkspace")}</h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  Access the admin, HR, or employee self-service interface using your backend account.
+                  {t("login.signInDescription")}
                 </p>
               </div>
 
               <form className="space-y-5" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="identifier">Username or email</Label>
+                  <Label htmlFor="identifier">{t("login.identifierLabel")}</Label>
                   <Input
                     id="identifier"
                     value={identifier}
                     onChange={(event) => setIdentifier(event.target.value)}
-                    placeholder="Enter your username or email"
+                    placeholder={t("login.identifierPlaceholder")}
                     autoComplete="username"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">{t("login.passwordLabel")}</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      placeholder="Enter your password"
+                      placeholder={t("login.passwordPlaceholder")}
                       autoComplete="current-password"
                       required
                       className="pr-11"
@@ -137,14 +154,14 @@ export default function Login() {
                       size="icon"
                       className="absolute right-1 top-1 h-8 w-8"
                       onClick={() => setShowPassword((value) => !value)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
                 <Button className="h-12 w-full text-base" type="submit" disabled={submitting}>
-                  {submitting ? "Signing in..." : "Sign in"}
+                  {submitting ? t("login.signingIn") : t("login.signIn")}
                 </Button>
               </form>
             </div>

@@ -1,5 +1,7 @@
 import { format } from "date-fns";
 
+import { getCurrentLanguage, getLocaleTag } from "@/lib/i18n";
+
 const CURRENCY_STORAGE_KEY = "payroll_default_currency";
 let defaultCurrency =
   typeof window !== "undefined" ? window.localStorage.getItem(CURRENCY_STORAGE_KEY) || "DZD" : "DZD";
@@ -26,11 +28,35 @@ export function formatDate(value?: string | null, output = "MMM d, yyyy") {
     return value;
   }
 
+  if (output === "MMM d, yyyy") {
+    return new Intl.DateTimeFormat(getLocaleTag(getCurrentLanguage()), {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(date);
+  }
+
   return format(date, output);
 }
 
 export function formatDateTime(value?: string | null) {
-  return formatDate(value, "MMM d, yyyy HH:mm");
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(getLocaleTag(getCurrentLanguage()), {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 export function formatTime(value?: string | null) {
@@ -47,19 +73,24 @@ export function formatTime(value?: string | null) {
     return value;
   }
 
-  return format(date, "HH:mm");
+  return new Intl.DateTimeFormat(getLocaleTag(getCurrentLanguage()), {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 export function formatCurrency(value?: number | string | null, currency = defaultCurrency) {
   const numeric = Number(value ?? 0);
+  const locale = getLocaleTag(getCurrentLanguage());
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       maximumFractionDigits: 2,
     }).format(Number.isFinite(numeric) ? numeric : 0);
   } catch {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "DZD",
       maximumFractionDigits: 2,

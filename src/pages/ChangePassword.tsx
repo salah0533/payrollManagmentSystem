@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 
@@ -14,6 +15,7 @@ import { toast } from "@/hooks/use-toast";
 export default function ChangePassword() {
   const navigate = useNavigate();
   const { changePassword, currentUser, homePath, logout } = useAuth();
+  const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -35,8 +37,8 @@ export default function ChangePassword() {
 
     if (newPassword !== confirmPassword) {
       toast({
-        title: "Passwords do not match",
-        description: "Please make sure both new password fields match.",
+        title: t("changePassword.mismatch"),
+        description: t("changePassword.mismatchDescription"),
         variant: "destructive",
       });
       return;
@@ -51,15 +53,15 @@ export default function ChangePassword() {
       });
 
       toast({
-        title: "Password changed",
-        description: "You can now use the rest of the application.",
+        title: t("changePassword.changed"),
+        description: t("changePassword.changedDescription"),
       });
 
       navigate(homePath, { replace: true });
     } catch (error) {
       toast({
-        title: "Unable to change password",
-        description: getErrorMessage(error, "Please try again."),
+        title: t("changePassword.failed"),
+        description: getErrorMessage(error, t("changePassword.failedDescription")),
         variant: "destructive",
       });
     } finally {
@@ -77,18 +79,18 @@ export default function ChangePassword() {
               PP
             </div>
             <div className="mt-16">
-              <p className="mb-4 text-sm font-bold uppercase tracking-[0.24em] text-white/60">Security checkpoint</p>
-              <h1 className="font-display text-5xl font-semibold leading-tight">A stronger password before the workday starts.</h1>
+              <p className="mb-4 text-sm font-bold uppercase tracking-[0.24em] text-white/60">{t("changePassword.securityCheckpoint")}</p>
+              <h1 className="font-display text-5xl font-semibold leading-tight">{t("changePassword.heroTitle")}</h1>
               <p className="mt-5 text-base leading-7 text-white/70">
-                This protects payroll, attendance, employee records, and every role-aware workspace behind your account.
+                {t("changePassword.heroDescription")}
               </p>
             </div>
           </div>
           <div className="rounded-[1.4rem] border border-white/15 bg-white/10 p-5 backdrop-blur">
             <ShieldCheck className="mb-5 h-6 w-6 text-white/70" />
-            <p className="font-display text-2xl font-semibold">Protected access</p>
+            <p className="font-display text-2xl font-semibold">{t("changePassword.protectedAccess")}</p>
             <p className="mt-2 text-sm leading-6 text-white/65">
-              Only authentication, password update, and logout actions are available until this is complete.
+              {t("changePassword.protectedAccessDescription")}
             </p>
           </div>
         </section>
@@ -100,23 +102,23 @@ export default function ChangePassword() {
                 <KeyRound className="h-6 w-6" />
               </div>
               <div>
-                <CardTitle className="text-4xl">Change password</CardTitle>
+                <CardTitle className="text-4xl">{t("changePassword.title")}</CardTitle>
                 <CardDescription className="mt-3">
-                  This account must update its password before accessing protected pages.
+                  {t("changePassword.description")}
                 </CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
               <Alert className="rounded-2xl border-primary/20 bg-accent/45">
-                <AlertTitle>Password update required</AlertTitle>
+                <AlertTitle>{t("changePassword.alertTitle")}</AlertTitle>
                 <AlertDescription>
-                  Until this is done, only auth/me, change-password, and logout-related actions are allowed.
+                  {t("changePassword.alertDescription")}
                 </AlertDescription>
               </Alert>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current password</Label>
+                  <Label htmlFor="currentPassword">{t("changePassword.currentPassword")}</Label>
                   <div className="relative">
                     <Input
                       id="currentPassword"
@@ -133,14 +135,14 @@ export default function ChangePassword() {
                       size="icon"
                       className="absolute right-1 top-1 h-8 w-8"
                       onClick={() => setVisibleFields((value) => ({ ...value, current: !value.current }))}
-                      aria-label={visibleFields.current ? "Hide current password" : "Show current password"}
+                      aria-label={visibleFields.current ? t("changePassword.hideCurrentPassword") : t("changePassword.showCurrentPassword")}
                     >
                       {visibleFields.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="newPassword">New password</Label>
+                  <Label htmlFor="newPassword">{t("changePassword.newPassword")}</Label>
                   <div className="relative">
                     <Input
                       id="newPassword"
@@ -158,14 +160,14 @@ export default function ChangePassword() {
                       size="icon"
                       className="absolute right-1 top-1 h-8 w-8"
                       onClick={() => setVisibleFields((value) => ({ ...value, next: !value.next }))}
-                      aria-label={visibleFields.next ? "Hide new password" : "Show new password"}
+                      aria-label={visibleFields.next ? t("changePassword.hideNewPassword") : t("changePassword.showNewPassword")}
                     >
                       {visibleFields.next ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm new password</Label>
+                  <Label htmlFor="confirmPassword">{t("changePassword.confirmPassword")}</Label>
                   <div className="relative">
                     <Input
                       id="confirmPassword"
@@ -183,7 +185,7 @@ export default function ChangePassword() {
                       size="icon"
                       className="absolute right-1 top-1 h-8 w-8"
                       onClick={() => setVisibleFields((value) => ({ ...value, confirm: !value.confirm }))}
-                      aria-label={visibleFields.confirm ? "Hide confirmation password" : "Show confirmation password"}
+                      aria-label={visibleFields.confirm ? t("changePassword.hideConfirmPassword") : t("changePassword.showConfirmPassword")}
                     >
                       {visibleFields.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
@@ -191,10 +193,10 @@ export default function ChangePassword() {
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => logout()}>
-                    Logout
+                    {t("changePassword.logout")}
                   </Button>
                   <Button type="submit" disabled={submitting}>
-                    {submitting ? "Updating..." : "Update password"}
+                    {submitting ? t("changePassword.updating") : t("changePassword.updatePassword")}
                   </Button>
                 </div>
               </form>

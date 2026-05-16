@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Bell, Check, CheckCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ function priorityClass(priority: string) {
 export function NotificationBell() {
   const queryClient = useQueryClient();
   const { currentUser, notificationsPath, refreshUnreadNotificationCount, unreadNotificationCount } = useAuth();
+  const { t } = useTranslation();
 
   const canReadNotifications = hasPermission(currentUser, "notifications.read_own");
 
@@ -77,13 +79,13 @@ export function NotificationBell() {
             }}
           >
             <CheckCheck className="mr-2 h-4 w-4" />
-            Mark all read
+            {t("notificationsBell.markAllRead")}
           </Button>
         </div>
         <DropdownMenuSeparator />
         <div className="max-h-[360px] overflow-y-auto">
           {previewQuery.isLoading ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">Loading notifications...</div>
+            <div className="px-4 py-6 text-sm text-muted-foreground">{t("notificationsBell.loading")}</div>
           ) : previewQuery.data?.items.length ? (
             previewQuery.data.items.map((notification) => (
               <div key={notification.notification_id} className="border-b border-border px-4 py-3 last:border-0">
@@ -136,13 +138,13 @@ export function NotificationBell() {
               </div>
             ))
           ) : (
-            <div className="px-4 py-6 text-sm text-muted-foreground">No notifications yet.</div>
+            <div className="px-4 py-6 text-sm text-muted-foreground">{t("notificationsBell.empty")}</div>
           )}
         </div>
         <DropdownMenuSeparator />
         <div className="p-3">
           <Button asChild variant="outline" className="w-full">
-            <Link to={notificationsPath}>Open notifications</Link>
+            <Link to={notificationsPath}>{t("notificationsBell.open")}</Link>
           </Button>
         </div>
       </DropdownMenuContent>

@@ -3,10 +3,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { configureApiClient } from "@/lib/api-client";
 import { clearStoredSession, loadStoredSession, saveStoredSession } from "@/lib/auth-storage";
+import { changeAppLanguage } from "@/lib/i18n";
 import { getNotificationsPath, getRoleHomePath } from "@/lib/roles";
 import { authApi } from "@/services/authApi";
 import { notificationApi } from "@/services/notificationApi";
-import type { CurrentUser } from "@/types/domain";
+import type { CurrentUser, LanguageCode } from "@/types/domain";
 
 type AuthContextValue = {
   token: string | null;
@@ -21,6 +22,7 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   refreshCurrentUser: () => Promise<CurrentUser | null>;
   changePassword: (payload: { current_password: string; new_password: string }) => Promise<CurrentUser | null>;
+  updateLanguagePreference: (language: LanguageCode) => Promise<CurrentUser | null>;
   refreshUnreadNotificationCount: () => Promise<number>;
   clearSession: (redirectToLogin?: boolean) => void;
   notificationsPath: string;
@@ -80,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const user = await authApi.getMe();
+    await changeAppLanguage(user.language);
     setCurrentUser(user);
 
     if (user.must_change_password || !canReadOwnNotifications(user)) {
@@ -116,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const user = await authApi.getMe(stored.accessToken);
+        await changeAppLanguage(user.language);
         setCurrentUser(user);
 
         if (!user.must_change_password && canReadOwnNotifications(user)) {
@@ -143,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRefreshToken(session.refresh_token);
 
     const user = await authApi.getMe(session.access_token);
+    await changeAppLanguage(user.language);
     setCurrentUser(user);
 
     if (!user.must_change_password && canReadOwnNotifications(user)) {
@@ -175,6 +180,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshCurrentUser],
   );
 
+  const updateLanguagePreference = useCallback(
+    async (language: LanguageCode) => {
+      if (!token) {
+        return null;
+      }
+
+      const user = await authApi.updateLanguage(language);
+      await changeAppLanguage(user.language);
+      setCurrentUser(user);
+      return user;
+    },
+    [token],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       token,
@@ -188,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshCurrentUser,
+      updateLanguagePreference,
       changePassword,
       refreshUnreadNotificationCount,
       clearSession,
@@ -206,6 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUnreadNotificationCount,
       token,
       unreadNotificationCount,
+      updateLanguagePreference,
     ],
   );
 

@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
-import type { AuthTokens, CurrentUser } from "@/types/domain";
+import type { AuthTokens, CurrentUser, LanguageCode } from "@/types/domain";
 
 export const authApi = {
   login(payload: { identifier: string; password: string }) {
@@ -17,6 +17,12 @@ export const authApi = {
     return apiRequest<null>("/auth/change-password", {
       method: "POST",
       body: payload,
+    });
+  },
+  updateLanguage(language: LanguageCode) {
+    return apiRequest<CurrentUser>("/auth/language", {
+      method: "PATCH",
+      body: { language },
     });
   },
   logout() {

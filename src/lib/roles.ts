@@ -67,3 +67,15 @@ export function formatRoleLabel(role: string | null | undefined) {
 
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
+
+export function getRoleLabelKey(role: string | null | undefined) {
+  if (!role) {
+    return "role.user";
+  }
+
+  if (role === "admin" || role === "hr" || role === "employee") {
+    return `role.${role}`;
+  }
+
+  return "role.user";
+}

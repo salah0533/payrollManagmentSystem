@@ -1,6 +1,6 @@
 import { apiRequest } from "@/lib/api-client";
 import { buildQueryString } from "@/lib/api-client";
-import type { Employee, Role, User } from "@/types/domain";
+import type { Employee, LanguageCode, Role, User } from "@/types/domain";
 
 export const userApi = {
   list() {
@@ -17,6 +17,7 @@ export const userApi = {
     email?: string | null;
     password: string;
     employee_id?: number | null;
+    language: LanguageCode;
     role_ids: number[];
     is_active: boolean;
     must_change_password: boolean;
@@ -32,6 +33,7 @@ export const userApi = {
       username?: string;
       email?: string | null;
       employee_id?: number | null;
+      language?: LanguageCode;
       is_active?: boolean;
       must_change_password?: boolean;
     },

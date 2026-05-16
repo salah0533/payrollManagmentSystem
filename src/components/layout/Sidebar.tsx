@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import type { NavigationItem } from "@/components/layout/navigation";
@@ -14,11 +15,14 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, items, brandLabel }: SidebarProps) {
   const location = useLocation();
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.dir() === "rtl";
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[20px_0_70px_-58px_black] transition-all duration-300 ease-in-out",
+        "fixed top-0 z-40 h-screen bg-sidebar text-sidebar-foreground shadow-[20px_0_70px_-58px_black] transition-all duration-300 ease-in-out",
+        isRtl ? "right-0 border-l border-sidebar-border" : "left-0 border-r border-sidebar-border",
         collapsed ? "w-16" : "w-64",
       )}
     >
@@ -50,7 +54,7 @@ export function Sidebar({ collapsed, onToggle, items, brandLabel }: SidebarProps
               className={cn("sidebar-link", collapsed && "justify-center px-2", isActive && "sidebar-link-active")}
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span>{t(item.labelKey)}</span>}
             </NavLink>
           );
         })}
@@ -60,12 +64,15 @@ export function Sidebar({ collapsed, onToggle, items, brandLabel }: SidebarProps
         variant="ghost"
         size="icon"
         onClick={onToggle}
-        className="absolute -right-3 top-24 z-50 h-7 w-7 border border-border bg-card shadow-sm hover:bg-accent"
+        className={cn(
+          "absolute top-24 z-50 h-7 w-7 border border-border bg-card shadow-sm hover:bg-accent",
+          isRtl ? "-left-3" : "-right-3",
+        )}
       >
         {collapsed ? (
-          <ChevronRight className="h-3 w-3" />
+          isRtl ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />
         ) : (
-          <ChevronLeft className="h-3 w-3" />
+          isRtl ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />
         )}
       </Button>
     </aside>

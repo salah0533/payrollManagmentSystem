@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { toast } from "@/hooks/use-toast";
 export default function Settings() {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const canUpdateSettings = hasPermission(currentUser, "settings.update");
   const workScheduleQuery = useQuery({
     queryKey: ["settings", "work-schedule"],
@@ -99,12 +101,12 @@ export default function Settings() {
   const saveWorkSchedule = useMutation({
     mutationFn: () => settingsApi.updateWorkSchedule(workSchedule),
     onSuccess: () => {
-      toast({ title: "Work schedule updated", description: "The default work schedule has been saved." });
+      toast({ title: t("settings.saveWorkScheduleSuccess"), description: t("settings.saveWorkScheduleSuccessDescription") });
     },
     onError: (error) => {
       toast({
-        title: "Unable to save work schedule",
-        description: getErrorMessage(error, "Please review the submitted values."),
+        title: t("settings.saveWorkScheduleError"),
+        description: getErrorMessage(error, t("settings.saveWorkScheduleErrorDescription")),
         variant: "destructive",
       });
     },
@@ -117,12 +119,12 @@ export default function Settings() {
       queryClient.setQueryData(["settings", "payroll-policy"], policy);
       queryClient.setQueryData(["settings", "payroll-currency"], { default_currency: policy.default_currency });
       await queryClient.invalidateQueries({ queryKey: ["settings", "payroll-currency"] });
-      toast({ title: "Payroll policy updated", description: "The payroll policy has been saved." });
+      toast({ title: t("settings.savePayrollPolicySuccess"), description: t("settings.savePayrollPolicySuccessDescription") });
     },
     onError: (error) => {
       toast({
-        title: "Unable to save payroll policy",
-        description: getErrorMessage(error, "Please review the submitted values."),
+        title: t("settings.savePayrollPolicyError"),
+        description: getErrorMessage(error, t("settings.savePayrollPolicyErrorDescription")),
         variant: "destructive",
       });
     },
@@ -131,44 +133,44 @@ export default function Settings() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Settings and Policies"
-        description="Admin-only configuration for work schedules and payroll policy settings."
+        title={t("settings.title")}
+        description={t("settings.description")}
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="filter-card">
           <CardHeader>
-            <CardTitle>Default work schedule</CardTitle>
-            <CardDescription>Backed by `/settings/work-schedule`.</CardDescription>
+            <CardTitle>{t("settings.workSchedule")}</CardTitle>
+            <CardDescription>{t("settings.workScheduleDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="space-y-2">
-              <Label htmlFor="scheduleName">Schedule name</Label>
+              <Label htmlFor="scheduleName">{t("settings.scheduleName")}</Label>
               <Input id="scheduleName" value={workSchedule.name} onChange={(event) => setWorkSchedule((value) => ({ ...value, name: event.target.value }))} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="startTime">Start time</Label>
+                <Label htmlFor="startTime">{t("settings.startTime")}</Label>
                 <Input id="startTime" value={workSchedule.start_time.slice(0, 5)} onChange={(event) => setWorkSchedule((value) => ({ ...value, start_time: `${event.target.value}:00` }))} type="time" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endTime">End time</Label>
+                <Label htmlFor="endTime">{t("settings.endTime")}</Label>
                 <Input id="endTime" value={workSchedule.end_time.slice(0, 5)} onChange={(event) => setWorkSchedule((value) => ({ ...value, end_time: `${event.target.value}:00` }))} type="time" />
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="breakMinutes">Break minutes</Label>
+                <Label htmlFor="breakMinutes">{t("settings.breakMinutes")}</Label>
                 <Input id="breakMinutes" type="number" value={workSchedule.break_minutes} onChange={(event) => setWorkSchedule((value) => ({ ...value, break_minutes: Number(event.target.value) }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="scheduleTimezone">Timezone</Label>
+                <Label htmlFor="scheduleTimezone">{t("settings.timezone")}</Label>
                 <Select
                   value={workSchedule.timezone}
                   onValueChange={(timezone) => setWorkSchedule((value) => ({ ...value, timezone }))}
                 >
                   <SelectTrigger id="scheduleTimezone">
-                    <SelectValue placeholder="Select timezone" />
+                    <SelectValue placeholder={t("settings.selectTimezone")} />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
                     {timezoneOptions.map((timezone) => (
@@ -181,7 +183,7 @@ export default function Settings() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Weekly off days</Label>
+              <Label>{t("settings.weeklyOffDays")}</Label>
               <div className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
                 {workWeekOptions.map((day) => (
                   <label key={day} className="flex items-center gap-3 text-sm">
@@ -190,44 +192,44 @@ export default function Settings() {
                       onCheckedChange={(checked) =>
                         setWorkSchedule((value) => ({
                           ...value,
-                          weekly_off_days: Boolean(checked)
+                          weekly_off_days: checked === true
                             ? workWeekOptions.filter((option) => option === day || value.weekly_off_days.includes(option))
                             : value.weekly_off_days.filter((option) => option !== day),
                         }))
                       }
                     />
-                    <span className="capitalize">{day}</span>
+                    <span>{t(`settings.days.${day}`)}</span>
                   </label>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">Select one or more days that count as the weekly off schedule.</p>
+              <p className="text-xs text-muted-foreground">{t("settings.weeklyOffDaysHint")}</p>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-border p-3">
               <div>
-                <p className="font-medium">Default schedule</p>
-                <p className="text-sm text-muted-foreground">Keep this schedule as the system default.</p>
+                <p className="font-medium">{t("settings.defaultSchedule")}</p>
+                <p className="text-sm text-muted-foreground">{t("settings.defaultScheduleDescription")}</p>
               </div>
               <Switch checked={workSchedule.is_default} onCheckedChange={(checked) => setWorkSchedule((value) => ({ ...value, is_default: checked }))} />
             </div>
             <Button onClick={() => saveWorkSchedule.mutate()} disabled={!canUpdateSettings || saveWorkSchedule.isPending}>
-              {saveWorkSchedule.isPending ? "Saving..." : "Save work schedule"}
+              {saveWorkSchedule.isPending ? t("common.saving") : t("settings.saveWorkSchedule")}
             </Button>
           </CardContent>
         </Card>
 
         <Card className="filter-card">
           <CardHeader>
-            <CardTitle>Payroll policy</CardTitle>
-            <CardDescription>Backed by `/settings/payroll-policy`.</CardDescription>
+            <CardTitle>{t("settings.payrollPolicy")}</CardTitle>
+            <CardDescription>{t("settings.payrollPolicyDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="policyName">Policy name</Label>
+                <Label htmlFor="policyName">{t("settings.policyName")}</Label>
                 <Input id="policyName" value={payrollPolicy.name} onChange={(event) => setPayrollPolicy((value) => ({ ...value, name: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="policyCycle">Payroll cycle</Label>
+                <Label htmlFor="policyCycle">{t("settings.payrollCycle")}</Label>
                 <Input
                   id="policyCycle"
                   value={payrollPolicy.payroll_cycle}
@@ -244,31 +246,31 @@ export default function Settings() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="overtimeMinutes">Minimum overtime minutes</Label>
+                <Label htmlFor="overtimeMinutes">{t("settings.minimumOvertimeMinutes")}</Label>
                 <Input id="overtimeMinutes" type="number" value={payrollPolicy.minimum_overtime_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, minimum_overtime_minutes: Number(event.target.value) }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="minimumAutoPayMinutes">Minimum auto-pay minutes</Label>
+                <Label htmlFor="minimumAutoPayMinutes">{t("settings.minimumAutoPayMinutes")}</Label>
                 <Input id="minimumAutoPayMinutes" type="number" value={payrollPolicy.minimum_auto_pay_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, minimum_auto_pay_minutes: Number(event.target.value) }))} />
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="allowedLateMinutes">Allowed late minutes</Label>
+                <Label htmlFor="allowedLateMinutes">{t("settings.allowedLateMinutes")}</Label>
                 <Input id="allowedLateMinutes" type="number" value={payrollPolicy.allowed_late_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, allowed_late_minutes: Number(event.target.value) }))} />
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="currency">Currency</Label>
+                <Label htmlFor="currency">{t("settings.currency")}</Label>
                 <Select
                   value={isAllowedCurrency(payrollPolicy.default_currency) ? payrollPolicy.default_currency : "DZD"}
                   onValueChange={(currency) => setPayrollPolicy((value) => ({ ...value, default_currency: currency }))}
                 >
                   <SelectTrigger id="currency">
-                    <SelectValue placeholder="Select currency" />
+                    <SelectValue placeholder={t("settings.selectCurrency")} />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
                     {currencyOptions.map((currency) => (
@@ -279,28 +281,28 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Preview: {formatCurrency(1234.56, payrollPolicy.default_currency)}
+                  {t("settings.preview")}: {formatCurrency(1234.56, payrollPolicy.default_currency)}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="changeThreshold">Significant change threshold</Label>
+                <Label htmlFor="changeThreshold">{t("settings.significantChangeThreshold")}</Label>
                 <Input id="changeThreshold" type="number" step="0.01" value={payrollPolicy.significant_change_threshold} onChange={(event) => setPayrollPolicy((value) => ({ ...value, significant_change_threshold: Number(event.target.value) }))} />
               </div>
             </div>
 
             <div className="grid gap-3">
               {[
-                ["paid_vacation_counts_for_daily", "Count paid vacation for daily payroll"],
-                ["overtime_enabled", "Enable overtime"],
-                ["late_makeup_enabled", "Enable late makeup"],
-                ["late_deduction_enabled", "Enable separate late penalty"],
-                ["auto_recalculate_draft_payroll", "Auto recalculate draft payroll"],
-                ["lock_payroll_after_payment", "Lock payroll after payment"],
+                ["paid_vacation_counts_for_daily", t("settings.toggles.paidVacationCountsForDaily")],
+                ["overtime_enabled", t("settings.toggles.overtimeEnabled")],
+                ["late_makeup_enabled", t("settings.toggles.lateMakeupEnabled")],
+                ["late_deduction_enabled", t("settings.toggles.lateDeductionEnabled")],
+                ["auto_recalculate_draft_payroll", t("settings.toggles.autoRecalculateDraftPayroll")],
+                ["lock_payroll_after_payment", t("settings.toggles.lockPayrollAfterPayment")],
               ].map(([field, label]) => (
                 <div key={field} className="flex items-center justify-between rounded-lg border border-border p-3">
                   <span className="text-sm">{label}</span>
                   <Switch
-                    checked={Boolean(payrollPolicy[field as keyof typeof payrollPolicy])}
+                    checked={payrollPolicy[field as keyof typeof payrollPolicy] === true}
                     onCheckedChange={(checked) => setPayrollPolicy((value) => ({ ...value, [field]: checked }))}
                   />
                 </div>
@@ -308,7 +310,7 @@ export default function Settings() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="holidays">Holidays</Label>
+              <Label htmlFor="holidays">{t("settings.holidays")}</Label>
               <Textarea
                 id="holidays"
                 value={payrollPolicy.holidays_json.join("\n")}
@@ -325,7 +327,7 @@ export default function Settings() {
             </div>
 
             <Button onClick={() => savePayrollPolicy.mutate()} disabled={!canUpdateSettings || savePayrollPolicy.isPending}>
-              {savePayrollPolicy.isPending ? "Saving..." : "Save payroll policy"}
+              {savePayrollPolicy.isPending ? t("common.saving") : t("settings.savePayrollPolicy")}
             </Button>
           </CardContent>
         </Card>

@@ -14,39 +14,39 @@ import {
 
 export type NavigationItem = {
   to: string;
-  label: string;
+  labelKey: string;
   icon: LucideIcon;
   requiresPermission?: string;
 };
 
 export const adminNavigation: NavigationItem[] = [
-  { to: "/admin/dashboard", label: "Dashboard", icon: Home },
-  { to: "/admin/users", label: "Users", icon: Shield },
-  { to: "/admin/employees", label: "Employees", icon: Users },
-  { to: "/admin/attendance", label: "Attendance", icon: Clock3 },
-  { to: "/admin/payroll", label: "Payroll", icon: WalletCards },
-  { to: "/admin/vacations", label: "Vacations", icon: Landmark },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
-  { to: "/admin/notifications", label: "Notifications", icon: Bell },
-  { to: "/admin/audit-logs", label: "Audit Logs", icon: ClipboardList, requiresPermission: "audit.read" },
+  { to: "/admin/dashboard", labelKey: "nav.dashboard", icon: Home },
+  { to: "/admin/users", labelKey: "nav.users", icon: Shield },
+  { to: "/admin/employees", labelKey: "nav.employees", icon: Users },
+  { to: "/admin/attendance", labelKey: "nav.attendance", icon: Clock3 },
+  { to: "/admin/payroll", labelKey: "nav.payroll", icon: WalletCards },
+  { to: "/admin/vacations", labelKey: "nav.vacations", icon: Landmark },
+  { to: "/admin/settings", labelKey: "nav.settings", icon: Settings },
+  { to: "/admin/notifications", labelKey: "nav.notifications", icon: Bell },
+  { to: "/admin/audit-logs", labelKey: "nav.auditLogs", icon: ClipboardList, requiresPermission: "audit.read" },
 ];
 
 export const hrNavigation: NavigationItem[] = [
-  { to: "/hr/dashboard", label: "Dashboard", icon: Home },
-  { to: "/hr/employees", label: "Employees", icon: Users },
-  { to: "/hr/attendance", label: "Attendance", icon: Clock3 },
-  { to: "/hr/payroll", label: "Payroll", icon: WalletCards },
-  { to: "/hr/vacations", label: "Vacations", icon: Landmark },
-  { to: "/hr/notifications", label: "Notifications", icon: Bell },
+  { to: "/hr/dashboard", labelKey: "nav.dashboard", icon: Home },
+  { to: "/hr/employees", labelKey: "nav.employees", icon: Users },
+  { to: "/hr/attendance", labelKey: "nav.attendance", icon: Clock3 },
+  { to: "/hr/payroll", labelKey: "nav.payroll", icon: WalletCards },
+  { to: "/hr/vacations", labelKey: "nav.vacations", icon: Landmark },
+  { to: "/hr/notifications", labelKey: "nav.notifications", icon: Bell },
 ];
 
 export const employeeNavigation: NavigationItem[] = [
-  { to: "/employee/home", label: "Home", icon: Home },
-  { to: "/employee/profile", label: "Profile", icon: Users },
-  { to: "/employee/attendance", label: "Attendance", icon: Clock3 },
-  { to: "/employee/payroll", label: "Payroll", icon: WalletCards },
-  { to: "/employee/vacations", label: "Vacations", icon: Landmark },
-  { to: "/employee/notifications", label: "Notifications", icon: Bell },
+  { to: "/employee/home", labelKey: "nav.home", icon: Home },
+  { to: "/employee/profile", labelKey: "nav.profile", icon: Users },
+  { to: "/employee/attendance", labelKey: "nav.attendance", icon: Clock3 },
+  { to: "/employee/payroll", labelKey: "nav.payroll", icon: WalletCards },
+  { to: "/employee/vacations", labelKey: "nav.vacations", icon: Landmark },
+  { to: "/employee/notifications", labelKey: "nav.notifications", icon: Bell },
 ];
 
 export const notificationPriorities = ["low", "normal", "high"] as const;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 
 import type { NavigationItem } from "@/components/layout/navigation";
@@ -13,16 +14,18 @@ import { cn } from "@/lib/utils";
 import { settingsApi } from "@/services/settingsApi";
 
 export function RoleLayout({
-  brandLabel,
+  brandLabelKey,
   items,
 }: {
-  brandLabel: string;
+  brandLabelKey: string;
   items: NavigationItem[];
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currencyCode, setCurrencyCode] = useState("");
   const isMobile = useIsMobile();
   const { permissions } = useAuth();
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.dir() === "rtl";
 
   const currencyQuery = useQuery({
     queryKey: ["settings", "payroll-currency"],
@@ -49,16 +52,16 @@ export function RoleLayout({
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((value) => !value)}
           items={visibleItems}
-          brandLabel={brandLabel}
+          brandLabel={t(brandLabelKey)}
         />
       ) : null}
 
-      <TopBar sidebarCollapsed={sidebarCollapsed} items={visibleItems} brandLabel={brandLabel} />
+      <TopBar sidebarCollapsed={sidebarCollapsed} items={visibleItems} brandLabel={t(brandLabelKey)} />
 
       <main
         className={cn(
           "min-h-screen pt-16 transition-all duration-300",
-          isMobile ? "pl-0" : sidebarCollapsed ? "pl-16" : "pl-64",
+          isMobile ? "pl-0 pr-0" : isRtl ? (sidebarCollapsed ? "pr-16 pl-0" : "pr-64 pl-0") : sidebarCollapsed ? "pl-16 pr-0" : "pl-64 pr-0",
         )}
       >
         <div className="app-content" key={currencyCode}>

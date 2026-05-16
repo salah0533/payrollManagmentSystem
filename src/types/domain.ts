@@ -1,4 +1,5 @@
 export type RoleCode = "admin" | "hr" | "employee" | string;
+export type LanguageCode = "en" | "fr" | "ar";
 
 export interface Permission {
   id: number;
@@ -32,6 +33,7 @@ export interface CurrentUser {
   employee_id: number | null;
   username: string;
   email?: string | null;
+  language: LanguageCode;
   is_active: boolean;
   must_change_password: boolean;
   last_login_at?: string | null;
@@ -54,6 +56,7 @@ export interface User {
   employee_id: number | null;
   username: string;
   email?: string | null;
+  language: LanguageCode;
   is_active: boolean;
   must_change_password: boolean;
   last_login_at?: string | null;
