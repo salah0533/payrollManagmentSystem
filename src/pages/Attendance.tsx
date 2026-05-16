@@ -70,6 +70,25 @@ function valueForField(row: AttendanceDay | null, field: AttendanceField) {
   return row?.[field]?.slice(0, 5) || "";
 }
 
+function buildManualCorrectionValues(
+  form: Partial<Record<AttendanceField, string>>,
+  row: AttendanceDay | null,
+): Partial<Record<AttendanceField, string | null>> {
+  const updates: Partial<Record<AttendanceField, string | null>> = {};
+
+  for (const field of correctionFields) {
+    const originalValue = valueForField(row, field.value);
+    const nextValue = (form[field.value] || "").trim();
+
+    if (nextValue === originalValue) {
+      continue;
+    }
+    updates[field.value] = nextValue || null;
+  }
+
+  return updates;
+}
+
 function isMissingCheckIn(row: AttendanceDay) {
   return !row.check_in_time && !["absent", "paid_vacation", "unpaid_vacation", "sick_leave", "weekly_off", "holiday"].includes(row.status);
 }
@@ -117,11 +136,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const [correctionForm, setCorrectionForm] = useState({
     employee_id: "",
     work_date: "",
-    field_changed: "check_in_time" as AttendanceField,
-    new_value: "",
     target_status: "present",
     late_minutes: "",
     check_in_time: "",
+    break_start_time: "",
+    break_end_time: "",
     check_out_time: "",
     reason: "",
   });
@@ -246,19 +265,31 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const correctionLocked = isAttendanceLocked(editingAttendance);
   const affectedEmployees = employeesQuery.data || [];
   const canSubmitBulk = bulkForm.reason.trim().length >= 5 && bulkForm.confirmation.trim().toUpperCase() === "GENERATE";
+  const pendingManualCorrectionValues = useMemo(
+    () =>
+      buildManualCorrectionValues(
+        {
+          check_in_time: correctionForm.check_in_time,
+          break_start_time: correctionForm.break_start_time,
+          break_end_time: correctionForm.break_end_time,
+          check_out_time: correctionForm.check_out_time,
+        },
+        editingAttendance,
+      ),
+    [correctionForm, editingAttendance],
+  );
 
   const openAttendanceEditor = (row: AttendanceDay | null, employeeId: number, workDate: string) => {
-    const field: AttendanceField = "check_in_time";
     setEditingAttendance(row);
     setCorrectionMode("manual");
     setCorrectionForm({
       employee_id: String(employeeId),
       work_date: workDate,
-      field_changed: field,
-      new_value: valueForField(row, field),
       target_status: row?.status || "present",
       late_minutes: row?.late_minutes ? String(row.late_minutes) : "",
       check_in_time: row?.check_in_time?.slice(0, 5) || "",
+      break_start_time: row?.break_start_time?.slice(0, 5) || "",
+      break_end_time: row?.break_end_time?.slice(0, 5) || "",
       check_out_time: row?.check_out_time?.slice(0, 5) || "",
       reason: "",
     });
@@ -308,8 +339,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
         employee_id: Number(correctionForm.employee_id),
         work_date: correctionForm.work_date,
         correction_type: "field",
-        field_changed: correctionForm.field_changed,
-        new_value: correctionForm.new_value,
+        new_values_json: pendingManualCorrectionValues,
         reason: correctionForm.reason,
       });
     },
@@ -854,40 +884,22 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               <TabsTrigger value="smart">Smart status correction</TabsTrigger>
             </TabsList>
             <TabsContent value="manual" className="grid gap-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="correctionField">Field changed</Label>
-                <Select
-                  value={correctionForm.field_changed}
-                  onValueChange={(value) => {
-                    const field = value as AttendanceField;
-                    setCorrectionForm((current) => ({
-                      ...current,
-                      field_changed: field,
-                      new_value: valueForField(editingAttendance, field),
-                    }));
-                  }}
-                >
-                  <SelectTrigger id="correctionField">
-                    <SelectValue placeholder="Select field" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {correctionFields.map((field) => (
-                      <SelectItem key={field.value} value={field.value}>
-                        {field.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {correctionFields.map((field) => (
+                  <div key={field.value} className="space-y-2">
+                    <Label htmlFor={`manual-${field.value}`}>{field.label}</Label>
+                    <Input
+                      id={`manual-${field.value}`}
+                      type="time"
+                      value={correctionForm[field.value]}
+                      onChange={(event) => setCorrectionForm((value) => ({ ...value, [field.value]: event.target.value }))}
+                    />
+                  </div>
+                ))}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="correctionValue">New time</Label>
-                <Input
-                  id="correctionValue"
-                  type="time"
-                  value={correctionForm.new_value}
-                  onChange={(event) => setCorrectionForm((value) => ({ ...value, new_value: event.target.value }))}
-                />
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Update any combination of times here. Leave a field blank to clear it, and the backend will block impossible timelines like check-in after check-out.
+              </p>
             </TabsContent>
             <TabsContent value="smart" className="grid gap-4 py-2">
               <div className="space-y-2">
@@ -945,7 +957,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   correctionLocked ||
                   submitCorrection.isPending ||
                   !correctionForm.reason.trim() ||
-                  (correctionMode === "manual" && !correctionForm.new_value) ||
+                  (correctionMode === "manual" && Object.keys(pendingManualCorrectionValues).length === 0) ||
                   (correctionMode === "smart" && !correctionForm.target_status)
                 }
               >

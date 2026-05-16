@@ -57,4 +57,40 @@ describe("attendanceApi", () => {
       }),
     );
   });
+
+  it("posts multi-field manual corrections to the manual correction endpoint", async () => {
+    mockApiResponse({ correction: { id: 3 }, attendance_day: { id: 4 } });
+
+    await attendanceApi.manualCorrection({
+      employee_id: 7,
+      work_date: "2026-05-15",
+      correction_type: "field",
+      new_values_json: {
+        check_in_time: "09:05",
+        break_start_time: "12:00",
+        break_end_time: "12:30",
+        check_out_time: "17:10",
+      },
+      reason: "Adjusted multiple punches from manager report",
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/attendance/manual-correction",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          employee_id: 7,
+          work_date: "2026-05-15",
+          correction_type: "field",
+          new_values_json: {
+            check_in_time: "09:05",
+            break_start_time: "12:00",
+            break_end_time: "12:30",
+            check_out_time: "17:10",
+          },
+          reason: "Adjusted multiple punches from manager report",
+        }),
+      }),
+    );
+  });
 });

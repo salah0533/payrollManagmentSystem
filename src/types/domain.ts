@@ -176,8 +176,9 @@ export interface AttendanceCorrectionPayload {
   employee_id: number;
   work_date: string;
   correction_type?: "field" | "smart_status";
-  field_changed: string;
+  field_changed?: string;
   new_value?: string | null;
+  new_values_json?: Partial<Record<"check_in_time" | "break_start_time" | "break_end_time" | "check_out_time", string | null>>;
   target_status?: string | null;
   options?: Record<string, unknown>;
   original_event_id?: number | null;
