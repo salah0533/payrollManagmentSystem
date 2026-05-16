@@ -66,25 +66,11 @@ const adjustmentLabels: Record<PayrollAdjustmentType, string> = {
   correction: "Correction",
 };
 
-const breakdownFields: Array<{ key: keyof EmployeePayroll; label: string }> = [
-  { key: "base_salary", label: "Base salary" },
-  { key: "normal_amount", label: "Normal pay" },
-  { key: "overtime_amount", label: "Overtime" },
-  { key: "bonus_amount", label: "Bonus" },
-  { key: "attendance_deduction_amount", label: "Attendance deduction" },
-  { key: "manual_deduction_amount", label: "Manual deductions" },
-  { key: "late_penalty_amount", label: "Late penalty" },
-  { key: "adjustment_amount", label: "Adjustment total" },
-  { key: "gross_salary", label: "Gross salary" },
-  { key: "net_salary", label: "Net salary" },
-  { key: "paid_amount", label: "Paid" },
-  { key: "balance_amount", label: "Balance" },
-];
-
 const calculationFields = [
   { key: "actual_work_minutes", label: "Worked time", format: "minutes" },
   { key: "normal_paid_minutes", label: "Paid time", format: "minutes" },
-  { key: "paid_minutes", label: "Payroll paid time", format: "minutes" },
+  { key: "earned_paid_minutes", label: "Earned paid time", format: "minutes" },
+  { key: "paid_minutes", label: "Payable time", format: "minutes" },
   { key: "period_expected_minutes", label: "Expected time", format: "minutes" },
   { key: "overtime_minutes", label: "Overtime", format: "minutes" },
   { key: "payable_overtime_minutes", label: "Payable overtime", format: "minutes" },
@@ -101,18 +87,58 @@ const calculationFields = [
   { key: "missing_attendance_days", label: "Missing attendance", format: "number" },
   { key: "auto_minute_rate", label: "Auto minute rate", format: "currency" },
   { key: "attendance_deduction", label: "Attendance deduction", format: "currency" },
+  { key: "earned_attendance_deduction", label: "Earned attendance deduction", format: "currency" },
   { key: "manual_deduction_amount", label: "Manual deductions", format: "currency" },
+  { key: "earned_deduction_amount", label: "Earned deductions", format: "currency" },
   { key: "late_penalty_amount", label: "Late penalty", format: "currency" },
-  { key: "final_net_salary", label: "Final net", format: "currency" },
+  { key: "earned_net_salary", label: "Earned net", format: "currency" },
+  { key: "held_for_review_amount", label: "Held for review", format: "currency" },
+  { key: "payable_amount", label: "Payable total", format: "currency" },
 ] as const;
 
+function getSnapshotValue(payroll: EmployeePayroll, key: string, fallback: number | string = 0) {
+  const snapshot = payroll.calculation_data_json || {};
+  const value = snapshot[key];
+  return value == null ? fallback : (value as number | string);
+}
+
+function getEarnedNetSalary(payroll: EmployeePayroll) {
+  return getSnapshotValue(payroll, "earned_net_salary", payroll.net_salary);
+}
+
+function getPayableAmount(payroll: EmployeePayroll) {
+  return getSnapshotValue(payroll, "payable_amount", payroll.total_amount);
+}
+
+function getHeldForReviewAmount(payroll: EmployeePayroll) {
+  const fallback = Math.max(0, Number(payroll.net_salary || 0) - Number(payroll.total_amount || 0));
+  return getSnapshotValue(payroll, "held_for_review_amount", fallback);
+}
+
 function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
+  const breakdownFields: Array<{ label: string; value: number | string }> = [
+    { label: "Base salary", value: payroll.base_salary },
+    { label: "Normal pay", value: payroll.normal_amount },
+    { label: "Overtime", value: payroll.overtime_amount },
+    { label: "Bonus", value: payroll.bonus_amount },
+    { label: "Attendance deduction", value: payroll.attendance_deduction_amount ?? payroll.deduction_amount ?? 0 },
+    { label: "Manual deductions", value: payroll.manual_deduction_amount ?? 0 },
+    { label: "Late penalty", value: payroll.late_penalty_amount ?? payroll.late_deduction_amount ?? 0 },
+    { label: "Adjustment total", value: payroll.adjustment_amount },
+    { label: "Gross salary", value: payroll.gross_salary },
+    { label: "Earned net", value: getEarnedNetSalary(payroll) },
+    { label: "Held for review", value: getHeldForReviewAmount(payroll) },
+    { label: "Payable total", value: getPayableAmount(payroll) },
+    { label: "Paid", value: payroll.paid_amount },
+    { label: "Balance", value: payroll.balance_amount },
+  ];
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {breakdownFields.map((field) => (
-        <div key={field.key} className="rounded-lg border border-border p-3">
+        <div key={field.label} className="rounded-lg border border-border p-3">
           <p className="text-xs text-muted-foreground">{field.label}</p>
-          <p className="font-medium">{formatCurrency(payroll[field.key] as number | string)}</p>
+          <p className="font-medium">{formatCurrency(field.value)}</p>
         </div>
       ))}
     </div>
@@ -563,9 +589,11 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         <>
           {selfPayroll ? (
             <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                 <MetricCard label="Status" value={<StatusBadge status={selfPayroll.status} />} icon={WalletCards} />
-                <MetricCard label="Total" value={formatCurrency(selfPayroll.total_amount)} icon={DollarSign} tone="success" hint="Signed payroll total" />
+                <MetricCard label="Earned net" value={formatCurrency(getEarnedNetSalary(selfPayroll))} icon={DollarSign} tone="success" hint="What the attendance calculation produced" />
+                <MetricCard label="Held" value={formatCurrency(getHeldForReviewAmount(selfPayroll))} icon={AlertTriangle} tone="warning" hint="Blocked until review/approval" />
+                <MetricCard label="Payable total" value={formatCurrency(getPayableAmount(selfPayroll))} icon={WalletCards} tone="info" hint="Amount currently eligible for payment" />
                 <MetricCard label="Paid" value={formatCurrency(selfPayroll.paid_amount)} icon={ReceiptText} tone="info" />
                 <MetricCard
                   label="Balance"
@@ -581,6 +609,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <CardDescription>Loaded from `/me/payroll?period_id={parsedPeriodId}`.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {Number(getHeldForReviewAmount(selfPayroll)) > 0 ? (
+                    <Alert className="border-warning/40">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Part of this payroll is held for review</AlertTitle>
+                      <AlertDescription>
+                        You earned {formatCurrency(getEarnedNetSalary(selfPayroll))}, but only {formatCurrency(getPayableAmount(selfPayroll))} is currently payable.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                   <PayrollBreakdownGrid payroll={selfPayroll} />
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-lg border border-border p-4">
@@ -614,7 +651,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               <CardDescription>Period totals and settlement status for the selected payroll period.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <OverviewStat label="Total payroll" value={formatCurrency(payrollReport?.total_amount)} hint="Signed payroll total" />
+              <OverviewStat label="Payable payroll" value={formatCurrency(payrollReport?.total_amount)} hint="Approved/payable total for this period" />
               <OverviewStat label="Paid" value={formatCurrency(payrollReport?.paid_amount)} />
               <OverviewStat
                 label="Balance"
@@ -663,7 +700,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           <Card>
             <CardHeader>
               <CardTitle>Balance report</CardTitle>
-              <CardDescription>Positive balances are owed by the company. Negative balances are owed back by employees.</CardDescription>
+              <CardDescription>Positive balances are owed by the company. Totals here are payable totals, not just earned estimates.</CardDescription>
             </CardHeader>
             <CardContent>
               {payrollReport?.employees.length ? (
@@ -671,7 +708,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Employee</TableHead>
-                      <TableHead>Total</TableHead>
+                      <TableHead>Payable total</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Balance</TableHead>
                       <TableHead className="text-right">Rows</TableHead>
@@ -719,7 +756,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                       <TableHead>Attendance deduction</TableHead>
                       <TableHead>Manual deductions</TableHead>
                       {showLatePenaltyColumn ? <TableHead>Late penalty</TableHead> : null}
-                      <TableHead>Net</TableHead>
+                      <TableHead>Held</TableHead>
+                      <TableHead>Earned net</TableHead>
+                      <TableHead>Payable total</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Balance</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -749,7 +788,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                         <TableCell>{formatCurrency(row.attendance_deduction_amount ?? row.deduction_amount ?? 0)}</TableCell>
                         <TableCell>{formatCurrency(row.manual_deduction_amount ?? 0)}</TableCell>
                         {showLatePenaltyColumn ? <TableCell>{formatCurrency(row.late_penalty_amount ?? row.late_deduction_amount ?? 0)}</TableCell> : null}
-                        <TableCell>{formatCurrency(row.net_salary)}</TableCell>
+                        <TableCell>{formatCurrency(getHeldForReviewAmount(row))}</TableCell>
+                        <TableCell>{formatCurrency(getEarnedNetSalary(row))}</TableCell>
+                        <TableCell>{formatCurrency(getPayableAmount(row))}</TableCell>
                         <TableCell>{formatCurrency(row.paid_amount)}</TableCell>
                         <TableCell className={Number(row.balance_amount) < 0 ? "text-destructive" : "text-warning"}>
                           {formatCurrency(row.balance_amount)}
@@ -928,6 +969,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <AlertDescription>{detailsPayroll.needs_review_reason}</AlertDescription>
                 </Alert>
               ) : null}
+              {Number(getHeldForReviewAmount(detailsPayroll)) > 0 ? (
+                <Alert className="border-warning/40">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Amount held for review</AlertTitle>
+                  <AlertDescription>
+                    Earned net is {formatCurrency(getEarnedNetSalary(detailsPayroll))}, while only {formatCurrency(getPayableAmount(detailsPayroll))} is currently payable.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">Status</p>
@@ -1022,8 +1072,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <p className="font-medium">#{selectedPayroll.id}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Current net</p>
-                  <p className="font-medium">{formatCurrency(selectedPayroll.net_salary)}</p>
+                  <p className="text-xs text-muted-foreground">Current earned net</p>
+                  <p className="font-medium">{formatCurrency(getEarnedNetSalary(selectedPayroll))}</p>
                 </div>
               </div>
             ) : null}

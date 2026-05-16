@@ -250,6 +250,8 @@ export interface VacationUpdatePayload {
 export interface PayrollCalculationData extends Record<string, unknown> {
   actual_work_minutes?: number;
   normal_paid_minutes?: number;
+  earned_paid_minutes?: number;
+  earned_unpaid_minutes?: number;
   paid_minutes?: number;
   unpaid_minutes?: number;
   overtime_minutes?: number;
@@ -258,8 +260,14 @@ export interface PayrollCalculationData extends Record<string, unknown> {
   partial_unpaid_minutes?: number;
   auto_minute_rate?: number | string;
   attendance_deduction?: number | string;
+  earned_attendance_deduction?: number | string;
   manual_deduction_amount?: number | string;
+  earned_deduction_amount?: number | string;
   late_penalty_amount?: number | string;
+  earned_net_salary?: number | string;
+  payable_amount?: number | string;
+  approved_payable_amount?: number | string;
+  held_for_review_amount?: number | string;
   final_net_salary?: number | string;
   needs_review_reasons?: string[];
 }
