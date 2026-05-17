@@ -1,5 +1,8 @@
 import { apiRequest, buildQueryString } from "@/lib/api-client";
 import type {
+  AnnualVacationEntitlement,
+  AnnualVacationEntitlementDeletePayload,
+  AnnualVacationEntitlementPayload,
   SelfVacationRequestPayload,
   VacationBalance,
   Vacation,
@@ -24,6 +27,27 @@ export const vacationApi = {
   },
   listSelf() {
     return apiRequest<Vacation[]>("/me/vacations");
+  },
+  listAnnualEntitlements(employeeId: number) {
+    return apiRequest<AnnualVacationEntitlement[]>(`/annual_vacations/${employeeId}`);
+  },
+  createAnnualEntitlement(payload: AnnualVacationEntitlementPayload) {
+    return apiRequest<null>("/annual_vacations/", {
+      method: "PUT",
+      body: payload,
+    });
+  },
+  updateAnnualEntitlement(payload: AnnualVacationEntitlementPayload) {
+    return apiRequest<null>("/annual_vacations/", {
+      method: "POST",
+      body: payload,
+    });
+  },
+  deleteAnnualEntitlement(payload: AnnualVacationEntitlementDeletePayload) {
+    return apiRequest<null>("/annual_vacations/", {
+      method: "DELETE",
+      body: payload,
+    });
   },
   getBalance(employeeId: number, params: { start_year?: number; end_year?: number; as_of?: string } = {}) {
     return apiRequest<VacationBalance>(`/annual_vacations/balance/${employeeId}${buildQueryString(params)}`);

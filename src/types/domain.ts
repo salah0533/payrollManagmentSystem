@@ -248,6 +248,23 @@ export interface VacationUpdatePayload {
   is_paid?: boolean;
 }
 
+export interface AnnualVacationEntitlement {
+  employee_id: number;
+  year: number;
+  allowed_days: number;
+}
+
+export interface AnnualVacationEntitlementPayload {
+  emp_id: number;
+  year: number;
+  allowed_days: number;
+}
+
+export interface AnnualVacationEntitlementDeletePayload {
+  emp_id: number;
+  year: number;
+}
+
 export interface VacationBalanceYear {
   year: number;
   entitlement_days: number;
@@ -270,7 +287,6 @@ export interface VacationBalanceYear {
 }
 
 export interface VacationBalancePolicy {
-  annual_vacation_days_by_year: Record<string, number>;
   allow_vacation_carryover: boolean;
   max_vacation_carryover_days?: number | null;
   carryover_expiry_month?: number | null;
@@ -534,7 +550,6 @@ export interface PayrollPolicy {
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
   holidays_json: string[];
-  annual_vacation_days_by_year: Record<string, number>;
   allow_vacation_carryover: boolean;
   max_vacation_carryover_days?: number | null;
   carryover_expiry_month?: number | null;
@@ -559,7 +574,6 @@ export interface PayrollPolicyPayload {
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
   holidays_json: string[];
-  annual_vacation_days_by_year: Record<string, number>;
   allow_vacation_carryover: boolean;
   max_vacation_carryover_days?: number | null;
   carryover_expiry_month?: number | null;

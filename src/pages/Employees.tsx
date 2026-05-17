@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
+import { AnnualVacationEntitlements } from "@/components/employees/AnnualVacationEntitlements";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -166,6 +167,14 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
     await queryClient.invalidateQueries({ queryKey: ["employees"] });
   };
 
+  const refreshEmployeeLeaveData = async (employeeId?: number | null) => {
+    if (!employeeId) {
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["annual-vacations", employeeId] });
+    await queryClient.invalidateQueries({ queryKey: ["vacation-balance"] });
+  };
+
   const createDepartment = useMutation({
     mutationFn: () => employeeApi.createDepartment(newDepartmentName),
     onSuccess: async (department) => {
@@ -202,11 +211,12 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
 
   const createEmployee = useMutation({
     mutationFn: () => employeeApi.create(toPayload(form)),
-    onSuccess: async () => {
+    onSuccess: async (employee) => {
       toast({ title: "Employee created", description: "The employee profile has been added." });
       setForm(defaultForm);
       setIsDialogOpen(false);
       await refreshEmployees();
+      await refreshEmployeeLeaveData(employee?.id ?? null);
     },
     onError: (error) => {
       toast({
@@ -221,10 +231,12 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
     mutationFn: () => employeeApi.update(editingId as number, toPayload(form)),
     onSuccess: async () => {
       toast({ title: "Employee updated", description: "The employee profile has been saved." });
+      const employeeId = editingId;
       setForm(defaultForm);
       setEditingId(null);
       setIsDialogOpen(false);
       await refreshEmployees();
+      await refreshEmployeeLeaveData(employeeId);
     },
     onError: (error) => {
       toast({
@@ -570,12 +582,25 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
 
             <TabsContent value="leave" className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="vacationDays">Vacation days</Label>
-                <Input id="vacationDays" type="number" value={form.vacation_days} onChange={(event) => setForm((value) => ({ ...value, vacation_days: event.target.value }))} />
+                <Label htmlFor="vacationDays">Bootstrap vacation days</Label>
+                <Input
+                  id="vacationDays"
+                  type="number"
+                  min={0}
+                  value={form.vacation_days}
+                  onChange={(event) => setForm((value) => ({ ...value, vacation_days: event.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This default is only used if the employee does not have any yearly entitlement rows yet.
+                </p>
               </div>
-              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Leave balance history needs a backend balance endpoint before it can be shown as an authoritative ledger.
-              </div>
+              {editingId ? (
+                <AnnualVacationEntitlements employeeId={editingId} />
+              ) : (
+                <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
+                  Create the employee first, then add year-by-year annual vacation entitlements here.
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="account" className="grid gap-4 md:grid-cols-2">

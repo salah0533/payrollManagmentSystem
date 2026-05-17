@@ -5,14 +5,11 @@ import { formatDate } from "@/lib/format";
 import type { VacationBalance } from "@/types/domain";
 
 function formatEntitlementSource(balanceYear: VacationBalance["years"][number]) {
-  if (balanceYear.entitlement_source === "configured") {
-    return "Configured";
+  if (balanceYear.entitlement_source === "employee_year") {
+    return "Employee year";
   }
-  if (balanceYear.entitlement_source === "fallback_previous_year" && balanceYear.entitlement_source_year) {
+  if (balanceYear.entitlement_source === "fallback_previous_employee_year" && balanceYear.entitlement_source_year) {
     return `From ${balanceYear.entitlement_source_year}`;
-  }
-  if (balanceYear.entitlement_source === "employee_override") {
-    return "Employee override";
   }
   if (balanceYear.entitlement_source === "employee_default") {
     return "Employee default";
