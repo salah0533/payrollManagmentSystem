@@ -84,6 +84,8 @@ export interface Employee {
   hour_price: number | string;
   extra_hours_price: number | string;
   vacation_days: number;
+  auto_attendance_enabled: boolean;
+  auto_attendance_effective_from?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

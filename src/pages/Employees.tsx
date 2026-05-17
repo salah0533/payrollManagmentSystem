@@ -5,6 +5,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/app/EmptyState";
 import { AnnualVacationEntitlements } from "@/components/employees/AnnualVacationEntitlements";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -57,12 +59,13 @@ const defaultForm = {
   extra_hours_price: "0",
   vacation_days: "21",
   dues: "0",
+  auto_attendance_enabled: false,
 };
 
 const employeeStatuses = ["active", "inactive", "suspended"];
 
 const basicFormFields: Array<{
-  key: keyof typeof defaultForm;
+  key: "first_name" | "last_name" | "email" | "hire_date";
   label: string;
   type: "text" | "email" | "number" | "date";
 }> = [
@@ -73,7 +76,7 @@ const basicFormFields: Array<{
 ];
 
 const compensationFormFields: Array<{
-  key: keyof typeof defaultForm;
+  key: "monthly_price" | "day_price" | "hour_price" | "extra_hours_price" | "dues";
   label: string;
   type: "number";
 }> = [
@@ -84,7 +87,7 @@ const compensationFormFields: Array<{
   { key: "dues", label: "Dues", type: "number" },
 ];
 
-function toPayload(form: typeof defaultForm) {
+export function toEmployeePayload(form: typeof defaultForm) {
   return {
     first_name: form.first_name,
     last_name: form.last_name,
@@ -103,6 +106,7 @@ function toPayload(form: typeof defaultForm) {
     extra_hours_price: Number(form.extra_hours_price || 0),
     vacation_days: Number(form.vacation_days || 0),
     dues: Number(form.dues || 0),
+    auto_attendance_enabled: form.auto_attendance_enabled,
   };
 }
 
@@ -210,7 +214,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   });
 
   const createEmployee = useMutation({
-    mutationFn: () => employeeApi.create(toPayload(form)),
+    mutationFn: () => employeeApi.create(toEmployeePayload(form)),
     onSuccess: async (employee) => {
       toast({ title: "Employee created", description: "The employee profile has been added." });
       setForm(defaultForm);
@@ -228,7 +232,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   });
 
   const updateEmployee = useMutation({
-    mutationFn: () => employeeApi.update(editingId as number, toPayload(form)),
+    mutationFn: () => employeeApi.update(editingId as number, toEmployeePayload(form)),
     onSuccess: async () => {
       toast({ title: "Employee updated", description: "The employee profile has been saved." });
       const employeeId = editingId;
@@ -296,6 +300,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       extra_hours_price: String(employee.extra_hours_price || 0),
       vacation_days: String(employee.vacation_days || 0),
       dues: String(employee.dues || 0),
+      auto_attendance_enabled: Boolean(employee.auto_attendance_enabled),
     });
     setIsDialogOpen(true);
   };
@@ -355,7 +360,12 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                     <TableCell>
                       <div>
                         <p className="font-medium">{employee.full_name}</p>
-                        <p className="text-xs text-muted-foreground">User link: {employee.user_id ?? "none"}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">User link: {employee.user_id ?? "none"}</span>
+                          <Badge variant={employee.auto_attendance_enabled ? "secondary" : "outline"}>
+                            {employee.auto_attendance_enabled ? "Auto attendance" : "Manual attendance"}
+                          </Badge>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{employee.department_id ? departmentMap[employee.department_id] || `Department #${employee.department_id}` : "-"}</TableCell>
@@ -575,8 +585,25 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
             </TabsContent>
 
             <TabsContent value="attendance" className="grid gap-4 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border border-border p-4 md:col-span-2">
+                <div className="space-y-1">
+                  <p className="font-medium">Auto attendance</p>
+                  <p className="text-sm text-muted-foreground">
+                    Use the default work schedule from Settings. When enabled, the system generates the full scheduled day after the workday ends and disables employee self-service check-in/out.
+                  </p>
+                  {editingId && form.auto_attendance_enabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      Existing generated days stay audited through Attendance Review. Future workdays start automatically from the backend effective date.
+                    </p>
+                  ) : null}
+                </div>
+                <Switch
+                  checked={form.auto_attendance_enabled}
+                  onCheckedChange={(checked) => setForm((value) => ({ ...value, auto_attendance_enabled: checked }))}
+                />
+              </div>
               <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
-                Work hours, allowed late minutes, and overtime thresholds are managed centrally from Settings and Payroll Policy.
+                Work hours, weekly off days, allowed late minutes, and overtime thresholds are managed centrally from Settings and Payroll Policy.
               </div>
             </TabsContent>
 

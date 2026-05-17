@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime, formatLabel, formatMinutes, toIsoDate } from "@/lib/format";
 import { attendanceApi } from "@/services/attendanceApi";
+import { employeeApi } from "@/services/employeeApi";
 import { notificationApi } from "@/services/notificationApi";
 import { payrollApi } from "@/services/payrollApi";
 import { vacationApi } from "@/services/vacationApi";
@@ -41,6 +42,11 @@ export default function Home() {
   const today = toIsoDate(new Date());
   const currentMonthStart = toIsoDate(startOfMonth(new Date()));
   const currentMonthEnd = toIsoDate(endOfMonth(new Date()));
+  const employeeProfileQuery = useQuery({
+    queryKey: ["employee-home", "profile"],
+    queryFn: () => employeeApi.getMyProfile(),
+    enabled: Boolean(currentUser?.employee_id),
+  });
 
   const todayAttendanceQuery = useQuery({
     queryKey: ["employee-home", "attendance", today],
@@ -102,6 +108,7 @@ export default function Home() {
   });
 
   const todayAttendance = todayAttendanceQuery.data?.[0];
+  const autoAttendanceEnabled = Boolean(employeeProfileQuery.data?.auto_attendance_enabled);
   const actionState = resolveAttendanceState(todayAttendance);
   const latestVacation = useMemo(() => {
     const items = vacationsQuery.data || [];
@@ -132,7 +139,7 @@ export default function Home() {
           label="Today's status"
           value={<StatusBadge status={todayAttendance?.status || "pending"} />}
           icon={Clock3}
-          hint={todayAttendance ? formatDate(todayAttendance.work_date) : "No record yet"}
+          hint={todayAttendance ? formatDate(todayAttendance.work_date) : autoAttendanceEnabled ? "Generated after the scheduled workday ends" : "No record yet"}
         />
         <MetricCard
           label="Monthly tracked days"
@@ -164,27 +171,32 @@ export default function Home() {
             <CardDescription>These actions always use `/me/attendance/*` endpoints and never send an `employee_id`.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
+            {autoAttendanceEnabled ? (
+              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                Attendance is generated automatically after your scheduled workday ends. Self-service check-in, break, and check-out actions are disabled while auto attendance is enabled.
+              </div>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Button disabled={actionState.checkInDisabled || attendanceAction.isPending} onClick={() => attendanceAction.mutate("check-in")}>
+              <Button disabled={autoAttendanceEnabled || actionState.checkInDisabled || attendanceAction.isPending} onClick={() => attendanceAction.mutate("check-in")}>
                 Check In
               </Button>
               <Button
                 variant="outline"
-                disabled={actionState.breakStartDisabled || attendanceAction.isPending}
+                disabled={autoAttendanceEnabled || actionState.breakStartDisabled || attendanceAction.isPending}
                 onClick={() => attendanceAction.mutate("break-start")}
               >
                 Break Start
               </Button>
               <Button
                 variant="outline"
-                disabled={actionState.breakEndDisabled || attendanceAction.isPending}
+                disabled={autoAttendanceEnabled || actionState.breakEndDisabled || attendanceAction.isPending}
                 onClick={() => attendanceAction.mutate("break-end")}
               >
                 Break End
               </Button>
               <Button
                 variant="secondary"
-                disabled={actionState.checkOutDisabled || attendanceAction.isPending}
+                disabled={autoAttendanceEnabled || actionState.checkOutDisabled || attendanceAction.isPending}
                 onClick={() => attendanceAction.mutate("check-out")}
               >
                 Check Out
@@ -214,7 +226,14 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <EmptyState title="No attendance recorded yet" description="Use the buttons above to start your workday." />
+              <EmptyState
+                title="No attendance recorded yet"
+                description={
+                  autoAttendanceEnabled
+                    ? "Attendance will appear automatically after your scheduled workday ends."
+                    : "Use the buttons above to start your workday."
+                }
+              />
             )}
           </CardContent>
         </Card>
