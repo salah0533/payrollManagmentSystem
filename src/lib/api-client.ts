@@ -1,6 +1,6 @@
 import type { ApiEnvelope, ApiValidationError } from "@/types/domain";
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const DEFAULT_API_BASE_URL = "http://192.168.100.11:8000";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/+$/, "");
 

@@ -26,7 +26,7 @@ describe("attendanceApi", () => {
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/attendance/day/7/2026-05-15/smart-correction",
+      "http://192.168.100.11:8000/attendance/day/7/2026-05-15/smart-correction",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -47,7 +47,7 @@ describe("attendanceApi", () => {
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/attendance/day/7/2026-05-15/review",
+      "http://192.168.100.11:8000/attendance/day/7/2026-05-15/review",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -75,7 +75,7 @@ describe("attendanceApi", () => {
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/attendance/manual-correction",
+      "http://192.168.100.11:8000/attendance/manual-correction",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
