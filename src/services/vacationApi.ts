@@ -1,6 +1,7 @@
-import { apiRequest } from "@/lib/api-client";
+import { apiRequest, buildQueryString } from "@/lib/api-client";
 import type {
   SelfVacationRequestPayload,
+  VacationBalance,
   Vacation,
   VacationPayload,
   VacationStatus,
@@ -23,6 +24,12 @@ export const vacationApi = {
   },
   listSelf() {
     return apiRequest<Vacation[]>("/me/vacations");
+  },
+  getBalance(employeeId: number, params: { start_year?: number; end_year?: number; as_of?: string } = {}) {
+    return apiRequest<VacationBalance>(`/annual_vacations/balance/${employeeId}${buildQueryString(params)}`);
+  },
+  getMyBalance(params: { start_year?: number; end_year?: number; as_of?: string } = {}) {
+    return apiRequest<VacationBalance>(`/me/vacation-balance${buildQueryString(params)}`);
   },
   requestSelf(payload: SelfVacationRequestPayload) {
     return apiRequest<null>("/me/vacations/request", {

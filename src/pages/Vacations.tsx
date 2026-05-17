@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
+import { VacationBalancePanel } from "@/components/vacations/VacationBalancePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatLabel } from "@/lib/format";
+import { useAuth } from "@/providers/AuthProvider";
 import { employeeApi } from "@/services/employeeApi";
 import { vacationApi } from "@/services/vacationApi";
 import { toast } from "@/hooks/use-toast";
@@ -46,9 +48,11 @@ function daysBetween(start: string, end: string) {
 
 export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [selectedBalanceEmployeeId, setSelectedBalanceEmployeeId] = useState("");
   const [requestOpen, setRequestOpen] = useState(false);
   const [actionState, setActionState] = useState<{ vacationId: number | null; statusId: number | null; label: string }>({
     vacationId: null,
@@ -83,6 +87,21 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const vacationsQuery = useQuery({
     queryKey: ["vacations", scope, year],
     queryFn: () => (scope === "manage" ? vacationApi.listAll(Number(year)) : vacationApi.listSelf()),
+  });
+
+  useEffect(() => {
+    if (scope === "manage" && !selectedBalanceEmployeeId && employeesQuery.data?.length) {
+      setSelectedBalanceEmployeeId(String(employeesQuery.data[0].id));
+    }
+  }, [employeesQuery.data, scope, selectedBalanceEmployeeId]);
+
+  const balanceQuery = useQuery({
+    queryKey: ["vacation-balance", scope, scope === "manage" ? selectedBalanceEmployeeId : currentUser?.employee_id],
+    queryFn: () =>
+      scope === "manage"
+        ? vacationApi.getBalance(Number(selectedBalanceEmployeeId))
+        : vacationApi.getMyBalance(),
+    enabled: scope === "manage" ? Boolean(selectedBalanceEmployeeId) : Boolean(currentUser?.employee_id),
   });
 
   const employeeMap = useMemo(
@@ -123,6 +142,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
 
   const refreshVacations = async () => {
     await queryClient.invalidateQueries({ queryKey: ["vacations"] });
+    await queryClient.invalidateQueries({ queryKey: ["vacation-balance"] });
   };
 
   const createVacation = useMutation({
@@ -242,6 +262,51 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
           </CardContent>
         </Card>
       ) : null}
+
+      {scope === "manage" ? (
+        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <Card className="filter-card">
+            <CardHeader>
+              <CardTitle>Employee balance</CardTitle>
+              <CardDescription>Review the yearly annual-vacation balance before approving or creating leave.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="balanceEmployee">Employee</Label>
+                <Select value={selectedBalanceEmployeeId || undefined} onValueChange={setSelectedBalanceEmployeeId}>
+                  <SelectTrigger id="balanceEmployee">
+                    <SelectValue placeholder="Select employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(employeesQuery.data || []).map((employee) => (
+                      <SelectItem key={employee.id} value={String(employee.id)}>
+                        {employee.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+          <VacationBalancePanel
+            balance={balanceQuery.data}
+            isLoading={balanceQuery.isLoading}
+            title={selectedBalanceEmployeeId ? employeeMap[Number(selectedBalanceEmployeeId)] || "Vacation balance" : "Vacation balance"}
+            description="Entitlement, carryover, consumption, and remaining balance by year."
+            emptyTitle="Select an employee"
+            emptyDescription="Choose an employee to inspect the annual vacation balance."
+          />
+        </div>
+      ) : (
+        <VacationBalancePanel
+          balance={balanceQuery.data}
+          isLoading={balanceQuery.isLoading}
+          title="Annual vacation balance"
+          description="Your yearly entitlement, carryover, consumed days, and remaining balance."
+          emptyTitle="No balance available"
+          emptyDescription="The backend has not returned a vacation balance yet."
+        />
+      )}
 
       <Card>
         <CardHeader>

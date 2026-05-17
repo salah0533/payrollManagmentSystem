@@ -248,6 +248,46 @@ export interface VacationUpdatePayload {
   is_paid?: boolean;
 }
 
+export interface VacationBalanceYear {
+  year: number;
+  entitlement_days: number;
+  entitlement_source_year?: number | null;
+  entitlement_source: string;
+  carried_over_days: number;
+  active_carryover_days: number;
+  carryover_used_days: number;
+  carryover_expired_days: number;
+  carryover_expires_on?: string | null;
+  starting_balance_days: number;
+  approved_days: number;
+  pending_request_days: number;
+  reserved_days: number;
+  consumed_days: number;
+  remaining_entitlement_days: number;
+  available_days: number;
+  overdrawn_days: number;
+  carryover_to_next_year: number;
+}
+
+export interface VacationBalancePolicy {
+  annual_vacation_days_by_year: Record<string, number>;
+  allow_vacation_carryover: boolean;
+  max_vacation_carryover_days?: number | null;
+  carryover_expiry_month?: number | null;
+  carryover_expiry_day?: number | null;
+  reserve_vacation_days_on_pending: boolean;
+}
+
+export interface VacationBalance {
+  employee_id: number;
+  employee_name: string;
+  as_of: string;
+  policy: VacationBalancePolicy;
+  current_year: number;
+  current_year_balance?: VacationBalanceYear | null;
+  years: VacationBalanceYear[];
+}
+
 export interface PayrollCalculationData extends Record<string, unknown> {
   actual_work_minutes?: number;
   normal_paid_minutes?: number;
@@ -494,6 +534,12 @@ export interface PayrollPolicy {
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
   holidays_json: string[];
+  annual_vacation_days_by_year: Record<string, number>;
+  allow_vacation_carryover: boolean;
+  max_vacation_carryover_days?: number | null;
+  carryover_expiry_month?: number | null;
+  carryover_expiry_day?: number | null;
+  reserve_vacation_days_on_pending: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -513,6 +559,12 @@ export interface PayrollPolicyPayload {
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
   holidays_json: string[];
+  annual_vacation_days_by_year: Record<string, number>;
+  allow_vacation_carryover: boolean;
+  max_vacation_carryover_days?: number | null;
+  carryover_expiry_month?: number | null;
+  carryover_expiry_day?: number | null;
+  reserve_vacation_days_on_pending: boolean;
 }
 
 export interface AuditLog {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Plus, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,31 @@ import { hasPermission } from "@/lib/roles";
 import { settingsApi } from "@/services/settingsApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
+
+type VacationYearRow = {
+  year: string;
+  days: string;
+};
+
+function normalizeVacationYearRows(rows: VacationYearRow[]) {
+  const normalized = rows
+    .map((row) => ({
+      year: row.year.trim(),
+      days: row.days.trim(),
+    }))
+    .filter((row) => row.year && row.days)
+    .sort((left, right) => Number(left.year) - Number(right.year));
+
+  return Object.fromEntries(
+    normalized.map((row) => [row.year, Number(row.days)]),
+  );
+}
+
+function policyYearsToRows(years: Record<string, number>) {
+  return Object.entries(years)
+    .sort((left, right) => Number(left[0]) - Number(right[0]))
+    .map(([year, days]) => ({ year, days: String(days) }));
+}
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -61,7 +87,14 @@ export default function Settings() {
     auto_recalculate_draft_payroll: true,
     lock_payroll_after_payment: true,
     holidays_json: [] as string[],
+    annual_vacation_days_by_year: {} as Record<string, number>,
+    allow_vacation_carryover: true,
+    max_vacation_carryover_days: null as number | null,
+    carryover_expiry_month: null as number | null,
+    carryover_expiry_day: null as number | null,
+    reserve_vacation_days_on_pending: false,
   });
+  const [vacationYearRows, setVacationYearRows] = useState<VacationYearRow[]>([]);
 
   useEffect(() => {
     if (workScheduleQuery.data) {
@@ -94,7 +127,14 @@ export default function Settings() {
         auto_recalculate_draft_payroll: payrollPolicyQuery.data.auto_recalculate_draft_payroll,
         lock_payroll_after_payment: payrollPolicyQuery.data.lock_payroll_after_payment,
         holidays_json: payrollPolicyQuery.data.holidays_json,
+        annual_vacation_days_by_year: payrollPolicyQuery.data.annual_vacation_days_by_year,
+        allow_vacation_carryover: payrollPolicyQuery.data.allow_vacation_carryover,
+        max_vacation_carryover_days: payrollPolicyQuery.data.max_vacation_carryover_days ?? null,
+        carryover_expiry_month: payrollPolicyQuery.data.carryover_expiry_month ?? null,
+        carryover_expiry_day: payrollPolicyQuery.data.carryover_expiry_day ?? null,
+        reserve_vacation_days_on_pending: payrollPolicyQuery.data.reserve_vacation_days_on_pending,
       });
+      setVacationYearRows(policyYearsToRows(payrollPolicyQuery.data.annual_vacation_days_by_year));
     }
   }, [payrollPolicyQuery.data]);
 
@@ -113,7 +153,11 @@ export default function Settings() {
   });
 
   const savePayrollPolicy = useMutation({
-    mutationFn: () => settingsApi.updatePayrollPolicy(payrollPolicy),
+    mutationFn: () =>
+      settingsApi.updatePayrollPolicy({
+        ...payrollPolicy,
+        annual_vacation_days_by_year: normalizeVacationYearRows(vacationYearRows),
+      }),
     onSuccess: async (policy) => {
       setDefaultCurrency(policy.default_currency);
       queryClient.setQueryData(["settings", "payroll-policy"], policy);
@@ -129,6 +173,14 @@ export default function Settings() {
       });
     },
   });
+
+  const addVacationYearRow = () => {
+    const highestYear = vacationYearRows.reduce((maxYear, row) => {
+      const parsed = Number(row.year);
+      return Number.isFinite(parsed) ? Math.max(maxYear, parsed) : maxYear;
+    }, new Date().getFullYear() - 1);
+    setVacationYearRows((current) => [...current, { year: String(highestYear + 1), days: "" }]);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -298,6 +350,8 @@ export default function Settings() {
                 ["late_deduction_enabled", t("settings.toggles.lateDeductionEnabled")],
                 ["auto_recalculate_draft_payroll", t("settings.toggles.autoRecalculateDraftPayroll")],
                 ["lock_payroll_after_payment", t("settings.toggles.lockPayrollAfterPayment")],
+                ["allow_vacation_carryover", "Allow annual vacation carryover"],
+                ["reserve_vacation_days_on_pending", "Pending vacation requests reserve days"],
               ].map(([field, label]) => (
                 <div key={field} className="flex items-center justify-between rounded-lg border border-border p-3">
                   <span className="text-sm">{label}</span>
@@ -307,6 +361,128 @@ export default function Settings() {
                   />
                 </div>
               ))}
+            </div>
+
+            <div className="space-y-4 rounded-lg border border-border p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="font-medium">Annual vacation policy</p>
+                  <p className="text-sm text-muted-foreground">
+                    Set yearly entitlements here. When a future year is missing, the latest previous configured year is reused automatically.
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addVacationYearRow}>
+                  <Plus className="h-4 w-4" />
+                  Add year
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {vacationYearRows.length ? (
+                  vacationYearRows.map((row, index) => (
+                    <div key={`${row.year}-${index}`} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                      <div className="space-y-2">
+                        <Label htmlFor={`vacation-year-${index}`}>Year</Label>
+                        <Input
+                          id={`vacation-year-${index}`}
+                          type="number"
+                          value={row.year}
+                          onChange={(event) =>
+                            setVacationYearRows((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, year: event.target.value } : item,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`vacation-days-${index}`}>Annual days</Label>
+                        <Input
+                          id={`vacation-days-${index}`}
+                          type="number"
+                          min={1}
+                          value={row.days}
+                          onChange={(event) =>
+                            setVacationYearRows((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, days: event.target.value } : item,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setVacationYearRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No yearly entitlements configured yet.</p>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="maxCarryoverDays">Maximum carryover days</Label>
+                  <Input
+                    id="maxCarryoverDays"
+                    type="number"
+                    min={0}
+                    disabled={!payrollPolicy.allow_vacation_carryover}
+                    value={payrollPolicy.max_vacation_carryover_days ?? ""}
+                    onChange={(event) =>
+                      setPayrollPolicy((value) => ({
+                        ...value,
+                        max_vacation_carryover_days: event.target.value === "" ? null : Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="carryoverExpiryMonth">Carryover expiry month</Label>
+                    <Input
+                      id="carryoverExpiryMonth"
+                      type="number"
+                      min={1}
+                      max={12}
+                      disabled={!payrollPolicy.allow_vacation_carryover}
+                      value={payrollPolicy.carryover_expiry_month ?? ""}
+                      onChange={(event) =>
+                        setPayrollPolicy((value) => ({
+                          ...value,
+                          carryover_expiry_month: event.target.value === "" ? null : Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="carryoverExpiryDay">Carryover expiry day</Label>
+                    <Input
+                      id="carryoverExpiryDay"
+                      type="number"
+                      min={1}
+                      max={31}
+                      disabled={!payrollPolicy.allow_vacation_carryover}
+                      value={payrollPolicy.carryover_expiry_day ?? ""}
+                      onChange={(event) =>
+                        setPayrollPolicy((value) => ({
+                          ...value,
+                          carryover_expiry_day: event.target.value === "" ? null : Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
