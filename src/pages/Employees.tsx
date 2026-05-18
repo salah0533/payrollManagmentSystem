@@ -34,12 +34,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatLabel } from "@/lib/format";
 import { composePhoneNumber, defaultPhoneCountryIso, getPhoneCountryByIso, phoneCountries, splitPhoneNumber } from "@/lib/phone-countries";
 import { hasPermission } from "@/lib/roles";
 import { employeeApi } from "@/services/employeeApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 const defaultForm = {
   first_name: "",
@@ -111,6 +112,7 @@ export function toEmployeePayload(form: typeof defaultForm) {
 }
 
 export default function Employees({ scope }: { scope: "admin" | "hr" }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const canCreateEmployee = hasPermission(currentUser, "employees.create");
@@ -182,15 +184,20 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   const createDepartment = useMutation({
     mutationFn: () => employeeApi.createDepartment(newDepartmentName),
     onSuccess: async (department) => {
-      toast({ title: "Department added", description: `${department.name} is ready to use.` });
+      toast({
+        title: t("employeesPage.createDepartmentSuccess"),
+        description: t("employeesPage.createDepartmentSuccessDescription", {
+          name: department.name,
+        }),
+      });
       setForm((value) => ({ ...value, department_id: String(department.id) }));
       setNewDepartmentName("");
       await queryClient.invalidateQueries({ queryKey: ["employee-references", "departments"] });
     },
     onError: (error) => {
       toast({
-        title: "Unable to add department",
-        description: getErrorMessage(error, "Please use a unique department name."),
+        title: t("employeesPage.createDepartmentError"),
+        description: getErrorMessage(error, t("employeesPage.createDepartmentErrorDescription")),
         variant: "destructive",
       });
     },
@@ -199,15 +206,20 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   const createPosition = useMutation({
     mutationFn: () => employeeApi.createPosition(newPositionName),
     onSuccess: async (position) => {
-      toast({ title: "Position added", description: `${position.name} is ready to use.` });
+      toast({
+        title: t("employeesPage.createPositionSuccess"),
+        description: t("employeesPage.createPositionSuccessDescription", {
+          name: position.name,
+        }),
+      });
       setForm((value) => ({ ...value, position_id: String(position.id), position: position.name }));
       setNewPositionName("");
       await queryClient.invalidateQueries({ queryKey: ["employee-references", "positions"] });
     },
     onError: (error) => {
       toast({
-        title: "Unable to add position",
-        description: getErrorMessage(error, "Please use a unique position name."),
+        title: t("employeesPage.createPositionError"),
+        description: getErrorMessage(error, t("employeesPage.createPositionErrorDescription")),
         variant: "destructive",
       });
     },
@@ -216,7 +228,10 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   const createEmployee = useMutation({
     mutationFn: () => employeeApi.create(toEmployeePayload(form)),
     onSuccess: async (employee) => {
-      toast({ title: "Employee created", description: "The employee profile has been added." });
+      toast({
+        title: t("employeesPage.createEmployeeSuccess"),
+        description: t("employeesPage.createEmployeeSuccessDescription"),
+      });
       setForm(defaultForm);
       setIsDialogOpen(false);
       await refreshEmployees();
@@ -224,8 +239,8 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to create employee",
-        description: getErrorMessage(error, "Please review the required fields."),
+        title: t("employeesPage.createEmployeeError"),
+        description: getErrorMessage(error, t("employeesPage.createEmployeeErrorDescription")),
         variant: "destructive",
       });
     },
@@ -234,7 +249,10 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   const updateEmployee = useMutation({
     mutationFn: () => employeeApi.update(editingId as number, toEmployeePayload(form)),
     onSuccess: async () => {
-      toast({ title: "Employee updated", description: "The employee profile has been saved." });
+      toast({
+        title: t("employeesPage.updateEmployeeSuccess"),
+        description: t("employeesPage.updateEmployeeSuccessDescription"),
+      });
       const employeeId = editingId;
       setForm(defaultForm);
       setEditingId(null);
@@ -244,8 +262,8 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to update employee",
-        description: getErrorMessage(error, "Please review the required fields."),
+        title: t("employeesPage.updateEmployeeError"),
+        description: getErrorMessage(error, t("employeesPage.updateEmployeeErrorDescription")),
         variant: "destructive",
       });
     },
@@ -254,14 +272,17 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   const deleteEmployee = useMutation({
     mutationFn: (employeeId: number) => employeeApi.remove(employeeId),
     onSuccess: async () => {
-      toast({ title: "Employee deleted", description: "The employee record has been deactivated from the frontend list." });
+      toast({
+        title: t("employeesPage.deleteEmployeeSuccess"),
+        description: t("employeesPage.deleteEmployeeSuccessDescription"),
+      });
       setDeletingEmployee(null);
       await refreshEmployees();
     },
     onError: (error) => {
       toast({
-        title: "Unable to delete employee",
-        description: getErrorMessage(error, "This employee may still be linked to an active user account."),
+        title: t("employeesPage.deleteEmployeeError"),
+        description: getErrorMessage(error, t("employeesPage.deleteEmployeeErrorDescription")),
         variant: "destructive",
       });
     },
@@ -310,32 +331,35 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title={scope === "admin" ? "Employee Management" : "HR Employee Management"}
-        description="Create, edit, and review employee profiles with backend-compatible `/employee` APIs."
+        title={scope === "admin" ? t("employeesPage.adminTitle") : t("employeesPage.hrTitle")}
+        description={t("employeesPage.description")}
         actions={
           <Button onClick={openCreate} disabled={!canCreateEmployee}>
             <Plus className="mr-2 h-4 w-4" />
-            Add employee
+            {t("employeesPage.addEmployee")}
           </Button>
         }
       />
 
       <Card className="filter-card">
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Search by name, phone, or position and narrow by employee status.</CardDescription>
+          <CardTitle>{t("employeesPage.filtersTitle")}</CardTitle>
+          <CardDescription>{t("employeesPage.filtersDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Input placeholder="Search employees" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <Input placeholder="Status filter: active, inactive, suspended" value={statusFilter === "all" ? "" : statusFilter} onChange={(event) => setStatusFilter(event.target.value || "all")} />
+          <Input placeholder={t("employeesPage.searchPlaceholder")} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <Input placeholder={t("employeesPage.statusFilterPlaceholder")} value={statusFilter === "all" ? "" : statusFilter} onChange={(event) => setStatusFilter(event.target.value || "all")} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Employees</CardTitle>
+          <CardTitle>{t("employeesPage.employeesTitle")}</CardTitle>
           <CardDescription>
-            Showing {filteredEmployees.length} of {(employeesQuery.data || []).length} employee records.
+            {t("employeesPage.showingCount", {
+              filtered: filteredEmployees.length,
+              total: (employeesQuery.data || []).length,
+            })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -343,15 +367,15 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Hire date</TableHead>
-                  <TableHead>Salary type</TableHead>
-                  <TableHead>Monthly</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("employeesPage.name")}</TableHead>
+                  <TableHead>{t("employeesPage.department")}</TableHead>
+                  <TableHead>{t("employeesPage.position")}</TableHead>
+                  <TableHead>{t("employeesPage.contact")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("employeesPage.hireDate")}</TableHead>
+                  <TableHead>{t("employeesPage.salaryType")}</TableHead>
+                  <TableHead>{t("employeesPage.monthly")}</TableHead>
+                  <TableHead className="text-right">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -361,14 +385,18 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                       <div>
                         <p className="font-medium">{employee.full_name}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                          <span className="text-muted-foreground">User link: {employee.user_id ?? "none"}</span>
+                          <span className="text-muted-foreground">
+                            {t("employeesPage.userLink")}: {employee.user_id ?? t("common.noRecord")}
+                          </span>
                           <Badge variant={employee.auto_attendance_enabled ? "secondary" : "outline"}>
-                            {employee.auto_attendance_enabled ? "Auto attendance" : "Manual attendance"}
+                            {employee.auto_attendance_enabled
+                              ? t("employeesPage.autoAttendance")
+                              : t("employeesPage.manualAttendance")}
                           </Badge>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{employee.department_id ? departmentMap[employee.department_id] || `Department #${employee.department_id}` : "-"}</TableCell>
+                    <TableCell>{employee.department_id ? departmentMap[employee.department_id] || t("employeesPage.departmentId", { id: employee.department_id }) : "-"}</TableCell>
                     <TableCell>{employee.position || "-"}</TableCell>
                     <TableCell>
                       <div>
@@ -396,8 +424,8 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
             </Table>
           ) : (
             <EmptyState
-              title={employeesQuery.isLoading ? "Loading employees..." : "No employees found"}
-              description="Try a different filter or add the first employee record."
+              title={employeesQuery.isLoading ? t("employeesPage.loadingEmployees") : t("employeesPage.noEmployees")}
+              description={t("employeesPage.noEmployeesDescription")}
             />
           )}
         </CardContent>
@@ -406,25 +434,33 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Edit employee" : "Add employee"}</DialogTitle>
+            <DialogTitle>{editingId ? t("employeesPage.editEmployee") : t("employeesPage.addEmployeeDialog")}</DialogTitle>
             <DialogDescription>
-              This form writes to the backend `/employee` endpoint and keeps the frontend aligned with the new employee architecture.
+              {t("employeesPage.dialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <Tabs defaultValue="basic" className="py-2">
             <TabsList className="grid h-auto w-full grid-cols-3 lg:grid-cols-6">
-              <TabsTrigger value="basic">Basic</TabsTrigger>
-              <TabsTrigger value="job">Job</TabsTrigger>
-              <TabsTrigger value="compensation">Compensation</TabsTrigger>
-              <TabsTrigger value="attendance">Attendance</TabsTrigger>
-              <TabsTrigger value="leave">Leave</TabsTrigger>
-              <TabsTrigger value="account">Account</TabsTrigger>
+              <TabsTrigger value="basic">{t("employeesPage.tabs.basic")}</TabsTrigger>
+              <TabsTrigger value="job">{t("employeesPage.tabs.job")}</TabsTrigger>
+              <TabsTrigger value="compensation">{t("employeesPage.tabs.compensation")}</TabsTrigger>
+              <TabsTrigger value="attendance">{t("employeesPage.tabs.attendance")}</TabsTrigger>
+              <TabsTrigger value="leave">{t("employeesPage.tabs.leave")}</TabsTrigger>
+              <TabsTrigger value="account">{t("employeesPage.tabs.account")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="basic" className="grid gap-4 md:grid-cols-2">
               {basicFormFields.map((field) => (
                 <div key={field.key} className="space-y-2">
-                  <Label htmlFor={field.key}>{field.label}</Label>
+                  <Label htmlFor={field.key}>
+                    {field.key === "first_name"
+                      ? t("employeesPage.firstName")
+                      : field.key === "last_name"
+                        ? t("employeesPage.lastName")
+                        : field.key === "email"
+                          ? t("common.email")
+                          : t("employeesPage.hireDate")}
+                  </Label>
                   <Input
                     id={field.key}
                     type={field.type}
@@ -434,13 +470,13 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                 </div>
               ))}
               <div className="space-y-2">
-                <Label htmlFor="phoneCountry">Country code</Label>
+                <Label htmlFor="phoneCountry">{t("employeesPage.countryCode")}</Label>
                 <Select
                   value={form.phone_country_iso}
                   onValueChange={(phone_country_iso) => setForm((value) => ({ ...value, phone_country_iso }))}
                 >
                   <SelectTrigger id="phoneCountry">
-                    <SelectValue placeholder="Select country" />
+                    <SelectValue placeholder={t("employeesPage.selectCountry")} />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
                     {phoneCountries.map((country) => (
@@ -452,29 +488,33 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Phone number</Label>
+                <Label htmlFor="phoneNumber">{t("employeesPage.phoneNumber")}</Label>
                 <Input
                   id="phoneNumber"
                   inputMode="tel"
-                  placeholder="Local number"
+                  placeholder={t("employeesPage.localNumber")}
                   value={form.phone_number}
                   onChange={(event) => setForm((value) => ({ ...value, phone_number: event.target.value }))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Saved as {composePhoneNumber(form.phone_country_iso, form.phone_number) || `${getPhoneCountryByIso(form.phone_country_iso)?.dialCode || ""}...`}
+                  {t("employeesPage.savedAs", {
+                    value:
+                      composePhoneNumber(form.phone_country_iso, form.phone_number) ||
+                      `${getPhoneCountryByIso(form.phone_country_iso)?.dialCode || ""}...`,
+                  })}
                 </p>
               </div>
             </TabsContent>
 
             <TabsContent value="job" className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="department">Department</Label>
+                <Label htmlFor="department">{t("employeesPage.department")}</Label>
                 <Select value={form.department_id || "none"} onValueChange={(value) => setForm((current) => ({ ...current, department_id: value === "none" ? "" : value }))}>
                   <SelectTrigger id="department">
-                    <SelectValue placeholder="Select department" />
+                    <SelectValue placeholder={t("employeesPage.selectDepartment")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No department</SelectItem>
+                    <SelectItem value="none">{t("employeesPage.noDepartment")}</SelectItem>
                     {(departmentsQuery.data || []).map((department) => (
                       <SelectItem key={department.id} value={String(department.id)}>
                         {department.name}
@@ -483,7 +523,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   </SelectContent>
                 </Select>
                 <div className="flex gap-2">
-                  <Input placeholder="New department" value={newDepartmentName} onChange={(event) => setNewDepartmentName(event.target.value)} />
+                  <Input placeholder={t("employeesPage.newDepartment")} value={newDepartmentName} onChange={(event) => setNewDepartmentName(event.target.value)} />
                   <Button
                     type="button"
                     variant="outline"
@@ -497,7 +537,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="position">Position</Label>
+                <Label htmlFor="position">{t("employeesPage.position")}</Label>
                 <Select
                   value={form.position_id || "none"}
                   onValueChange={(value) => {
@@ -510,10 +550,10 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   }}
                 >
                   <SelectTrigger id="position">
-                    <SelectValue placeholder="Select position" />
+                    <SelectValue placeholder={t("employeesPage.selectPosition")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No position</SelectItem>
+                    <SelectItem value="none">{t("employeesPage.noPosition")}</SelectItem>
                     {(positionsQuery.data || []).map((position) => (
                       <SelectItem key={position.id} value={String(position.id)}>
                         {position.name}
@@ -522,7 +562,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   </SelectContent>
                 </Select>
                 <div className="flex gap-2">
-                  <Input placeholder="New position" value={newPositionName} onChange={(event) => setNewPositionName(event.target.value)} />
+                  <Input placeholder={t("employeesPage.newPosition")} value={newPositionName} onChange={(event) => setNewPositionName(event.target.value)} />
                   <Button
                     type="button"
                     variant="outline"
@@ -536,15 +576,15 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">Employment status</Label>
+                <Label htmlFor="status">{t("employeesPage.employmentStatus")}</Label>
                 <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
                   <SelectTrigger id="status">
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder={t("employeesPage.selectStatus")} />
                   </SelectTrigger>
                   <SelectContent>
                     {employeeStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                        {formatLabel(status)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -554,10 +594,10 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
 
             <TabsContent value="compensation" className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="salaryType">Salary type</Label>
+                <Label htmlFor="salaryType">{t("employeesPage.salaryType")}</Label>
                 <Select value={form.salary_type} onValueChange={(value) => setForm((current) => ({ ...current, salary_type: value }))}>
                   <SelectTrigger id="salaryType">
-                    <SelectValue placeholder="Select salary type" />
+                    <SelectValue placeholder={t("employeesPage.selectSalaryType")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(salaryTypesQuery.data || []).map((salaryType) => (
@@ -570,7 +610,17 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
               </div>
               {compensationFormFields.map((field) => (
                 <div key={field.key} className="space-y-2">
-                  <Label htmlFor={field.key}>{field.label}</Label>
+                  <Label htmlFor={field.key}>
+                    {field.key === "monthly_price"
+                      ? t("employeesPage.monthlySalary")
+                      : field.key === "day_price"
+                        ? t("employeesPage.dayPrice")
+                        : field.key === "hour_price"
+                          ? t("employeesPage.hourPrice")
+                          : field.key === "extra_hours_price"
+                            ? t("employeesPage.extraHoursPrice")
+                            : t("employeesPage.dues")}
+                  </Label>
                   <Input
                     id={field.key}
                     type={field.type}
@@ -580,20 +630,20 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                 </div>
               ))}
               <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
-                Compensation history needs a backend compensation endpoint before it can be edited safely here.
+                {t("employeesPage.compensationHistoryNotice")}
               </div>
             </TabsContent>
 
             <TabsContent value="attendance" className="grid gap-4 md:grid-cols-2">
               <div className="flex items-center justify-between rounded-lg border border-border p-4 md:col-span-2">
                 <div className="space-y-1">
-                  <p className="font-medium">Auto attendance</p>
+                  <p className="font-medium">{t("employeesPage.autoAttendance")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Use the default work schedule from Settings. When enabled, the system generates the full scheduled day after the workday ends and disables employee self-service check-in/out.
+                    {t("employeesPage.autoAttendanceDescription")}
                   </p>
                   {editingId && form.auto_attendance_enabled ? (
                     <p className="text-xs text-muted-foreground">
-                      Existing generated days stay audited through Attendance Review. Future workdays start automatically from the backend effective date.
+                      {t("employeesPage.autoAttendanceFutureNotice")}
                     </p>
                   ) : null}
                 </div>
@@ -603,13 +653,13 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                 />
               </div>
               <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
-                Work hours, weekly off days, allowed late minutes, and overtime thresholds are managed centrally from Settings and Payroll Policy.
+                {t("employeesPage.attendancePolicyNotice")}
               </div>
             </TabsContent>
 
             <TabsContent value="leave" className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="vacationDays">Bootstrap vacation days</Label>
+                <Label htmlFor="vacationDays">{t("employeesPage.bootstrapVacationDays")}</Label>
                 <Input
                   id="vacationDays"
                   type="number"
@@ -618,34 +668,34 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   onChange={(event) => setForm((value) => ({ ...value, vacation_days: event.target.value }))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  This default is only used if the employee does not have any yearly entitlement rows yet.
+                  {t("employeesPage.bootstrapVacationDaysDescription")}
                 </p>
               </div>
               {editingId ? (
                 <AnnualVacationEntitlements employeeId={editingId} />
               ) : (
                 <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
-                  Create the employee first, then add year-by-year annual vacation entitlements here.
+                  {t("employeesPage.createFirstForLeave")}
                 </div>
               )}
             </TabsContent>
 
             <TabsContent value="account" className="grid gap-4 md:grid-cols-2">
               <div className="rounded-lg border border-border p-4">
-                <p className="text-xs text-muted-foreground">Linked user</p>
-                <p className="font-medium">{editingId ? employeesQuery.data?.find((employee) => employee.id === editingId)?.user_id ?? "none" : "Created after user linking"}</p>
+                <p className="text-xs text-muted-foreground">{t("employeesPage.linkedUser")}</p>
+                <p className="font-medium">{editingId ? employeesQuery.data?.find((employee) => employee.id === editingId)?.user_id ?? t("common.noRecord") : t("employeesPage.createdAfterLinking")}</p>
               </div>
               <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Role assignment, last login, and password reset remain in Users until dedicated account endpoints are added to this profile view.
+                {t("employeesPage.accountNotice")}
               </div>
             </TabsContent>
           </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={() => (editingId ? updateEmployee.mutate() : createEmployee.mutate())} disabled={isSaving || (editingId ? !canUpdateEmployee : !canCreateEmployee)}>
-              {isSaving ? "Saving..." : editingId ? "Save changes" : "Create employee"}
+              {isSaving ? t("common.saving") : editingId ? t("employeesPage.saveChanges") : t("employeesPage.createEmployeeAction")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -654,15 +704,15 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       <AlertDialog open={Boolean(deletingEmployee)} onOpenChange={(open) => !open && setDeletingEmployee(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete employee</AlertDialogTitle>
+            <AlertDialogTitle>{t("employeesPage.deleteEmployee")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the employee from the active list. The backend will block deletion if a linked user account still exists.
+              {t("employeesPage.deleteEmployeeDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={!canDeleteEmployee || deleteEmployee.isPending} onClick={() => deletingEmployee && deleteEmployee.mutate(deletingEmployee)}>
-              Delete employee
+              {t("employeesPage.deleteEmployee")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

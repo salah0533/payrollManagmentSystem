@@ -68,7 +68,7 @@ export function NotificationBell() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[360px] p-0">
         <div className="flex items-center justify-between px-4 py-3">
-          <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+          <DropdownMenuLabel className="p-0">{t("common.notifications")}</DropdownMenuLabel>
           <Button
             variant="ghost"
             size="sm"

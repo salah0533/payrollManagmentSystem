@@ -3,19 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
 import type { VacationBalance } from "@/types/domain";
-
-function formatEntitlementSource(balanceYear: VacationBalance["years"][number]) {
-  if (balanceYear.entitlement_source === "employee_year") {
-    return "Employee year";
-  }
-  if (balanceYear.entitlement_source === "fallback_previous_employee_year" && balanceYear.entitlement_source_year) {
-    return `From ${balanceYear.entitlement_source_year}`;
-  }
-  if (balanceYear.entitlement_source === "employee_default") {
-    return "Employee default";
-  }
-  return "Not configured";
-}
+import { useTranslation } from "react-i18next";
 
 export function VacationBalancePanel({
   balance,
@@ -32,8 +20,24 @@ export function VacationBalancePanel({
   emptyTitle: string;
   emptyDescription: string;
 }) {
+  const { t } = useTranslation();
   const currentYear = balance?.current_year_balance ?? null;
   const years = (balance?.years || []).slice().sort((left, right) => right.year - left.year);
+  const formatSource = (item: VacationBalance["years"][number]) => {
+    if (item.entitlement_source === "employee_year") {
+      return t("vacationBalance.source.employeeYear");
+    }
+    if (
+      item.entitlement_source === "fallback_previous_employee_year" &&
+      item.entitlement_source_year
+    ) {
+      return t("vacationBalance.source.fromYear", { year: item.entitlement_source_year });
+    }
+    if (item.entitlement_source === "employee_default") {
+      return t("vacationBalance.source.employeeDefault");
+    }
+    return t("vacationBalance.source.notConfigured");
+  };
 
   return (
     <Card>
@@ -43,27 +47,44 @@ export function VacationBalancePanel({
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <EmptyState title="Loading balances..." description="Pulling yearly vacation balances from the backend." />
+          <EmptyState
+            title={t("vacationBalance.loading")}
+            description={t("vacationBalance.loadingDescription")}
+          />
         ) : !balance ? (
           <EmptyState title={emptyTitle} description={emptyDescription} />
         ) : (
           <>
             <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-lg border border-border p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Current year</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("vacationBalance.currentYear")}
+                </p>
                 <p className="mt-2 text-2xl font-semibold">{balance.current_year}</p>
               </div>
               <div className="rounded-lg border border-border p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Available</p>
-                <p className="mt-2 text-2xl font-semibold">{currentYear?.available_days ?? 0}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("vacationBalance.available")}
+                </p>
+                <p className="mt-2 text-2xl font-semibold">
+                  {currentYear?.available_days ?? 0}
+                </p>
               </div>
               <div className="rounded-lg border border-border p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Consumed</p>
-                <p className="mt-2 text-2xl font-semibold">{currentYear?.consumed_days ?? 0}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("vacationBalance.consumed")}
+                </p>
+                <p className="mt-2 text-2xl font-semibold">
+                  {currentYear?.consumed_days ?? 0}
+                </p>
               </div>
               <div className="rounded-lg border border-border p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Carryover</p>
-                <p className="mt-2 text-2xl font-semibold">{currentYear?.active_carryover_days ?? 0}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("vacationBalance.carryover")}
+                </p>
+                <p className="mt-2 text-2xl font-semibold">
+                  {currentYear?.active_carryover_days ?? 0}
+                </p>
               </div>
             </div>
 
@@ -71,13 +92,13 @@ export function VacationBalancePanel({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Year</TableHead>
-                    <TableHead>Entitlement</TableHead>
-                    <TableHead>Carryover</TableHead>
-                    <TableHead>Consumed</TableHead>
-                    <TableHead>Pending</TableHead>
-                    <TableHead>Available</TableHead>
-                    <TableHead>Next carryover</TableHead>
+                    <TableHead>{t("annualEntitlements.year")}</TableHead>
+                    <TableHead>{t("vacationBalance.entitlement")}</TableHead>
+                    <TableHead>{t("vacationBalance.carryover")}</TableHead>
+                    <TableHead>{t("vacationBalance.consumed")}</TableHead>
+                    <TableHead>{t("vacationBalance.pending")}</TableHead>
+                    <TableHead>{t("vacationBalance.available")}</TableHead>
+                    <TableHead>{t("vacationBalance.nextCarryover")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -86,7 +107,7 @@ export function VacationBalancePanel({
                       <TableCell>
                         <div>
                           <p className="font-medium">{item.year}</p>
-                          <p className="text-xs text-muted-foreground">{formatEntitlementSource(item)}</p>
+                          <p className="text-xs text-muted-foreground">{formatSource(item)}</p>
                         </div>
                       </TableCell>
                       <TableCell>{item.entitlement_days}</TableCell>
@@ -94,7 +115,11 @@ export function VacationBalancePanel({
                         <div>
                           <p>{item.active_carryover_days}</p>
                           {item.carryover_expires_on ? (
-                            <p className="text-xs text-muted-foreground">Expires {formatDate(item.carryover_expires_on)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("vacationBalance.expires", {
+                                date: formatDate(item.carryover_expires_on),
+                              })}
+                            </p>
                           ) : null}
                         </div>
                       </TableCell>

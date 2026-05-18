@@ -1,15 +1,10 @@
 import { useState } from 'react';
+import { useTranslation } from "react-i18next";
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil, UserX, MoreHorizontal } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { Employee } from '@/data/mockData';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +18,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { EmployeeCard } from './EmployeeCard';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatLabel } from "@/lib/format";
 
 interface EmployeeTableProps {
   employees: Employee[];
@@ -31,6 +27,7 @@ interface EmployeeTableProps {
 
 export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
@@ -43,15 +40,6 @@ export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
-
-  const formatSalaryType = (type: string) => {
-    const labels: Record<string, string> = {
-      hour: 'Hourly',
-      day: 'Daily',
-      month: 'Monthly',
-    };
-    return labels[type] || type;
   };
 
   // Mobile: Card layout
@@ -71,15 +59,15 @@ export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
         <AlertDialog open={!!deactivateId} onOpenChange={() => setDeactivateId(null)}>
           <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-xl">
             <AlertDialogHeader>
-              <AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
+              <AlertDialogTitle>{t("employeesPage.deleteEmployee")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to deactivate this employee?
+                {t("employeesPage.deleteEmployeeDescription")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-              <AlertDialogCancel className="mt-0">Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="mt-0">{t("common.cancel")}</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeactivate} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Deactivate
+                {t("employeesPage.deleteEmployee")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -95,12 +83,12 @@ export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
           <table className="data-table w-full table-fixed">
           <thead>
             <tr>
-              <th>Employee</th>
-              <th className="hidden lg:table-cell">Job Title</th>
-              <th className="hidden md:table-cell">Phone</th>
-              <th>Status</th>
-              <th className="hidden lg:table-cell">Salary Type</th>
-              <th className="w-[120px] overflow-hidden">Actions</th>
+              <th>{t("common.employee")}</th>
+              <th className="hidden lg:table-cell">{t("employeesPage.position")}</th>
+              <th className="hidden md:table-cell">{t("common.phone")}</th>
+              <th>{t("common.status")}</th>
+              <th className="hidden lg:table-cell">{t("employeesPage.salaryType")}</th>
+              <th className="w-[120px] overflow-hidden">{t("common.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -124,7 +112,7 @@ export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
                 <td>
                   <StatusBadge status={employee.status} />
                 </td>
-                <td className="hidden lg:table-cell">{formatSalaryType(employee.salaryType)}</td>
+                <td className="hidden lg:table-cell">{formatLabel(employee.salaryType)}</td>
                 <td>
                   <div className="flex items-center justify-start gap-1">
                     <Button
@@ -145,15 +133,15 @@ export function EmployeeTable({ employees, onDeactivate }: EmployeeTableProps) {
       <AlertDialog open={!!deactivateId} onOpenChange={() => setDeactivateId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
+            <AlertDialogTitle>{t("employeesPage.deleteEmployee")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to deactivate this employee? They will no longer appear in active employee lists and cannot log in.
+              {t("employeesPage.deleteEmployeeDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeactivate} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Deactivate
+              {t("employeesPage.deleteEmployee")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

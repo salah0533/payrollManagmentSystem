@@ -94,6 +94,8 @@ export interface Employee {
 
 export interface SalaryType {
   id: number;
+  code?: string;
+  label?: string;
   salary_type: string;
 }
 
@@ -209,11 +211,15 @@ export interface AttendanceCorrectionResult {
 
 export interface VacationType {
   id: number;
+  code?: string;
+  label?: string;
   vacation_type: string;
 }
 
 export interface VacationStatus {
   id: number;
+  code?: string;
+  label?: string;
   vacation_status: string;
 }
 

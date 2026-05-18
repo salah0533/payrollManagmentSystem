@@ -20,6 +20,7 @@ import { payrollApi } from "@/services/payrollApi";
 import { vacationApi } from "@/services/vacationApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 function resolveAttendanceState(day?: { check_in_time?: string | null; break_start_time?: string | null; break_end_time?: string | null; check_out_time?: string | null }) {
   const checkedIn = Boolean(day?.check_in_time);
@@ -35,6 +36,7 @@ function resolveAttendanceState(day?: { check_in_time?: string | null; break_sta
 }
 
 export default function Home() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser, refreshUnreadNotificationCount, logout } = useAuth();
@@ -92,7 +94,7 @@ export default function Home() {
     onSuccess: async (result, action) => {
       toast({
         title: formatLabel(action),
-        description: "Attendance event recorded successfully.",
+        description: t("homePage.attendanceRecorded"),
       });
       queryClient.setQueryData(["employee-home", "attendance", today], [result.attendance_day]);
       await queryClient.invalidateQueries({ queryKey: ["employee-home", "attendance"] });
@@ -100,8 +102,8 @@ export default function Home() {
     },
     onError: (error) => {
       toast({
-        title: "Attendance action failed",
-        description: getErrorMessage(error, "The backend rejected this action."),
+        title: t("homePage.attendanceActionFailed"),
+        description: getErrorMessage(error, t("homePage.attendanceActionFailedDescription")),
         variant: "destructive",
       });
     },
@@ -129,109 +131,109 @@ export default function Home() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Employee Home"
-        description="A simple self-service space for your attendance, notifications, payroll, and vacations."
-        actions={<Button variant="outline" onClick={() => logout()}><LogOut className="mr-2 h-4 w-4" />Logout</Button>}
+        title={t("homePage.title")}
+        description={t("homePage.description")}
+        actions={<Button variant="outline" onClick={() => logout()}><LogOut className="mr-2 h-4 w-4" />{t("common.logout")}</Button>}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Today's status"
+          label={t("homePage.todayStatus")}
           value={<StatusBadge status={todayAttendance?.status || "pending"} />}
           icon={Clock3}
-          hint={todayAttendance ? formatDate(todayAttendance.work_date) : autoAttendanceEnabled ? "Generated after the scheduled workday ends" : "No record yet"}
+          hint={todayAttendance ? formatDate(todayAttendance.work_date) : autoAttendanceEnabled ? t("homePage.generatedAfterWorkday") : t("homePage.noRecordYet")}
         />
         <MetricCard
-          label="Monthly tracked days"
+          label={t("homePage.monthlyTrackedDays")}
           value={monthlyAttendanceStats.daysTracked}
           icon={Clock3}
           tone="info"
           hint={formatMinutes(monthlyAttendanceStats.workedMinutes)}
         />
         <MetricCard
-          label="Unread notifications"
+          label={t("homePage.unreadNotifications")}
           value={latestUnreadNotifications.length}
           icon={Bell}
           tone="warning"
-          hint="Refreshed from /me/notifications"
+          hint={t("homePage.notificationsHint")}
         />
         <MetricCard
-          label="Latest vacation"
+          label={t("homePage.latestVacation")}
           value={<StatusBadge status={String(latestVacation?.vacation_status || "pending")} />}
           icon={Palmtree}
           tone="success"
-          hint={latestVacation ? `${formatDate(latestVacation.start_date)} to ${formatDate(latestVacation.end_date)}` : "No requests"}
+          hint={latestVacation ? t("labels.range", { start: formatDate(latestVacation.start_date), end: formatDate(latestVacation.end_date) }) : t("homePage.noRequests")}
         />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.3fr,0.9fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Attendance actions</CardTitle>
-            <CardDescription>These actions always use `/me/attendance/*` endpoints and never send an `employee_id`.</CardDescription>
+            <CardTitle>{t("homePage.attendanceActions")}</CardTitle>
+            <CardDescription>{t("homePage.attendanceActionsDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             {autoAttendanceEnabled ? (
               <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-                Attendance is generated automatically after your scheduled workday ends. Self-service check-in, break, and check-out actions are disabled while auto attendance is enabled.
+                {t("homePage.autoAttendanceNotice")}
               </div>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Button disabled={autoAttendanceEnabled || actionState.checkInDisabled || attendanceAction.isPending} onClick={() => attendanceAction.mutate("check-in")}>
-                Check In
+                {t("labels.code.check_in")}
               </Button>
               <Button
                 variant="outline"
                 disabled={autoAttendanceEnabled || actionState.breakStartDisabled || attendanceAction.isPending}
                 onClick={() => attendanceAction.mutate("break-start")}
               >
-                Break Start
+                {t("labels.code.break_start")}
               </Button>
               <Button
                 variant="outline"
                 disabled={autoAttendanceEnabled || actionState.breakEndDisabled || attendanceAction.isPending}
                 onClick={() => attendanceAction.mutate("break-end")}
               >
-                Break End
+                {t("labels.code.break_end")}
               </Button>
               <Button
                 variant="secondary"
                 disabled={autoAttendanceEnabled || actionState.checkOutDisabled || attendanceAction.isPending}
                 onClick={() => attendanceAction.mutate("check-out")}
               >
-                Check Out
+                {t("labels.code.check_out")}
               </Button>
             </div>
 
             {todayAttendance ? (
               <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Check in</p>
+                  <p className="text-xs text-muted-foreground">{t("labels.code.check_in")}</p>
                   <p className="font-medium">{todayAttendance.check_in_time ? todayAttendance.check_in_time.slice(0, 5) : "-"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Break</p>
+                  <p className="text-xs text-muted-foreground">{t("homePage.break")}</p>
                   <p className="font-medium">
                     {todayAttendance.break_start_time ? todayAttendance.break_start_time.slice(0, 5) : "-"} /{" "}
                     {todayAttendance.break_end_time ? todayAttendance.break_end_time.slice(0, 5) : "-"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Check out</p>
+                  <p className="text-xs text-muted-foreground">{t("labels.code.check_out")}</p>
                   <p className="font-medium">{todayAttendance.check_out_time ? todayAttendance.check_out_time.slice(0, 5) : "-"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Worked</p>
+                  <p className="text-xs text-muted-foreground">{t("homePage.worked")}</p>
                   <p className="font-medium">{formatMinutes(todayAttendance.actual_work_minutes)}</p>
                 </div>
               </div>
             ) : (
               <EmptyState
-                title="No attendance recorded yet"
+                title={t("homePage.noAttendanceYet")}
                 description={
                   autoAttendanceEnabled
-                    ? "Attendance will appear automatically after your scheduled workday ends."
-                    : "Use the buttons above to start your workday."
+                    ? t("homePage.autoAttendanceEmpty")
+                    : t("homePage.useButtonsToStart")
                 }
               />
             )}
@@ -240,8 +242,8 @@ export default function Home() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Latest unread notifications</CardTitle>
-            <CardDescription>Unread count is refreshed after notification actions.</CardDescription>
+            <CardTitle>{t("homePage.latestUnreadNotifications")}</CardTitle>
+            <CardDescription>{t("homePage.latestUnreadNotificationsDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {latestUnreadNotifications.length ? (
@@ -256,7 +258,7 @@ export default function Home() {
                 </div>
               ))
             ) : (
-              <EmptyState title="No unread notifications" description="You're all caught up." />
+              <EmptyState title={t("homePage.noUnreadNotifications")} description={t("homePage.caughtUp")} />
             )}
             <Button
               variant="outline"
@@ -266,7 +268,7 @@ export default function Home() {
                 await queryClient.invalidateQueries({ queryKey: ["employee-home", "notifications"] });
               }}
             >
-              Refresh notifications
+              {t("homePage.refreshNotifications")}
             </Button>
           </CardContent>
         </Card>
@@ -275,38 +277,38 @@ export default function Home() {
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Latest vacation request</CardTitle>
-            <CardDescription>Your own vacation history from `/me/vacations`.</CardDescription>
+            <CardTitle>{t("homePage.latestVacationRequest")}</CardTitle>
+            <CardDescription>{t("homePage.latestVacationRequestDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             {latestVacation ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{formatDate(latestVacation.start_date)} to {formatDate(latestVacation.end_date)}</p>
-                    <p className="text-sm text-muted-foreground">Type: {formatLabel(String(latestVacation.vacation_type))}</p>
+                    <p className="font-medium">{t("labels.range", { start: formatDate(latestVacation.start_date), end: formatDate(latestVacation.end_date) })}</p>
+                    <p className="text-sm text-muted-foreground">{t("common.type")}: {formatLabel(String(latestVacation.vacation_type))}</p>
                   </div>
                   <StatusBadge status={String(latestVacation.vacation_status)} />
                 </div>
               </div>
             ) : (
-              <EmptyState title="No vacation requests yet" description="Request time off from the vacations page when you need it." />
+              <EmptyState title={t("homePage.noVacationRequests")} description={t("homePage.noVacationRequestsDescription")} />
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Payroll status</CardTitle>
-            <CardDescription>Select a payroll period to open your payroll page with the right period already chosen.</CardDescription>
+            <CardTitle>{t("homePage.payrollStatus")}</CardTitle>
+            <CardDescription>{t("homePage.payrollStatusDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-lg border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
-              Payroll is organized by period, which means each salary run belongs to a specific month or payroll cycle.
+              {t("homePage.payrollPeriodNotice")}
             </div>
             <Select value={selectedPayrollPeriod} onValueChange={setSelectedPayrollPeriod}>
               <SelectTrigger>
-                <SelectValue placeholder={payrollPeriodsQuery.isLoading ? "Loading payroll periods..." : "Select payroll period"} />
+                <SelectValue placeholder={payrollPeriodsQuery.isLoading ? t("paymentsPage.loadingPeriods") : t("paymentsPage.selectPeriod")} />
               </SelectTrigger>
               <SelectContent>
                 {(payrollPeriodsQuery.data || []).map((period) => (
@@ -317,13 +319,18 @@ export default function Home() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Current user: {currentUser?.employee?.full_name || currentUser?.username}. Latest period: {payrollPeriodsQuery.data?.[0]?.name || formatDate(toIsoDate(addMonths(new Date(), 0)))}
+              {t("homePage.currentUserPeriod", {
+                user: currentUser?.employee?.full_name || currentUser?.username,
+                period:
+                  payrollPeriodsQuery.data?.[0]?.name ||
+                  formatDate(toIsoDate(addMonths(new Date(), 0))),
+              })}
             </p>
             <Button
               variant="outline"
               onClick={() => navigate(selectedPayrollPeriod ? `/employee/payroll?period=${selectedPayrollPeriod}` : "/employee/payroll")}
             >
-              Open payroll
+              {t("homePage.openPayroll")}
             </Button>
           </CardContent>
         </Card>

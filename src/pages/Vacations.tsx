@@ -35,6 +35,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { employeeApi } from "@/services/employeeApi";
 import { vacationApi } from "@/services/vacationApi";
 import { toast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 function daysBetween(start: string, end: string) {
   const startDate = new Date(start);
@@ -47,6 +48,7 @@ function daysBetween(start: string, end: string) {
 }
 
 export default function Vacations({ scope }: { scope: "manage" | "self" }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const [year, setYear] = useState(String(new Date().getFullYear()));
@@ -164,8 +166,14 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
           }),
     onSuccess: async () => {
       toast({
-        title: scope === "manage" ? "Vacation created" : "Vacation requested",
-        description: scope === "manage" ? "The vacation record has been saved." : "Your vacation request was sent to the backend.",
+        title:
+          scope === "manage"
+            ? t("vacationsPage.createSuccessManage")
+            : t("vacationsPage.createSuccessSelf"),
+        description:
+          scope === "manage"
+            ? t("vacationsPage.createSuccessManageDescription")
+            : t("vacationsPage.createSuccessSelfDescription"),
       });
       setForm({
         employee_id: "",
@@ -180,8 +188,8 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to save vacation",
-        description: getErrorMessage(error, "Please review the vacation dates and type."),
+        title: t("vacationsPage.createError"),
+        description: getErrorMessage(error, t("vacationsPage.createErrorDescription")),
         variant: "destructive",
       });
     },
@@ -194,14 +202,17 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
         vacation_status: statusId,
       }),
     onSuccess: async () => {
-      toast({ title: "Vacation updated", description: "The vacation status has been updated." });
+      toast({
+        title: t("vacationsPage.updateSuccess"),
+        description: t("vacationsPage.updateSuccessDescription"),
+      });
       setActionState({ vacationId: null, statusId: null, label: "" });
       await refreshVacations();
     },
     onError: (error) => {
       toast({
-        title: "Unable to update vacation",
-        description: getErrorMessage(error, "The backend rejected the vacation update."),
+        title: t("vacationsPage.updateError"),
+        description: getErrorMessage(error, t("vacationsPage.updateErrorDescription")),
         variant: "destructive",
       });
     },
@@ -210,18 +221,20 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title={scope === "manage" ? "Vacation Management" : "My Vacations"}
+        title={scope === "manage" ? t("vacationsPage.manageTitle") : t("vacationsPage.selfTitle")}
         description={
           scope === "manage"
-            ? "Review, approve, reject, and create vacation records for employees."
-            : "Request time off and review your own vacation history from `/me/vacations`."
+            ? t("vacationsPage.manageDescription")
+            : t("vacationsPage.selfDescription")
         }
         actions={
           <>
             {scope === "manage" ? (
               <Input className="w-28" value={year} onChange={(event) => setYear(event.target.value)} type="number" />
             ) : null}
-            <Button onClick={() => setRequestOpen(true)}>{scope === "manage" ? "Add vacation" : "Request vacation"}</Button>
+            <Button onClick={() => setRequestOpen(true)}>
+              {scope === "manage" ? t("vacationsPage.addVacation") : t("vacationsPage.requestVacation")}
+            </Button>
           </>
         }
       />
@@ -229,16 +242,16 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       {scope === "manage" ? (
         <Card className="filter-card">
           <CardHeader>
-            <CardTitle>Filters</CardTitle>
-            <CardDescription>Filter by vacation type or status using the backend lookup values.</CardDescription>
+            <CardTitle>{t("common.filters")}</CardTitle>
+            <CardDescription>{t("vacationsPage.filtersDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <Select value={typeFilter || "all"} onValueChange={(value) => setTypeFilter(value === "all" ? "" : value)}>
               <SelectTrigger>
-                <SelectValue placeholder="All vacation types" />
+                <SelectValue placeholder={t("vacationsPage.allVacationTypes")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All vacation types</SelectItem>
+                <SelectItem value="all">{t("vacationsPage.allVacationTypes")}</SelectItem>
                 {(vacationTypesQuery.data || []).map((type) => (
                   <SelectItem key={type.id} value={String(type.id)}>
                     {formatLabel(type.vacation_type)}
@@ -248,10 +261,10 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             </Select>
             <Select value={statusFilter || "all"} onValueChange={(value) => setStatusFilter(value === "all" ? "" : value)}>
               <SelectTrigger>
-                <SelectValue placeholder="All statuses" />
+                <SelectValue placeholder={t("vacationsPage.allStatuses")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="all">{t("vacationsPage.allStatuses")}</SelectItem>
                 {(vacationStatusesQuery.data || []).map((status) => (
                   <SelectItem key={status.id} value={String(status.id)}>
                     {formatLabel(status.vacation_status)}
@@ -265,17 +278,17 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
 
       {scope === "manage" ? (
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <Card className="filter-card">
-            <CardHeader>
-              <CardTitle>Employee balance</CardTitle>
-              <CardDescription>Review the yearly annual-vacation balance before approving or creating leave.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Label htmlFor="balanceEmployee">Employee</Label>
+            <Card className="filter-card">
+              <CardHeader>
+              <CardTitle>{t("vacationsPage.employeeBalance")}</CardTitle>
+              <CardDescription>{t("vacationsPage.employeeBalanceDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                <Label htmlFor="balanceEmployee">{t("common.employee")}</Label>
                 <Select value={selectedBalanceEmployeeId || undefined} onValueChange={setSelectedBalanceEmployeeId}>
                   <SelectTrigger id="balanceEmployee">
-                    <SelectValue placeholder="Select employee" />
+                    <SelectValue placeholder={t("vacationsPage.selectEmployee")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(employeesQuery.data || []).map((employee) => (
@@ -291,30 +304,30 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
           <VacationBalancePanel
             balance={balanceQuery.data}
             isLoading={balanceQuery.isLoading}
-            title={selectedBalanceEmployeeId ? employeeMap[Number(selectedBalanceEmployeeId)] || "Vacation balance" : "Vacation balance"}
-            description="Entitlement, carryover, consumption, and remaining balance by year."
-            emptyTitle="Select an employee"
-            emptyDescription="Choose an employee to inspect the annual vacation balance."
+            title={selectedBalanceEmployeeId ? employeeMap[Number(selectedBalanceEmployeeId)] || t("vacationsPage.annualBalanceTitle") : t("vacationsPage.annualBalanceTitle")}
+            description={t("vacationsPage.balanceDescription")}
+            emptyTitle={t("vacationsPage.selectEmployeeEmpty")}
+            emptyDescription={t("vacationsPage.selectEmployeeEmptyDescription")}
           />
         </div>
       ) : (
         <VacationBalancePanel
           balance={balanceQuery.data}
           isLoading={balanceQuery.isLoading}
-          title="Annual vacation balance"
-          description="Your yearly entitlement, carryover, consumed days, and remaining balance."
-          emptyTitle="No balance available"
-          emptyDescription="The backend has not returned a vacation balance yet."
+          title={t("vacationsPage.annualBalanceTitle")}
+          description={t("vacationsPage.annualBalanceDescription")}
+          emptyTitle={t("vacationsPage.noBalance")}
+          emptyDescription={t("vacationsPage.noBalanceDescription")}
         />
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle>{scope === "manage" ? "Vacation requests" : "My requests"}</CardTitle>
+          <CardTitle>{scope === "manage" ? t("vacationsPage.requestsTitleManage") : t("vacationsPage.requestsTitleSelf")}</CardTitle>
           <CardDescription>
             {scope === "manage"
-              ? "HR/Admin views use `/vacation/{year}` while employee self-service uses `/me/vacations`."
-              : "Your self-service vacation data is isolated to your own account."}
+              ? t("vacationsPage.requestsDescriptionManage")
+              : t("vacationsPage.requestsDescriptionSelf")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -322,26 +335,26 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {scope === "manage" ? <TableHead>Employee</TableHead> : null}
-                  <TableHead>Start</TableHead>
-                  <TableHead>End</TableHead>
-                  <TableHead>Days</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Paid</TableHead>
-                  {scope === "manage" ? <TableHead className="text-right">Actions</TableHead> : null}
+                  {scope === "manage" ? <TableHead>{t("common.employee")}</TableHead> : null}
+                  <TableHead>{t("vacationsPage.start")}</TableHead>
+                  <TableHead>{t("vacationsPage.end")}</TableHead>
+                  <TableHead>{t("vacationsPage.days")}</TableHead>
+                  <TableHead>{t("common.type")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("vacationsPage.paid")}</TableHead>
+                  {scope === "manage" ? <TableHead className="text-right">{t("common.actions")}</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredVacations.map((vacation) => (
                   <TableRow key={vacation.id}>
-                    {scope === "manage" ? <TableCell>{employeeMap[vacation.employee_id] || `Employee #${vacation.employee_id}`}</TableCell> : null}
+                    {scope === "manage" ? <TableCell>{employeeMap[vacation.employee_id] || t("labels.employeeId", { id: vacation.employee_id })}</TableCell> : null}
                     <TableCell>{formatDate(vacation.start_date)}</TableCell>
                     <TableCell>{formatDate(vacation.end_date)}</TableCell>
                     <TableCell>{daysBetween(vacation.start_date, vacation.end_date)}</TableCell>
                     <TableCell>{formatLabel(vacationTypeMap[Number(vacation.vacation_type)] || String(vacation.vacation_type))}</TableCell>
                     <TableCell><StatusBadge status={vacationStatusMap[Number(vacation.vacation_status)] || String(vacation.vacation_status)} /></TableCell>
-                    <TableCell>{vacation.is_paid ? "Yes" : "No"}</TableCell>
+                    <TableCell>{vacation.is_paid ? t("common.yes") : t("common.no")}</TableCell>
                     {scope === "manage" ? (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -357,7 +370,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                               })
                             }
                           >
-                            Approve
+                            {t("vacationsPage.approve")}
                           </Button>
                           <Button
                             size="sm"
@@ -371,7 +384,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                               })
                             }
                           >
-                            Reject
+                            {t("vacationsPage.reject")}
                           </Button>
                         </div>
                       </TableCell>
@@ -382,11 +395,11 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             </Table>
           ) : (
             <EmptyState
-              title={vacationsQuery.isLoading ? "Loading vacations..." : "No vacations found"}
+              title={vacationsQuery.isLoading ? t("vacationsPage.loadingVacations") : t("vacationsPage.noVacations")}
               description={
                 scope === "manage"
-                  ? "Try another year or create the first vacation entry."
-                  : "You have not requested vacation yet."
+                  ? t("vacationsPage.noVacationsManageDescription")
+                  : t("vacationsPage.noVacationsSelfDescription")
               }
             />
           )}
@@ -396,20 +409,20 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{scope === "manage" ? "Add vacation" : "Request vacation"}</DialogTitle>
+            <DialogTitle>{scope === "manage" ? t("vacationsPage.addVacation") : t("vacationsPage.requestVacation")}</DialogTitle>
             <DialogDescription>
               {scope === "manage"
-                ? "Create or stage a vacation record for an employee."
-                : "This form uses `/me/vacations/request` and never sends an arbitrary employee id."}
+                ? t("vacationsPage.dialogDescriptionManage")
+                : t("vacationsPage.dialogDescriptionSelf")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             {scope === "manage" ? (
               <div className="space-y-2">
-                <Label htmlFor="vacationEmployee">Employee</Label>
+                <Label htmlFor="vacationEmployee">{t("common.employee")}</Label>
                 <Select value={form.employee_id} onValueChange={(value) => setForm((current) => ({ ...current, employee_id: value }))}>
                   <SelectTrigger id="vacationEmployee">
-                    <SelectValue placeholder="Select employee" />
+                    <SelectValue placeholder={t("vacationsPage.selectEmployee")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(employeesQuery.data || []).map((employee) => (
@@ -422,18 +435,18 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               </div>
             ) : null}
             <div className="space-y-2">
-              <Label htmlFor="vacationStart">Start date</Label>
+              <Label htmlFor="vacationStart">{t("common.startDate")}</Label>
               <Input id="vacationStart" type="date" value={form.start_date} onChange={(event) => setForm((value) => ({ ...value, start_date: event.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vacationEnd">End date</Label>
+              <Label htmlFor="vacationEnd">{t("common.endDate")}</Label>
               <Input id="vacationEnd" type="date" value={form.end_date} onChange={(event) => setForm((value) => ({ ...value, end_date: event.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vacationType">Vacation type</Label>
+              <Label htmlFor="vacationType">{t("common.type")}</Label>
               <Select value={form.vacation_type} onValueChange={(value) => setForm((current) => ({ ...current, vacation_type: value }))}>
                 <SelectTrigger id="vacationType">
-                  <SelectValue placeholder="Select vacation type" />
+                  <SelectValue placeholder={t("vacationsPage.allVacationTypes")} />
                 </SelectTrigger>
                 <SelectContent>
                   {(vacationTypesQuery.data || []).map((type) => (
@@ -446,10 +459,10 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             </div>
             {scope === "manage" ? (
               <div className="space-y-2">
-                <Label htmlFor="vacationStatus">Vacation status</Label>
+                <Label htmlFor="vacationStatus">{t("vacationsPage.vacationStatus")}</Label>
                 <Select value={form.vacation_status || String(pendingStatusId ?? "")} onValueChange={(value) => setForm((current) => ({ ...current, vacation_status: value }))}>
                   <SelectTrigger id="vacationStatus">
-                    <SelectValue placeholder="Select vacation status" />
+                    <SelectValue placeholder={t("vacationsPage.vacationStatus")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(vacationStatusesQuery.data || []).map((status) => (
@@ -462,16 +475,16 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               </div>
             ) : null}
             <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
-              Paid vacation
+              {t("vacationsPage.paidVacation")}
               <input type="checkbox" checked={form.is_paid} onChange={(event) => setForm((value) => ({ ...value, is_paid: event.target.checked }))} />
             </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRequestOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={() => createVacation.mutate()} disabled={createVacation.isPending}>
-              {createVacation.isPending ? "Saving..." : scope === "manage" ? "Create vacation" : "Request vacation"}
+              {createVacation.isPending ? t("common.saving") : scope === "manage" ? t("vacationsPage.addVacation") : t("vacationsPage.requestVacation")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -480,15 +493,15 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       <AlertDialog open={Boolean(actionState.vacationId)} onOpenChange={(open) => !open && setActionState({ vacationId: null, statusId: null, label: "" })}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{formatLabel(actionState.label)} vacation</AlertDialogTitle>
+            <AlertDialogTitle>{formatLabel(actionState.label)} {t("vacationsPage.vacationNoun")}</AlertDialogTitle>
             <AlertDialogDescription>
               {actionState.label === "reject"
-                ? "The backend update schema does not include a rejection reason field, so this action only changes the status."
-                : "This updates the vacation status using the backend vacation update endpoint."}
+                ? t("vacationsPage.actionDescriptionReject")
+                : t("vacationsPage.actionDescriptionDefault")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() =>
                 actionState.vacationId &&
@@ -499,7 +512,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 })
               }
             >
-              Confirm
+              {t("common.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

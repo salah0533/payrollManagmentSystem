@@ -11,6 +11,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { vacationApi } from "@/services/vacationApi";
 import type { AnnualVacationEntitlement } from "@/types/domain";
 import { toast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 type EditableEntitlementRow = {
   local_id: string;
@@ -33,6 +34,7 @@ export function AnnualVacationEntitlements({
 }: {
   employeeId: number;
 }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<EditableEntitlementRow[]>([]);
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
@@ -109,24 +111,24 @@ export function AnnualVacationEntitlements({
 
     if (!Number.isInteger(year) || year < 1900 || year > 3000) {
       toast({
-        title: "Invalid entitlement year",
-        description: "Please enter a valid 4-digit year.",
+        title: t("annualEntitlements.invalidYear"),
+        description: t("annualEntitlements.invalidYearDescription"),
         variant: "destructive",
       });
       return;
     }
     if (!Number.isInteger(allowedDays) || allowedDays <= 0) {
       toast({
-        title: "Invalid annual days",
-        description: "Annual vacation days must be greater than zero.",
+        title: t("annualEntitlements.invalidDays"),
+        description: t("annualEntitlements.invalidDaysDescription"),
         variant: "destructive",
       });
       return;
     }
     if (rows.filter((item) => item.year.trim() === String(year)).length > 1) {
       toast({
-        title: "Duplicate year",
-        description: "Each employee can only have one annual entitlement row per year.",
+        title: t("annualEntitlements.duplicateYear"),
+        description: t("annualEntitlements.duplicateYearDescription"),
         variant: "destructive",
       });
       return;
@@ -159,14 +161,14 @@ export function AnnualVacationEntitlements({
       }
 
       toast({
-        title: "Entitlement saved",
-        description: `Annual vacation days for ${year} were updated.`,
+        title: t("annualEntitlements.saveSuccess"),
+        description: t("annualEntitlements.saveSuccessDescription", { year }),
       });
       await refreshLeaveData();
     } catch (error) {
       toast({
-        title: "Unable to save entitlement",
-        description: getErrorMessage(error, "Please review the year and allowed days."),
+        title: t("annualEntitlements.saveError"),
+        description: getErrorMessage(error, t("annualEntitlements.saveErrorDescription")),
         variant: "destructive",
       });
     } finally {
@@ -187,14 +189,14 @@ export function AnnualVacationEntitlements({
         year: row.persisted_year,
       });
       toast({
-        title: "Entitlement deleted",
-        description: `The ${row.persisted_year} entitlement row was removed.`,
+        title: t("annualEntitlements.deleteSuccess"),
+        description: t("annualEntitlements.deleteSuccessDescription", { year: row.persisted_year }),
       });
       await refreshLeaveData();
     } catch (error) {
       toast({
-        title: "Unable to delete entitlement",
-        description: getErrorMessage(error, "The entitlement row could not be removed."),
+        title: t("annualEntitlements.deleteError"),
+        description: getErrorMessage(error, t("annualEntitlements.deleteErrorDescription")),
         variant: "destructive",
       });
     } finally {
@@ -207,32 +209,32 @@ export function AnnualVacationEntitlements({
       <div className="rounded-lg border border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className="font-medium">Yearly annual vacation entitlements</p>
+            <p className="font-medium">{t("annualEntitlements.title")}</p>
             <p className="text-sm text-muted-foreground">
-              These rows are the source of truth for this employee&apos;s yearly allowance. If no rows exist yet, the bootstrap default above is used.
+              {t("annualEntitlements.description")}
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={addRow}>
             <Plus className="h-4 w-4" />
-            Add year
+            {t("annualEntitlements.addYear")}
           </Button>
         </div>
 
         <div className="mt-4 overflow-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Year</TableHead>
-                <TableHead>Annual days</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
+                <TableRow>
+                  <TableHead>{t("annualEntitlements.year")}</TableHead>
+                  <TableHead>{t("annualEntitlements.annualDays")}</TableHead>
+                  <TableHead className="text-right">{t("common.actions")}</TableHead>
+                </TableRow>
             </TableHeader>
             <TableBody>
               {sortedRows.length ? (
                 sortedRows.map((row) => (
                   <TableRow key={row.local_id}>
                     <TableCell>
-                      <Label className="sr-only" htmlFor={`entitlement-year-${row.local_id}`}>Year</Label>
+                      <Label className="sr-only" htmlFor={`entitlement-year-${row.local_id}`}>{t("annualEntitlements.year")}</Label>
                       <Input
                         id={`entitlement-year-${row.local_id}`}
                         type="number"
@@ -243,7 +245,7 @@ export function AnnualVacationEntitlements({
                       />
                     </TableCell>
                     <TableCell>
-                      <Label className="sr-only" htmlFor={`entitlement-days-${row.local_id}`}>Annual days</Label>
+                      <Label className="sr-only" htmlFor={`entitlement-days-${row.local_id}`}>{t("annualEntitlements.annualDays")}</Label>
                       <Input
                         id={`entitlement-days-${row.local_id}`}
                         type="number"
@@ -261,7 +263,7 @@ export function AnnualVacationEntitlements({
                           disabled={savingRowId === row.local_id}
                           onClick={() => saveRow(row)}
                         >
-                          {savingRowId === row.local_id ? "Saving..." : "Save"}
+                          {savingRowId === row.local_id ? t("common.saving") : t("common.save")}
                         </Button>
                         <Button
                           type="button"
@@ -279,7 +281,7 @@ export function AnnualVacationEntitlements({
               ) : (
                 <TableRow>
                   <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
-                    {entitlementsQuery.isLoading ? "Loading yearly entitlements..." : "No yearly entitlements configured yet."}
+                    {entitlementsQuery.isLoading ? t("annualEntitlements.loading") : t("annualEntitlements.empty")}
                   </TableCell>
                 </TableRow>
               )}
@@ -291,10 +293,10 @@ export function AnnualVacationEntitlements({
       <VacationBalancePanel
         balance={balanceQuery.data}
         isLoading={balanceQuery.isLoading}
-        title="Annual vacation balance"
-        description="Live balance from the backend after employee-specific entitlement and carryover rules are applied."
-        emptyTitle="No balance available"
-        emptyDescription="Save an employee and add yearly entitlement rows to see the balance ledger."
+        title={t("vacationsPage.annualBalanceTitle")}
+        description={t("annualEntitlements.balanceDescription")}
+        emptyTitle={t("vacationsPage.noBalance")}
+        emptyDescription={t("annualEntitlements.balanceEmptyDescription")}
       />
     </div>
   );

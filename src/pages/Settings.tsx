@@ -308,8 +308,8 @@ export default function Settings() {
                 ["late_deduction_enabled", t("settings.toggles.lateDeductionEnabled")],
                 ["auto_recalculate_draft_payroll", t("settings.toggles.autoRecalculateDraftPayroll")],
                 ["lock_payroll_after_payment", t("settings.toggles.lockPayrollAfterPayment")],
-                ["allow_vacation_carryover", "Allow annual vacation carryover"],
-                ["reserve_vacation_days_on_pending", "Pending vacation requests reserve days"],
+                ["allow_vacation_carryover", t("settings.toggles.allowVacationCarryover")],
+                ["reserve_vacation_days_on_pending", t("settings.toggles.reserveVacationDaysOnPending")],
               ].map(([field, label]) => (
                 <div key={field} className="flex items-center justify-between rounded-lg border border-border p-3">
                   <span className="text-sm">{label}</span>
@@ -323,7 +323,7 @@ export default function Settings() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="maxCarryoverDays">Maximum carryover days</Label>
+                <Label htmlFor="maxCarryoverDays">{t("settings.maxCarryoverDays")}</Label>
                 <Input
                   id="maxCarryoverDays"
                   type="number"
@@ -340,7 +340,7 @@ export default function Settings() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="carryoverExpiryMonth">Carryover expiry month</Label>
+                  <Label htmlFor="carryoverExpiryMonth">{t("settings.carryoverExpiryMonth")}</Label>
                   <Input
                     id="carryoverExpiryMonth"
                     type="number"
@@ -357,7 +357,7 @@ export default function Settings() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="carryoverExpiryDay">Carryover expiry day</Label>
+                  <Label htmlFor="carryoverExpiryDay">{t("settings.carryoverExpiryDay")}</Label>
                   <Input
                     id="carryoverExpiryDay"
                     type="number"

@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 
 import { getCurrentLanguage, getLocaleTag } from "@/lib/i18n";
+import i18n from "@/lib/i18n";
 
 const CURRENCY_STORAGE_KEY = "payroll_default_currency";
 let defaultCurrency =
@@ -113,9 +114,19 @@ export function formatLabel(value?: string | null) {
     return "-";
   }
 
-  return value
+  const normalized = String(value).trim().toLowerCase();
+  const translationKey = `labels.code.${normalized}`;
+  if (i18n.exists(translationKey)) {
+    return i18n.t(translationKey);
+  }
+
+  return String(value)
     .replace(/_/g, " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export function formatBooleanLabel(value?: boolean | null) {
+  return value ? i18n.t("labels.boolean.yes", { defaultValue: "Yes" }) : i18n.t("labels.boolean.no", { defaultValue: "No" });
 }
 
 export function toIsoDate(date: Date) {

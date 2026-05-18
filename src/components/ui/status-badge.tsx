@@ -36,40 +36,10 @@ const statusStyles: Record<string, string> = {
   vacation: "bg-cyan-100 text-cyan-700",
 };
 
-const statusLabels: Record<string, string> = {
-  active: "Active",
-  inactive: "Inactive",
-  suspended: "Suspended",
-  pending: "Pending",
-  approved: "Approved",
-  partially_paid: "Partially Paid",
-  rejected: "Rejected",
-  cancelled: "Cancelled",
-  canceled: "Cancelled",
-  present: "Present",
-  late: "Late",
-  absent: "Absent",
-  vacation: "Vacation",
-  paid: "Paid",
-  overtime: "Overtime",
-  paid_vacation: "Paid Vacation",
-  unpaid_vacation: "Unpaid Vacation",
-  sick_leave: "Sick Leave",
-  weekly_off: "Weekly Off",
-  holiday: "Holiday",
-  incomplete: "Incomplete",
-  draft: "Draft",
-  needs_review: "Needs Review",
-  locked: "Locked",
-  normal: "Normal",
-  high: "High",
-  low: "Low",
-};
-
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <span className={cn("status-badge shadow-sm ring-1 ring-inset ring-current/10", statusStyles[status] || "bg-muted text-muted-foreground", className)}>
-      {statusLabels[status] || formatLabel(status)}
+      {formatLabel(status)}
     </span>
   );
 }

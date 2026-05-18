@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { AlertTriangle, CalendarCheck2, CheckCircle2, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { MetricCard } from "@/components/app/MetricCard";
@@ -45,22 +46,9 @@ import type { AttendanceDay, AttendanceReviewPayload } from "@/types/domain";
 type AttendanceField = "check_in_time" | "break_start_time" | "break_end_time" | "check_out_time";
 type CorrectionMode = "manual" | "smart";
 
-const correctionFields: { value: AttendanceField; label: string }[] = [
-  { value: "check_in_time", label: "Check in" },
-  { value: "break_start_time", label: "Break start" },
-  { value: "break_end_time", label: "Break end" },
-  { value: "check_out_time", label: "Check out" },
-];
+const correctionFields: AttendanceField[] = ["check_in_time", "break_start_time", "break_end_time", "check_out_time"];
 
-const issueFilters = [
-  { value: "missing_check_in", label: "Missing check-in" },
-  { value: "missing_check_out", label: "Missing check-out" },
-  { value: "late", label: "Late beyond grace" },
-  { value: "absent", label: "Absence" },
-  { value: "corrected", label: "Manual correction" },
-  { value: "needs_review", label: "Needs review" },
-  { value: "approved", label: "Approved" },
-] as const;
+const issueFilters = ["missing_check_in", "missing_check_out", "late", "absent", "corrected", "needs_review", "approved"] as const;
 
 function rowKey(row: Pick<AttendanceDay, "employee_id" | "work_date">) {
   return `${row.employee_id}:${row.work_date}`;
@@ -112,6 +100,7 @@ function matchesIssueFilter(row: AttendanceDay, issueFilter: string) {
 export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const canCorrect = hasPermission(currentUser, "attendance.correct");
   const canReview = hasPermission(currentUser, "attendance.approve");
   const canRecalculate = hasPermission(currentUser, "attendance.recalculate");
@@ -265,6 +254,15 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const correctionLocked = isAttendanceLocked(editingAttendance);
   const affectedEmployees = employeesQuery.data || [];
   const canSubmitBulk = bulkForm.reason.trim().length >= 5 && bulkForm.confirmation.trim().toUpperCase() === "GENERATE";
+  const dayLabels = [
+    t("settings.days.monday"),
+    t("settings.days.tuesday"),
+    t("settings.days.wednesday"),
+    t("settings.days.thursday"),
+    t("settings.days.friday"),
+    t("settings.days.saturday"),
+    t("settings.days.sunday"),
+  ];
   const pendingManualCorrectionValues = useMemo(
     () =>
       buildManualCorrectionValues(
@@ -300,8 +298,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     mutationFn: () => attendanceApi.markAllPresent(dateFilter),
     onSuccess: async (result) => {
       toast({
-        title: "Scheduled attendance generated",
-        description: `Created ${result.created || 0}, updated ${result.updated || 0} records. Keep the reason in your operational notes; this backend endpoint does not store it.`,
+        title: t("attendancePage.generatedSuccess"),
+        description: t("attendancePage.generatedSuccessDescription", {
+          created: result.created || 0,
+          updated: result.updated || 0,
+        }),
       });
       setBulkDialogOpen(false);
       setBulkForm({ reason: "", confirmation: "" });
@@ -310,8 +311,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to generate attendance",
-        description: getErrorMessage(error, "The backend rejected the mark-all-present request."),
+        title: t("attendancePage.generateError"),
+        description: getErrorMessage(error, t("attendancePage.generateErrorDescription")),
         variant: "destructive",
       });
     },
@@ -344,7 +345,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       });
     },
     onSuccess: async () => {
-      toast({ title: "Attendance corrected", description: "The correction was audited and the attendance day was recalculated." });
+      toast({ title: t("attendancePage.correctedSuccess"), description: t("attendancePage.correctedSuccessDescription") });
       setCorrectionOpen(false);
       setEditingAttendance(null);
       await refreshManageAttendance();
@@ -353,8 +354,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to save correction",
-        description: getErrorMessage(error, "Please review the correction details."),
+        title: t("attendancePage.correctionError"),
+        description: getErrorMessage(error, t("attendancePage.correctionErrorDescription")),
         variant: "destructive",
       });
     },
@@ -368,7 +369,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       return attendanceApi.deleteDay(Number(correctionForm.employee_id), correctionForm.work_date);
     },
     onSuccess: async () => {
-      toast({ title: "Attendance deleted", description: "The attendance day was removed." });
+      toast({ title: t("attendancePage.deletedSuccess"), description: t("attendancePage.deletedSuccessDescription") });
       setCorrectionOpen(false);
       setEditingAttendance(null);
       await refreshManageAttendance();
@@ -376,8 +377,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to delete attendance",
-        description: getErrorMessage(error, "The backend rejected the delete request."),
+        title: t("attendancePage.deleteError"),
+        description: getErrorMessage(error, t("attendancePage.deleteErrorDescription")),
         variant: "destructive",
       });
     },
@@ -388,8 +389,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       attendanceApi.recalculate(employeeId, workDate, workDate),
     onSuccess: async (result) => {
       toast({
-        title: "Attendance recalculated",
-        description: `Recalculated ${result.recalculated_days} day(s) for employee ${result.employee_id}.`,
+        title: t("attendancePage.recalculatedSuccess"),
+        description: t("attendancePage.recalculatedSuccessDescription", {
+          count: result.recalculated_days,
+          employeeId: result.employee_id,
+        }),
       });
       await refreshManageAttendance();
       await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
@@ -398,8 +402,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to recalculate attendance",
-        description: getErrorMessage(error, "The backend rejected the recalculation request."),
+        title: t("attendancePage.recalculateError"),
+        description: getErrorMessage(error, t("attendancePage.recalculateErrorDescription")),
         variant: "destructive",
       });
     },
@@ -409,14 +413,14 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     mutationFn: ({ row, review_status, note }: { row: AttendanceDay; review_status: AttendanceReviewPayload["review_status"]; note?: string }) =>
       attendanceApi.reviewDay(row.employee_id, row.work_date, { review_status, note }),
     onSuccess: async (_, variables) => {
-      toast({ title: "Attendance review updated", description: `Review status set to ${formatLabel(variables.review_status)}.` });
+      toast({ title: t("attendancePage.reviewUpdated"), description: t("attendancePage.reviewUpdatedDescription", { status: formatLabel(variables.review_status) }) });
       await refreshManageAttendance();
       await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
     },
     onError: (error) => {
       toast({
-        title: "Unable to update review status",
-        description: getErrorMessage(error, "The backend rejected the attendance review request."),
+        title: t("attendancePage.reviewUpdateError"),
+        description: getErrorMessage(error, t("attendancePage.reviewUpdateErrorDescription")),
         variant: "destructive",
       });
     },
@@ -429,21 +433,20 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
         rows.map((row) =>
           attendanceApi.reviewDay(row.employee_id, row.work_date, {
             review_status: "approved",
-            note: "Approved from attendance review queue.",
           }),
         ),
       );
       return rows.length;
     },
     onSuccess: async (count) => {
-      toast({ title: "Selected attendance approved", description: `${count} day(s) were approved.` });
+      toast({ title: t("attendancePage.selectedApproved"), description: t("attendancePage.selectedApprovedDescription", { count }) });
       setSelectedRowKeys([]);
       await refreshManageAttendance();
     },
     onError: (error) => {
       toast({
-        title: "Unable to approve selected days",
-        description: getErrorMessage(error, "The backend rejected one or more review requests."),
+        title: t("attendancePage.selectedApproveError"),
+        description: getErrorMessage(error, t("attendancePage.selectedApproveErrorDescription")),
         variant: "destructive",
       });
     },
@@ -461,11 +464,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title={scope === "manage" ? "Attendance Review" : "My Attendance"}
+        title={scope === "manage" ? t("attendancePage.manageTitle") : t("attendancePage.selfTitle")}
         description={
           scope === "manage"
-            ? "Review attendance days, correct audited records, approve timesheets, and keep payroll-impacting changes visible."
-            : "Review your attendance history and worked time."
+            ? t("attendancePage.manageDescription")
+            : t("attendancePage.selfDescription")
         }
         actions={
           scope === "manage" ? (
@@ -473,7 +476,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               <Input className="w-40" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
               <Button variant="outline" onClick={() => setBulkDialogOpen(true)} disabled={!canCorrect}>
                 <CalendarCheck2 className="mr-2 h-4 w-4" />
-                Generate scheduled attendance
+                {t("attendancePage.generateScheduled")}
               </Button>
             </>
           ) : null
@@ -483,27 +486,27 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       {scope === "manage" ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-            <MetricCard label="Present" value={manageStats.present} icon={CheckCircle2} tone="success" />
-            <MetricCard label="Late" value={manageStats.late} icon={RotateCcw} tone="warning" />
-            <MetricCard label="Incomplete" value={manageStats.incomplete} icon={AlertTriangle} tone="info" />
-            <MetricCard label="Absent" value={manageStats.absent} icon={AlertTriangle} tone="danger" />
-            <MetricCard label="Needs review" value={manageStats.needsReview} icon={ShieldCheck} tone="warning" />
-            <MetricCard label="Locked" value={manageStats.locked} icon={ShieldCheck} tone="info" />
+            <MetricCard label={t("attendancePage.metrics.present")} value={manageStats.present} icon={CheckCircle2} tone="success" />
+            <MetricCard label={t("attendancePage.metrics.late")} value={manageStats.late} icon={RotateCcw} tone="warning" />
+            <MetricCard label={t("attendancePage.metrics.incomplete")} value={manageStats.incomplete} icon={AlertTriangle} tone="info" />
+            <MetricCard label={t("attendancePage.metrics.absent")} value={manageStats.absent} icon={AlertTriangle} tone="danger" />
+            <MetricCard label={t("attendancePage.metrics.needsReview")} value={manageStats.needsReview} icon={ShieldCheck} tone="warning" />
+            <MetricCard label={t("attendancePage.metrics.locked")} value={manageStats.locked} icon={ShieldCheck} tone="info" />
           </div>
 
           <Card className="filter-card">
             <CardHeader>
-              <CardTitle>Attendance review queue</CardTitle>
-              <CardDescription>Filter payroll-impacting issues before approving attendance days.</CardDescription>
+              <CardTitle>{t("attendancePage.reviewQueueTitle")}</CardTitle>
+              <CardDescription>{t("attendancePage.reviewQueueDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Input placeholder="Search employee" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input placeholder={t("attendancePage.searchEmployee")} value={search} onChange={(event) => setSearch(event.target.value)} />
               <Select value={statusFilter || "all"} onValueChange={(value) => setStatusFilter(value === "all" ? "" : value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All attendance statuses" />
+                  <SelectValue placeholder={t("attendancePage.allAttendanceStatuses")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All attendance statuses</SelectItem>
+                  <SelectItem value="all">{t("attendancePage.allAttendanceStatuses")}</SelectItem>
                   {attendanceStatuses.map((status) => (
                     <SelectItem key={status} value={status}>
                       {formatLabel(status)}
@@ -513,10 +516,10 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               </Select>
               <Select value={reviewFilter || "all"} onValueChange={(value) => setReviewFilter(value === "all" ? "" : value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All review statuses" />
+                  <SelectValue placeholder={t("attendancePage.allReviewStatuses")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All review statuses</SelectItem>
+                  <SelectItem value="all">{t("attendancePage.allReviewStatuses")}</SelectItem>
                   {attendanceReviewStatuses.map((status) => (
                     <SelectItem key={status} value={status}>
                       {formatLabel(status)}
@@ -526,13 +529,13 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               </Select>
               <Select value={issueFilter || "all"} onValueChange={(value) => setIssueFilter(value === "all" ? "" : value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All review issues" />
+                  <SelectValue placeholder={t("attendancePage.allReviewIssues")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All review issues</SelectItem>
+                  <SelectItem value="all">{t("attendancePage.allReviewIssues")}</SelectItem>
                   {issueFilters.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
+                    <SelectItem key={item} value={item}>
+                      {formatLabel(item)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -544,8 +547,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle>Daily attendance</CardTitle>
-                  <CardDescription>Daily AttendanceDay records for the selected date.</CardDescription>
+                  <CardTitle>{t("attendancePage.dailyTitle")}</CardTitle>
+                  <CardDescription>{t("attendancePage.dailyDescription")}</CardDescription>
                 </div>
                 <Button
                   variant="outline"
@@ -553,7 +556,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   onClick={() => approveSelectedAttendance.mutate()}
                 >
                   <ShieldCheck className="mr-2 h-4 w-4" />
-                  Approve selected ({selectedRows.length})
+                  {t("attendancePage.approveSelected", { count: selectedRows.length })}
                 </Button>
               </div>
             </CardHeader>
@@ -566,18 +569,18 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                         <Checkbox
                           checked={selectedRows.length > 0 && selectedRows.length === filteredDailyRows.length}
                           onCheckedChange={(checked) => toggleAllSelection(Boolean(checked))}
-                          aria-label="Select all attendance rows"
+                          aria-label={t("attendancePage.selectAllRows")}
                         />
                       </TableHead>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Check in</TableHead>
-                      <TableHead>Break</TableHead>
-                      <TableHead>Check out</TableHead>
-                      <TableHead>Worked</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Review</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>{t("common.employee")}</TableHead>
+                      <TableHead>{t("common.startDate")}</TableHead>
+                      <TableHead>{formatLabel("check_in")}</TableHead>
+                      <TableHead>{t("attendancePage.break")}</TableHead>
+                      <TableHead>{formatLabel("check_out")}</TableHead>
+                      <TableHead>{t("attendancePage.worked")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
+                      <TableHead>{t("attendancePage.review")}</TableHead>
+                      <TableHead className="text-right">{t("common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -597,7 +600,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <p className="font-medium">{employee?.full_name || `Employee #${row.employee_id}`}</p>
+                              <p className="font-medium">{employee?.full_name || t("labels.employeeId", { id: row.employee_id })}</p>
                               <p className="text-xs text-muted-foreground">{employee?.position || "-"}</p>
                             </div>
                           </TableCell>
@@ -613,7 +616,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           <TableCell>
                             <div className="flex flex-wrap gap-1">
                               <StatusBadge status={row.status} />
-                              {row.is_manually_corrected ? <Badge variant="outline">Corrected</Badge> : null}
+                              {row.is_manually_corrected ? <Badge variant="outline">{t("attendancePage.corrected")}</Badge> : null}
                             </div>
                           </TableCell>
                           <TableCell><StatusBadge status={getAttendanceReviewStatus(row)} /></TableCell>
@@ -625,7 +628,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                                 disabled={!canCorrect || locked}
                                 onClick={() => openAttendanceEditor(row, row.employee_id, row.work_date)}
                               >
-                                Correct
+                                {t("attendancePage.correct")}
                               </Button>
                               <Button
                                 size="sm"
@@ -633,15 +636,15 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                                 disabled={!canRecalculate || locked}
                                 onClick={() => recalculateAttendance.mutate({ employeeId: row.employee_id, workDate: row.work_date })}
                               >
-                                Recalculate
+                                {t("attendancePage.recalculate")}
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 disabled={!canReview || locked || getAttendanceReviewStatus(row) === "approved"}
-                                onClick={() => reviewAttendance.mutate({ row, review_status: "approved", note: "Approved from daily attendance review." })}
+                                onClick={() => reviewAttendance.mutate({ row, review_status: "approved" })}
                               >
-                                Approve
+                                {t("attendancePage.approve")}
                               </Button>
                             </div>
                           </TableCell>
@@ -652,8 +655,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                 </Table>
               ) : (
                 <EmptyState
-                  title={dailyAttendanceQuery.isLoading ? "Loading attendance..." : "No attendance rows found"}
-                  description="Try another date or adjust the review filters."
+                  title={dailyAttendanceQuery.isLoading ? t("attendancePage.loadingAttendance") : t("attendancePage.noAttendanceRows")}
+                  description={t("attendancePage.noAttendanceRowsDescription")}
                 />
               )}
             </CardContent>
@@ -661,16 +664,16 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
 
           <Card className="filter-card">
             <CardHeader>
-              <CardTitle>Monthly timesheet view</CardTitle>
-              <CardDescription>Select an employee and month to review daily status, paid time, overtime, and review state.</CardDescription>
+              <CardTitle>{t("attendancePage.monthlyTitle")}</CardTitle>
+              <CardDescription>{t("attendancePage.monthlyDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
                 <div className="space-y-2">
-                  <Label htmlFor="historyEmployee">Employee</Label>
+                  <Label htmlFor="historyEmployee">{t("common.employee")}</Label>
                   <Select value={selectedHistoryEmployeeId} onValueChange={setHistoryEmployeeId}>
                     <SelectTrigger id="historyEmployee">
-                      <SelectValue placeholder="Select employee" />
+                      <SelectValue placeholder={t("vacationsPage.selectEmployee")} />
                     </SelectTrigger>
                     <SelectContent>
                       {(employeesQuery.data || []).map((employee) => (
@@ -682,13 +685,13 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="historyMonth">Month</Label>
+                  <Label htmlFor="historyMonth">{t("attendancePage.month")}</Label>
                   <Input id="historyMonth" type="month" value={historyMonth} onChange={(event) => setHistoryMonth(event.target.value)} />
                 </div>
               </div>
 
               <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase text-muted-foreground">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                {dayLabels.map((day) => (
                   <div key={day}>{day}</div>
                 ))}
               </div>
@@ -710,14 +713,14 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                     >
                       <span className="text-sm font-semibold">{format(day, "d")}</span>
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">No record</span>}
+                        {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">{t("common.noRecord")}</span>}
                         {row ? <StatusBadge status={getAttendanceReviewStatus(row)} className="text-[10px]" /> : null}
                       </div>
                       {row ? (
                         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                           <p>{formatTime(row.check_in_time)} - {formatTime(row.check_out_time)}</p>
-                          <p>Paid {formatMinutes(row.normal_paid_minutes)} / unpaid {formatMinutes(row.unpaid_minutes)}</p>
-                          <p>OT {formatMinutes(row.overtime_minutes)}{row.is_manually_corrected ? " / corrected" : ""}</p>
+                          <p>{t("attendancePage.paidUnpaid", { paid: formatMinutes(row.normal_paid_minutes), unpaid: formatMinutes(row.unpaid_minutes) })}</p>
+                          <p>{t("attendancePage.overtimeLine", { overtime: formatMinutes(row.overtime_minutes) })}{row.is_manually_corrected ? ` / ${t("attendancePage.corrected").toLowerCase()}` : ""}</p>
                         </div>
                       ) : null}
                     </button>
@@ -726,7 +729,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               </div>
               {!selectedHistoryEmployeeId || employeeHistoryQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">
-                  {employeeHistoryQuery.isLoading ? "Loading monthly attendance..." : "Select an employee to load the calendar."}
+                  {employeeHistoryQuery.isLoading ? t("attendancePage.loadingMonthly") : t("attendancePage.selectEmployeeToLoad")}
                 </p>
               ) : null}
             </CardContent>
@@ -735,15 +738,15 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-3">
-            <MetricCard label="Tracked days" value={selfRows.length} icon={CheckCircle2} tone="success" />
-            <MetricCard label="Worked time" value={formatMinutes(selfStats.worked)} icon={RotateCcw} tone="info" />
-            <MetricCard label="Late / incomplete" value={`${selfStats.lateDays} / ${selfStats.missedCheckout}`} icon={RotateCcw} tone="warning" />
+            <MetricCard label={t("attendancePage.metrics.trackedDays")} value={selfRows.length} icon={CheckCircle2} tone="success" />
+            <MetricCard label={t("attendancePage.metrics.workedTime")} value={formatMinutes(selfStats.worked)} icon={RotateCcw} tone="info" />
+            <MetricCard label={t("attendancePage.metrics.lateIncomplete")} value={`${selfStats.lateDays} / ${selfStats.missedCheckout}`} icon={RotateCcw} tone="warning" />
           </div>
 
           <Card className="filter-card">
             <CardHeader>
-              <CardTitle>Date range</CardTitle>
-              <CardDescription>Choose the dates you want to review.</CardDescription>
+              <CardTitle>{t("attendancePage.dateRangeTitle")}</CardTitle>
+              <CardDescription>{t("attendancePage.dateRangeDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <Input type="date" value={range.start_date} onChange={(event) => setRange((value) => ({ ...value, start_date: event.target.value }))} />
@@ -753,19 +756,19 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Attendance history</CardTitle>
+              <CardTitle>{t("attendancePage.historyTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               {selfRows.length ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Check in</TableHead>
-                      <TableHead>Check out</TableHead>
-                      <TableHead>Worked</TableHead>
-                      <TableHead>Late</TableHead>
+                      <TableHead>{t("common.startDate")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
+                      <TableHead>{formatLabel("check_in")}</TableHead>
+                      <TableHead>{formatLabel("check_out")}</TableHead>
+                      <TableHead>{t("attendancePage.worked")}</TableHead>
+                      <TableHead>{formatLabel("late")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -783,8 +786,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                 </Table>
               ) : (
                 <EmptyState
-                  title={selfAttendanceQuery.isLoading ? "Loading your attendance..." : "No attendance records yet"}
-                  description="Change the date range or use the self-service attendance actions from the employee home page."
+                  title={selfAttendanceQuery.isLoading ? t("attendancePage.loadingSelfAttendance") : t("attendancePage.noSelfAttendance")}
+                  description={t("attendancePage.noSelfAttendanceDescription")}
                 />
               )}
             </CardContent>
@@ -795,16 +798,16 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Generate scheduled attendance</DialogTitle>
+            <DialogTitle>{t("attendancePage.generateScheduled")}</DialogTitle>
             <DialogDescription>
-              Preview the employees affected before calling the existing mark-all-present endpoint for {formatDate(dateFilter)}.
+              {t("attendancePage.bulkDescription", { date: formatDate(dateFilter) })}
             </DialogDescription>
           </DialogHeader>
           <Alert>
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Bulk payroll-impacting action</AlertTitle>
+            <AlertTitle>{t("attendancePage.bulkAlertTitle")}</AlertTitle>
             <AlertDescription>
-              This endpoint creates or updates attendance for the selected date. The confirmation reason is required in the UI, but the current backend endpoint does not persist it.
+              {t("attendancePage.bulkAlertDescription")}
             </AlertDescription>
           </Alert>
           <div className="max-h-48 overflow-y-auto rounded border border-border p-3 text-sm">
@@ -816,23 +819,23 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                 </div>
               ))
             ) : (
-              <p className="text-muted-foreground">No employees loaded for preview.</p>
+              <p className="text-muted-foreground">{t("attendancePage.noEmployeesPreview")}</p>
             )}
           </div>
           <div className="grid gap-4">
             <div className="space-y-2">
-              <Label htmlFor="bulkReason">Reason</Label>
+              <Label htmlFor="bulkReason">{t("attendancePage.reason")}</Label>
               <Textarea id="bulkReason" value={bulkForm.reason} onChange={(event) => setBulkForm((value) => ({ ...value, reason: event.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="bulkConfirmation">Type GENERATE to confirm</Label>
+              <Label htmlFor="bulkConfirmation">{t("attendancePage.typeGenerateToConfirm")}</Label>
               <Input id="bulkConfirmation" value={bulkForm.confirmation} onChange={(event) => setBulkForm((value) => ({ ...value, confirmation: event.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>{t("common.cancel")}</Button>
             <Button onClick={() => markAllPresent.mutate()} disabled={!canSubmitBulk || markAllPresent.isPending}>
-              {markAllPresent.isPending ? "Generating..." : "Generate attendance"}
+              {markAllPresent.isPending ? t("attendancePage.generating") : t("attendancePage.generateAttendance")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -847,63 +850,63 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       >
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Attendance correction</DialogTitle>
+            <DialogTitle>{t("attendancePage.correctionTitle")}</DialogTitle>
             <DialogDescription>
-              {selectedCorrectionEmployee?.full_name || `Employee #${correctionForm.employee_id}`} on {formatDate(correctionForm.work_date)}
+              {selectedCorrectionEmployee?.full_name || t("labels.employeeId", { id: correctionForm.employee_id })} {t("attendancePage.onDate", { date: formatDate(correctionForm.work_date) })}
             </DialogDescription>
           </DialogHeader>
           <Alert>
             <ShieldCheck className="h-4 w-4" />
-            <AlertTitle>This is an HR/Admin correction, not an employee punch.</AlertTitle>
-            <AlertDescription>Corrections are audited and can affect attendance review, discrepancies, and payroll recalculation.</AlertDescription>
+            <AlertTitle>{t("attendancePage.correctionAlertTitle")}</AlertTitle>
+            <AlertDescription>{t("attendancePage.correctionAlertDescription")}</AlertDescription>
           </Alert>
           {correctionLocked ? (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Locked attendance day</AlertTitle>
-              <AlertDescription>Locked attendance cannot be corrected, recalculated, or deleted from the frontend.</AlertDescription>
+              <AlertTitle>{t("attendancePage.lockedTitle")}</AlertTitle>
+              <AlertDescription>{t("attendancePage.lockedDescription")}</AlertDescription>
             </Alert>
           ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border p-3">
-              <p className="text-xs text-muted-foreground">Status</p>
+              <p className="text-xs text-muted-foreground">{t("common.status")}</p>
               <div className="mt-1"><StatusBadge status={editingAttendance?.status || "no_record"} /></div>
             </div>
             <div className="rounded-lg border border-border p-3">
-              <p className="text-xs text-muted-foreground">Review</p>
+              <p className="text-xs text-muted-foreground">{t("attendancePage.review")}</p>
               <div className="mt-1"><StatusBadge status={getAttendanceReviewStatus(editingAttendance)} /></div>
             </div>
             <div className="rounded-lg border border-border p-3">
-              <p className="text-xs text-muted-foreground">Payroll impact preview</p>
-              <p className="font-medium">{formatMinutes(editingAttendance?.normal_paid_minutes || 0)} paid / {formatMinutes(editingAttendance?.unpaid_minutes || 0)} unpaid</p>
+              <p className="text-xs text-muted-foreground">{t("attendancePage.payrollImpactPreview")}</p>
+              <p className="font-medium">{t("attendancePage.paidUnpaid", { paid: formatMinutes(editingAttendance?.normal_paid_minutes || 0), unpaid: formatMinutes(editingAttendance?.unpaid_minutes || 0) })}</p>
             </div>
           </div>
           <Tabs value={correctionMode} onValueChange={(value) => setCorrectionMode(value as CorrectionMode)}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="manual">Manual time correction</TabsTrigger>
-              <TabsTrigger value="smart">Smart status correction</TabsTrigger>
+              <TabsTrigger value="manual">{t("attendancePage.manualTab")}</TabsTrigger>
+              <TabsTrigger value="smart">{t("attendancePage.smartTab")}</TabsTrigger>
             </TabsList>
             <TabsContent value="manual" className="grid gap-4 py-2">
               <div className="grid gap-4 sm:grid-cols-2">
                 {correctionFields.map((field) => (
-                  <div key={field.value} className="space-y-2">
-                    <Label htmlFor={`manual-${field.value}`}>{field.label}</Label>
+                  <div key={field} className="space-y-2">
+                    <Label htmlFor={`manual-${field}`}>{formatLabel(field.replace("_time", ""))}</Label>
                     <Input
-                      id={`manual-${field.value}`}
+                      id={`manual-${field}`}
                       type="time"
-                      value={correctionForm[field.value]}
-                      onChange={(event) => setCorrectionForm((value) => ({ ...value, [field.value]: event.target.value }))}
+                      value={correctionForm[field]}
+                      onChange={(event) => setCorrectionForm((value) => ({ ...value, [field]: event.target.value }))}
                     />
                   </div>
                 ))}
               </div>
               <p className="text-sm text-muted-foreground">
-                Update any combination of times here. Leave a field blank to clear it, and the backend will block impossible timelines like check-in after check-out.
+                {t("attendancePage.manualHelp")}
               </p>
             </TabsContent>
             <TabsContent value="smart" className="grid gap-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="targetStatus">Target status</Label>
+                <Label htmlFor="targetStatus">{t("attendancePage.targetStatus")}</Label>
                 <Select value={correctionForm.target_status} onValueChange={(value) => setCorrectionForm((current) => ({ ...current, target_status: value }))}>
                   <SelectTrigger id="targetStatus">
                     <SelectValue />
@@ -919,36 +922,36 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="lateMinutes">Late minutes</Label>
+                  <Label htmlFor="lateMinutes">{t("attendancePage.lateMinutes")}</Label>
                   <Input id="lateMinutes" type="number" min="0" value={correctionForm.late_minutes} onChange={(event) => setCorrectionForm((value) => ({ ...value, late_minutes: event.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="smartCheckIn">Custom check-in</Label>
+                  <Label htmlFor="smartCheckIn">{t("attendancePage.customCheckIn")}</Label>
                   <Input id="smartCheckIn" type="time" value={correctionForm.check_in_time} onChange={(event) => setCorrectionForm((value) => ({ ...value, check_in_time: event.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="smartCheckOut">Custom check-out</Label>
+                  <Label htmlFor="smartCheckOut">{t("attendancePage.customCheckOut")}</Label>
                   <Input id="smartCheckOut" type="time" value={correctionForm.check_out_time} onChange={(event) => setCorrectionForm((value) => ({ ...value, check_out_time: event.target.value }))} />
                 </div>
               </div>
             </TabsContent>
           </Tabs>
           <div className="space-y-2">
-            <Label htmlFor="correctionReason">Reason</Label>
+            <Label htmlFor="correctionReason">{t("attendancePage.reason")}</Label>
             <Textarea id="correctionReason" value={correctionForm.reason} onChange={(event) => setCorrectionForm((value) => ({ ...value, reason: event.target.value }))} />
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
             {editingAttendance ? (
               <Button variant="destructive" onClick={() => deleteAttendance.mutate()} disabled={!canCorrect || correctionLocked || deleteAttendance.isPending}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                {deleteAttendance.isPending ? "Deleting..." : "Delete"}
+                {deleteAttendance.isPending ? t("attendancePage.deleting") : t("common.delete")}
               </Button>
             ) : (
               <span />
             )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCorrectionOpen(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 onClick={() => submitCorrection.mutate()}
@@ -961,7 +964,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   (correctionMode === "smart" && !correctionForm.target_status)
                 }
               >
-                {submitCorrection.isPending ? "Saving..." : "Submit correction"}
+                {submitCorrection.isPending ? t("common.saving") : t("attendancePage.submitCorrection")}
               </Button>
             </div>
           </DialogFooter>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useNavigate } from 'react-router-dom';
 import { Eye, Pencil, UserX, MoreHorizontal } from 'lucide-react';
 import { Employee } from '@/data/mockData';
@@ -10,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { formatLabel } from "@/lib/format";
 
 interface EmployeeCardProps {
   employee: Employee;
@@ -18,18 +20,10 @@ interface EmployeeCardProps {
 
 export function EmployeeCard({ employee, onDeactivate }: EmployeeCardProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
-
-  const formatSalaryType = (type: string) => {
-    const labels: Record<string, string> = {
-      hour: 'Hourly',
-      day: 'Daily',
-      month: 'Monthly',
-    };
-    return labels[type] || type;
   };
 
   return (
@@ -56,11 +50,11 @@ export function EmployeeCard({ employee, onDeactivate }: EmployeeCardProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => navigate(`/employees/${employee.id}`)}>
               <Eye className="mr-2 h-4 w-4" />
-              View Profile
+              {t("profile.title")}
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Pencil className="mr-2 h-4 w-4" />
-              Edit
+              {t("common.edit")}
             </DropdownMenuItem>
             {employee.status === 'active' && onDeactivate && (
               <DropdownMenuItem
@@ -68,7 +62,7 @@ export function EmployeeCard({ employee, onDeactivate }: EmployeeCardProps) {
                 onClick={() => onDeactivate(employee.id)}
               >
                 <UserX className="mr-2 h-4 w-4" />
-                Deactivate
+                {t("employeesPage.deleteEmployee")}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -78,20 +72,20 @@ export function EmployeeCard({ employee, onDeactivate }: EmployeeCardProps) {
       {/* Details */}
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="text-muted-foreground">Role</p>
-          <p className="font-medium capitalize">{employee.role}</p>
+          <p className="text-muted-foreground">{t("users.roles")}</p>
+          <p className="font-medium capitalize">{formatLabel(employee.role)}</p>
         </div>
         <div>
-          <p className="text-muted-foreground">Status</p>
+          <p className="text-muted-foreground">{t("common.status")}</p>
           <StatusBadge status={employee.status} />
         </div>
         <div>
-          <p className="text-muted-foreground">Phone</p>
+          <p className="text-muted-foreground">{t("common.phone")}</p>
           <p className="font-medium">{employee.phone}</p>
         </div>
         <div>
-          <p className="text-muted-foreground">Salary</p>
-          <p className="font-medium">{formatSalaryType(employee.salaryType)}</p>
+          <p className="text-muted-foreground">{t("employeesPage.salaryType")}</p>
+          <p className="font-medium">{formatLabel(employee.salaryType)}</p>
         </div>
       </div>
 
@@ -102,7 +96,7 @@ export function EmployeeCard({ employee, onDeactivate }: EmployeeCardProps) {
         onClick={() => navigate(`/employees/${employee.id}`)}
       >
         <Eye className="mr-2 h-4 w-4" />
-        View Details
+        {t("profile.title")}
       </Button>
     </div>
   );

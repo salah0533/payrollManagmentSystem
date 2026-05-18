@@ -22,8 +22,10 @@ import { notificationApi } from "@/services/notificationApi";
 import { userApi } from "@/services/userApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 export default function Notifications() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { currentUser, refreshUnreadNotificationCount } = useAuth();
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -211,8 +213,8 @@ export default function Notifications() {
       }),
     onSuccess: async () => {
       toast({
-        title: "Notification sent",
-        description: "The backend accepted the notification dispatch request.",
+        title: t("notificationsPage.sendSuccess"),
+        description: t("notificationsPage.sendSuccessDescription"),
       });
       setComposer({
         title: "",
@@ -228,8 +230,8 @@ export default function Notifications() {
     },
     onError: (error) => {
       toast({
-        title: "Unable to send notification",
-        description: getErrorMessage(error, "Please review the request details."),
+        title: t("notificationsPage.sendError"),
+        description: getErrorMessage(error, t("notificationsPage.sendErrorDescription")),
         variant: "destructive",
       });
     },
@@ -245,8 +247,8 @@ export default function Notifications() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Notifications"
-        description="Bell count, dropdown previews, mark-as-read, archive, and pagination all use the backend notification APIs."
+        title={t("notificationsPage.title")}
+        description={t("notificationsPage.description")}
         actions={
           <Button
             variant="outline"
@@ -255,28 +257,28 @@ export default function Notifications() {
               await refreshMine();
             }}
           >
-            Mark all as read
+            {t("notificationsPage.markAllRead")}
           </Button>
         }
       />
 
       <Card className="filter-card">
         <CardHeader>
-          <CardTitle>My notifications</CardTitle>
-          <CardDescription>Loaded from `/me/notifications` with unread, archived, expired, limit, and offset filters.</CardDescription>
+          <CardTitle>{t("notificationsPage.myNotifications")}</CardTitle>
+          <CardDescription>{t("notificationsPage.myNotificationsDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
-              Unread only
+              {t("notificationsPage.unreadOnly")}
               <Switch checked={unreadOnly} onCheckedChange={setUnreadOnly} />
             </label>
             <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
-              Show archived
+              {t("notificationsPage.showArchived")}
               <Switch checked={showArchived} onCheckedChange={setShowArchived} />
             </label>
             <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
-              Include expired
+              {t("notificationsPage.includeExpired")}
               <Switch checked={includeExpired} onCheckedChange={setIncludeExpired} />
             </label>
           </div>
@@ -300,14 +302,14 @@ export default function Notifications() {
                     </div>
                     <div className="flex gap-2">
                       {!notification.is_read ? (
-                        <Button size="sm" variant="outline" onClick={() => markAsRead.mutate(notification.notification_id)}>
-                          Mark read
-                        </Button>
+                          <Button size="sm" variant="outline" onClick={() => markAsRead.mutate(notification.notification_id)}>
+                          {t("notificationsPage.markRead")}
+                          </Button>
                       ) : null}
                       {!notification.is_archived ? (
-                        <Button size="sm" variant="outline" onClick={() => archiveNotification.mutate(notification.notification_id)}>
-                          Archive
-                        </Button>
+                          <Button size="sm" variant="outline" onClick={() => archiveNotification.mutate(notification.notification_id)}>
+                          {t("notificationsPage.archive")}
+                          </Button>
                       ) : null}
                     </div>
                   </div>
@@ -316,21 +318,25 @@ export default function Notifications() {
             </div>
           ) : (
             <EmptyState
-              title={myNotificationsQuery.isLoading ? "Loading notifications..." : "No notifications found"}
-              description="Archived items are hidden by default unless you enable the archived filter."
+              title={myNotificationsQuery.isLoading ? t("notificationsPage.loadingNotifications") : t("notificationsPage.noNotifications")}
+              description={t("notificationsPage.noNotificationsDescription")}
             />
           )}
 
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {offset + 1}-{Math.min(offset + 20, myNotificationsQuery.data?.total || 0)} of {myNotificationsQuery.data?.total || 0}
+              {t("notificationsPage.showingRange", {
+                from: offset + 1,
+                to: Math.min(offset + 20, myNotificationsQuery.data?.total || 0),
+                total: myNotificationsQuery.data?.total || 0,
+              })}
             </p>
             <div className="flex gap-2">
               <Button variant="outline" disabled={offset === 0} onClick={() => setOffset((value) => Math.max(0, value - 20))}>
-                Previous
+                {t("common.previous")}
               </Button>
               <Button variant="outline" disabled={!hasMoreMine} onClick={() => setOffset((value) => value + 20)}>
-                Next
+                {t("common.next")}
               </Button>
             </div>
           </div>
@@ -340,17 +346,17 @@ export default function Notifications() {
       {canReadAll ? (
         <Card>
           <CardHeader>
-            <CardTitle>System notifications</CardTitle>
-            <CardDescription>Admin-level backend notification listing from `/notifications`.</CardDescription>
+            <CardTitle>{t("notificationsPage.systemNotifications")}</CardTitle>
+            <CardDescription>{t("notificationsPage.systemNotificationsDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Select value={typeFilter || "all"} onValueChange={(value) => setTypeFilter(value === "all" ? "" : value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All notification types" />
+                  <SelectValue placeholder={t("notificationsPage.allNotificationTypes")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All notification types</SelectItem>
+                  <SelectItem value="all">{t("notificationsPage.allNotificationTypes")}</SelectItem>
                   {notificationTypes.map((type) => (
                     <SelectItem key={type} value={type}>
                       {formatLabel(type)}
@@ -360,10 +366,10 @@ export default function Notifications() {
               </Select>
               <Select value={priorityFilter || "all"} onValueChange={(value) => setPriorityFilter(value === "all" ? "" : value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All priorities" />
+                  <SelectValue placeholder={t("notificationsPage.allPriorities")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
+                  <SelectItem value="all">{t("notificationsPage.allPriorities")}</SelectItem>
                   {notificationPriorities.map((priority) => (
                     <SelectItem key={priority} value={priority}>
                       {formatLabel(priority)}
@@ -394,8 +400,8 @@ export default function Notifications() {
               </div>
             ) : (
               <EmptyState
-                title={systemNotificationsQuery.isLoading ? "Loading system notifications..." : "No system notifications found"}
-                description="This section appears only when the backend grants `notifications.read_all`."
+                title={systemNotificationsQuery.isLoading ? t("notificationsPage.loadingSystemNotifications") : t("notificationsPage.noSystemNotifications")}
+                description={t("notificationsPage.noSystemNotificationsDescription")}
               />
             )}
           </CardContent>
@@ -405,15 +411,15 @@ export default function Notifications() {
       {canSend ? (
         <Card>
           <CardHeader>
-            <CardTitle>Send notification</CardTitle>
+            <CardTitle>{t("notificationsPage.sendNotification")}</CardTitle>
             <CardDescription>
-              This uses `/notifications` with named users, all visible users, or a role target.
+              {t("notificationsPage.sendNotificationDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="notificationTitle">Title</Label>
+                <Label htmlFor="notificationTitle">{t("common.title")}</Label>
                 <Input
                   id="notificationTitle"
                   value={composer.title}
@@ -421,7 +427,7 @@ export default function Notifications() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="notificationType">Type</Label>
+                <Label htmlFor="notificationType">{t("common.type")}</Label>
                 <Select value={composer.notification_type} onValueChange={(notification_type) => setComposer((value) => ({ ...value, notification_type }))}>
                   <SelectTrigger id="notificationType">
                     <SelectValue />
@@ -437,7 +443,7 @@ export default function Notifications() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="notificationMessage">Message</Label>
+              <Label htmlFor="notificationMessage">{t("common.message")}</Label>
               <Textarea
                 id="notificationMessage"
                 value={composer.message}
@@ -446,7 +452,7 @@ export default function Notifications() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="notificationPriority">Priority</Label>
+                <Label htmlFor="notificationPriority">{t("common.priority")}</Label>
                 <Select value={composer.priority} onValueChange={(priority) => setComposer((value) => ({ ...value, priority }))}>
                   <SelectTrigger id="notificationPriority">
                     <SelectValue />
@@ -461,7 +467,7 @@ export default function Notifications() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="notificationRecipientMode">Recipients</Label>
+                <Label htmlFor="notificationRecipientMode">{t("common.recipients")}</Label>
                 <Select
                   value={composer.recipient_mode}
                   onValueChange={(recipient_mode) =>
@@ -475,9 +481,9 @@ export default function Notifications() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="users">Select users</SelectItem>
-                    <SelectItem value="all">Send to all users</SelectItem>
-                    <SelectItem value="role">Send by role</SelectItem>
+                    <SelectItem value="users">{t("notificationsPage.recipientsUsers")}</SelectItem>
+                    <SelectItem value="all">{t("notificationsPage.recipientsAll")}</SelectItem>
+                    <SelectItem value="role">{t("notificationsPage.recipientsRole")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -485,18 +491,18 @@ export default function Notifications() {
             {composer.recipient_mode === "users" ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="notificationUsers">Users</Label>
-                  <span className="text-xs text-muted-foreground">{composer.selected_user_ids.length} selected</span>
+                  <Label htmlFor="notificationUsers">{t("notificationsPage.users")}</Label>
+                  <span className="text-xs text-muted-foreground">{composer.selected_user_ids.length} {t("common.selected").toLowerCase()}</span>
                 </div>
                 <Input
                   id="notificationUsers"
-                  placeholder="Search by name, username, or email"
+                  placeholder={t("notificationsPage.searchUsersPlaceholder")}
                   value={recipientSearch}
                   onChange={(event) => setRecipientSearch(event.target.value)}
                 />
                 <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-border p-2">
                   {recipientEmployeesQuery.isLoading || recipientUsersQuery.isLoading ? (
-                    <p className="p-3 text-sm text-muted-foreground">Loading recipients...</p>
+                    <p className="p-3 text-sm text-muted-foreground">{t("notificationsPage.loadingRecipients")}</p>
                   ) : filteredRecipientUsers.length ? (
                     filteredRecipientUsers.map((user) => (
                       <label key={user.id} className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
@@ -513,12 +519,12 @@ export default function Notifications() {
                         />
                         <div className="min-w-0">
                           <p className="font-medium">{user.label}</p>
-                          <p className="text-xs text-muted-foreground">{user.detail || `User #${user.id}`}</p>
+                          <p className="text-xs text-muted-foreground">{user.detail || t("labels.userId", { id: user.id })}</p>
                         </div>
                       </label>
                     ))
                   ) : (
-                    <p className="p-3 text-sm text-muted-foreground">No users matched the current search.</p>
+                    <p className="p-3 text-sm text-muted-foreground">{t("notificationsPage.noMatchingUsers")}</p>
                   )}
                 </div>
               </div>
@@ -526,13 +532,13 @@ export default function Notifications() {
             {composer.recipient_mode === "all" ? (
               <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
                 {allRecipientUserIds.length
-                  ? `This notification will be sent to all visible users (${allRecipientUserIds.length} recipients).`
-                  : "No recipients are available yet for the send-to-all option."}
+                  ? t("notificationsPage.sendAllDescription", { count: allRecipientUserIds.length })
+                  : t("notificationsPage.sendAllEmpty")}
               </div>
             ) : null}
             {composer.recipient_mode === "role" ? (
               <div className="space-y-2">
-                <Label htmlFor="notificationRole">Role</Label>
+                <Label htmlFor="notificationRole">{t("notificationsPage.role")}</Label>
                 <Select
                   value={composer.role_code || "none"}
                   onValueChange={(role_code) =>
@@ -543,10 +549,10 @@ export default function Notifications() {
                   }
                 >
                   <SelectTrigger id="notificationRole">
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder={t("notificationsPage.selectRole")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Select role</SelectItem>
+                    <SelectItem value="none">{t("notificationsPage.selectRole")}</SelectItem>
                     {availableRoles.map((role) => (
                       <SelectItem key={role.code} value={role.code}>
                         {role.label}
@@ -559,12 +565,12 @@ export default function Notifications() {
             <div className="rounded-lg border border-border p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="font-medium">Preview before send</p>
-                  <p className="text-sm text-muted-foreground">{composer.title || "Notification title"} / {formatLabel(composer.notification_type)} / {formatLabel(composer.priority)}</p>
+                  <p className="font-medium">{t("notificationsPage.previewTitle")}</p>
+                  <p className="text-sm text-muted-foreground">{composer.title || t("notificationsPage.previewPlaceholderTitle")} / {formatLabel(composer.notification_type)} / {formatLabel(composer.priority)}</p>
                 </div>
                 <StatusBadge status={composer.priority} />
               </div>
-              <p className="text-sm text-muted-foreground">{composer.message || "Notification message preview will appear here."}</p>
+              <p className="text-sm text-muted-foreground">{composer.message || t("notificationsPage.previewPlaceholderMessage")}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {composer.recipient_mode === "users"
                   ? selectedRecipientUsers.map((user) => (
@@ -574,21 +580,21 @@ export default function Notifications() {
                     ))
                   : null}
                 {composer.recipient_mode === "all" && allRecipientUserIds.length ? (
-                  <Badge variant="secondary">All users ({allRecipientUserIds.length})</Badge>
+                  <Badge variant="secondary">{t("notificationsPage.allUsersBadge", { count: allRecipientUserIds.length })}</Badge>
                 ) : null}
                 {composer.recipient_mode === "role" && selectedRole ? (
                   <Badge variant="outline">{selectedRole.label}</Badge>
                 ) : null}
                 {composer.recipient_mode === "users" && !selectedRecipientUsers.length ? (
-                  <span className="text-xs text-muted-foreground">Select at least one user.</span>
+                  <span className="text-xs text-muted-foreground">{t("notificationsPage.selectAtLeastOneUser")}</span>
                 ) : null}
                 {composer.recipient_mode === "role" && !selectedRole ? (
-                  <span className="text-xs text-muted-foreground">Select a role to target.</span>
+                  <span className="text-xs text-muted-foreground">{t("notificationsPage.selectRoleHint")}</span>
                 ) : null}
               </div>
             </div>
             <Button onClick={() => sendNotification.mutate()} disabled={sendNotification.isPending || !canSubmitNotification}>
-              {sendNotification.isPending ? "Sending..." : "Send notification"}
+              {sendNotification.isPending ? t("notificationsPage.sending") : t("notificationsPage.sendAction")}
             </Button>
           </CardContent>
         </Card>

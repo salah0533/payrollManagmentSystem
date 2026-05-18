@@ -16,8 +16,10 @@ import { dashboardApi } from "@/services/dashboardApi";
 import { notificationApi } from "@/services/notificationApi";
 import { payrollApi } from "@/services/payrollApi";
 import { vacationApi } from "@/services/vacationApi";
+import { useTranslation } from "react-i18next";
 
 export default function Dashboard({ role }: { role: "admin" | "hr" }) {
+  const { t } = useTranslation();
   const statsQuery = useQuery({
     queryKey: ["dashboard", role, "stats"],
     queryFn: () => dashboardApi.getStats(),
@@ -61,46 +63,46 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title={role === "admin" ? "Admin Dashboard" : "HR Dashboard"}
+        title={role === "admin" ? t("dashboard.adminTitle") : t("dashboard.hrTitle")}
         description={
           role === "admin"
-            ? "A full system dashboard for user access, payroll oversight, employee operations, and audit review."
-            : "An operational dashboard focused on employee records, attendance, payroll review, and leave handling."
+            ? t("dashboard.adminDescription")
+            : t("dashboard.hrDescription")
         }
       />
 
       <QuickActions role={role} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total employees" value={stats?.total_emps ?? 0} icon={Users} />
-        <MetricCard label="Active employees" value={stats?.total_active_emps ?? 0} icon={Users} tone="success" />
+        <MetricCard label={t("dashboard.totalEmployees")} value={stats?.total_emps ?? 0} icon={Users} />
+        <MetricCard label={t("dashboard.activeEmployees")} value={stats?.total_active_emps ?? 0} icon={Users} tone="success" />
         <MetricCard
-          label="Attendance rate"
+          label={t("dashboard.attendanceRate")}
           value={`${Number(stats?.total_att_percent || 0).toFixed(1)}%`}
           icon={Clock3}
           tone="info"
         />
-        <MetricCard label="Employees on vacation" value={stats?.total_vacation ?? 0} icon={Landmark} tone="warning" />
+        <MetricCard label={t("dashboard.employeesOnVacation")} value={stats?.total_vacation ?? 0} icon={Landmark} tone="warning" />
       </div>
 
       <div className="space-y-3">
         <div>
-          <h2 className="text-lg font-semibold">Action required</h2>
-          <p className="text-sm text-muted-foreground">Work queues from the AttendanceDay, payroll, vacation, and notification APIs.</p>
+          <h2 className="text-lg font-semibold">{t("dashboard.actionRequired")}</h2>
+          <p className="text-sm text-muted-foreground">{t("dashboard.actionRequiredDescription")}</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Attendance review" value={stats?.needs_review_days ?? 0} icon={ShieldCheck} tone="warning" hint="Attendance days needing review" />
-          <MetricCard label="Incomplete days" value={stats?.incomplete_days ?? 0} icon={AlertTriangle} tone="danger" hint="Missing checkout or incomplete status" />
-          <MetricCard label="Payroll issues" value={openPayrollDiscrepancies} icon={ReceiptText} tone={openPayrollDiscrepancies ? "danger" : "success"} hint={currentPayrollPeriod?.name || "No payroll period"} />
-          <MetricCard label="Unread notices" value={pendingNotifications} icon={Bell} tone={pendingNotifications ? "warning" : "success"} hint="Personal notification queue" />
+          <MetricCard label={t("dashboard.attendanceReview")} value={stats?.needs_review_days ?? 0} icon={ShieldCheck} tone="warning" hint={t("dashboard.attendanceReviewHint")} />
+          <MetricCard label={t("dashboard.incompleteDays")} value={stats?.incomplete_days ?? 0} icon={AlertTriangle} tone="danger" hint={t("dashboard.incompleteDaysHint")} />
+          <MetricCard label={t("dashboard.payrollIssues")} value={openPayrollDiscrepancies} icon={ReceiptText} tone={openPayrollDiscrepancies ? "danger" : "success"} hint={currentPayrollPeriod?.name || t("paymentsPage.selectPeriod")} />
+          <MetricCard label={t("dashboard.unreadNotices")} value={pendingNotifications} icon={Bell} tone={pendingNotifications ? "warning" : "success"} hint={t("dashboard.unreadNoticesHint")} />
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Today/month present" value={stats?.present_days ?? 0} icon={Clock3} tone="success" />
-        <MetricCard label="Late days" value={stats?.late_days ?? 0} icon={Clock3} tone="warning" />
-        <MetricCard label="Absent days" value={stats?.absent_days ?? 0} icon={AlertTriangle} tone="danger" />
-        <MetricCard label="Paid / unpaid time" value={`${formatMinutes(stats?.total_paid_minutes || 0)} / ${formatMinutes(stats?.total_unpaid_minutes || 0)}`} icon={ReceiptText} tone="info" />
+        <MetricCard label={t("dashboard.todayMonthPresent")} value={stats?.present_days ?? 0} icon={Clock3} tone="success" />
+        <MetricCard label={t("dashboard.lateDays")} value={stats?.late_days ?? 0} icon={Clock3} tone="warning" />
+        <MetricCard label={t("dashboard.absentDays")} value={stats?.absent_days ?? 0} icon={AlertTriangle} tone="danger" />
+        <MetricCard label={t("dashboard.paidUnpaidTime")} value={`${formatMinutes(stats?.total_paid_minutes || 0)} / ${formatMinutes(stats?.total_unpaid_minutes || 0)}`} icon={ReceiptText} tone="info" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
@@ -114,8 +116,17 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
       <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Operational focus</CardTitle>
-            <CardDescription>Role-based quick direction for today. Current payroll total: {formatCurrency(currentPayrollPeriod?.payrolls?.reduce((sum, row) => sum + Number(row.total_amount || 0), 0) || 0)}.</CardDescription>
+            <CardTitle>{t("dashboard.operationalFocus")}</CardTitle>
+            <CardDescription>
+              {t("dashboard.operationalFocusDescription", {
+                total: formatCurrency(
+                  currentPayrollPeriod?.payrolls?.reduce(
+                    (sum, row) => sum + Number(row.total_amount || 0),
+                    0,
+                  ) || 0,
+                ),
+              })}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {focusItems.map((item) => (
@@ -128,17 +139,22 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Current vacations</CardTitle>
-            <CardDescription>Live leave records from `/vacation/current`.</CardDescription>
+            <CardTitle>{t("dashboard.currentVacations")}</CardTitle>
+            <CardDescription>{t("dashboard.currentVacationsDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {currentVacationsQuery.data?.length ? (
               currentVacationsQuery.data.slice(0, 5).map((vacation) => (
                 <div key={vacation.id} className="flex items-center justify-between rounded-lg border border-border p-3">
                   <div>
-                    <p className="font-medium">Employee #{vacation.employee_id}</p>
+                    <p className="font-medium">
+                      {t("labels.employeeId", { id: vacation.employee_id })}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {vacation.start_date} to {vacation.end_date}
+                      {t("labels.range", {
+                        start: vacation.start_date,
+                        end: vacation.end_date,
+                      })}
                     </p>
                   </div>
                   <StatusBadge status={String(vacation.vacation_status)} />
@@ -146,8 +162,12 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
               ))
             ) : (
               <EmptyState
-                title={currentVacationsQuery.isLoading ? "Loading current vacations..." : "No active vacations"}
-                description="Approved leave for the current date range will appear here."
+                title={
+                  currentVacationsQuery.isLoading
+                    ? t("dashboard.loadingCurrentVacations")
+                    : t("dashboard.noActiveVacations")
+                }
+                description={t("dashboard.noActiveVacationsDescription")}
               />
             )}
           </CardContent>
@@ -156,8 +176,8 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent notifications</CardTitle>
-          <CardDescription>Unread and recent personal notifications from the `/me` notification feed.</CardDescription>
+          <CardTitle>{t("dashboard.recentNotifications")}</CardTitle>
+          <CardDescription>{t("dashboard.recentNotificationsDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {notificationsQuery.data?.items.length ? (
@@ -179,8 +199,12 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
             ))
           ) : (
             <EmptyState
-              title={notificationsQuery.isLoading ? "Loading notifications..." : "No recent notifications"}
-              description="Personal backend notifications will appear here after login."
+              title={
+                notificationsQuery.isLoading
+                  ? t("notificationsPage.loadingNotifications")
+                  : t("dashboard.noRecentNotifications")
+              }
+              description={t("dashboard.noRecentNotificationsDescription")}
             />
           )}
         </CardContent>

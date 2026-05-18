@@ -1,4 +1,5 @@
 import type { ApiEnvelope, ApiValidationError } from "@/types/domain";
+import { getCurrentLanguage } from "@/lib/i18n";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
@@ -128,6 +129,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const requestHeaders = new Headers(headers || {});
 
   requestHeaders.set("Accept", "application/json");
+  requestHeaders.set("Accept-Language", getCurrentLanguage());
 
   if (token) {
     requestHeaders.set("Authorization", `Bearer ${token}`);

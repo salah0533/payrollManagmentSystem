@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { auditApi } from "@/services/auditApi";
+import { useTranslation } from "react-i18next";
 
 export default function AuditLogs() {
+  const { t } = useTranslation();
   const [limit, setLimit] = useState("100");
   const parsedLimit = Number(limit) || 100;
 
@@ -22,8 +24,8 @@ export default function AuditLogs() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Audit Logs"
-        description="Recent backend audit records for system actions, approvals, and changes."
+        title={t("auditPage.title")}
+        description={t("auditPage.description")}
         actions={
           <>
             <Input
@@ -35,7 +37,7 @@ export default function AuditLogs() {
               max="500"
             />
             <Button variant="outline" onClick={() => auditQuery.refetch()}>
-              Refresh
+              {t("common.refresh")}
             </Button>
           </>
         }
@@ -43,18 +45,18 @@ export default function AuditLogs() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent activity</CardTitle>
+          <CardTitle>{t("auditPage.recentActivity")}</CardTitle>
         </CardHeader>
         <CardContent>
           {auditQuery.data?.length ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>When</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Entity</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Entity ID</TableHead>
+                  <TableHead>{t("auditPage.when")}</TableHead>
+                  <TableHead>{t("auditPage.action")}</TableHead>
+                  <TableHead>{t("auditPage.entity")}</TableHead>
+                  <TableHead>{t("auditPage.user")}</TableHead>
+                  <TableHead>{t("auditPage.entityId")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -71,8 +73,8 @@ export default function AuditLogs() {
             </Table>
           ) : (
             <EmptyState
-              title={auditQuery.isLoading ? "Loading audit logs..." : "No audit logs found"}
-              description="If this endpoint is enabled, the latest backend audit entries will appear here."
+              title={auditQuery.isLoading ? t("auditPage.loading") : t("auditPage.empty")}
+              description={t("auditPage.emptyDescription")}
             />
           )}
         </CardContent>

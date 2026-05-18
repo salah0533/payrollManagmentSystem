@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, DollarSign, Lock, MoreHorizontal, Pencil, ReceiptText, Scale, Trash2, WalletCards } from "lucide-react";
 
@@ -204,10 +205,11 @@ function getDiscrepancyQuickActions(item: PayrollDiscrepancy) {
 }
 
 function CalculationGrid({ history }: { history?: PayrollHistory[] }) {
+  const { t } = useTranslation();
   const calculation = latestCalculationHistory(history);
 
   if (!calculation) {
-    return <p className="text-sm text-muted-foreground">No calculation snapshot is available yet. Recalculate this payroll row to create one.</p>;
+    return <p className="text-sm text-muted-foreground">{t("payrollPage.noCalculationSnapshot")}</p>;
   }
 
   return (
@@ -241,6 +243,7 @@ function OverviewStat({ label, value, hint }: { label: string; value: React.Reac
 export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const canCalculate = hasPermission(currentUser, "payroll.calculate");
   const canAdjust = hasPermission(currentUser, "payroll.adjust");
   const canApprove = hasPermission(currentUser, "payroll.approve");
@@ -346,13 +349,13 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const recalculatePeriod = useMutation({
     mutationFn: () => payrollApi.recalculatePeriod(parsedPeriodId),
     onSuccess: async () => {
-      toast({ title: "Payroll recalculated", description: "The full period payroll was recalculated." });
+      toast({ title: t("payrollPage.recalculatedSuccess"), description: t("payrollPage.recalculatedSuccessDescription") });
       await refreshPayroll();
     },
     onError: (error) => {
       toast({
-        title: "Unable to recalculate payroll",
-        description: getErrorMessage(error, "The backend rejected the period recalculation."),
+        title: t("payrollPage.recalculateError"),
+        description: getErrorMessage(error, t("payrollPage.recalculateErrorDescription")),
         variant: "destructive",
       });
     },
@@ -361,7 +364,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const recalculateEmployee = useMutation({
     mutationFn: ({ employeeId }: { employeeId: number }) => payrollApi.recalculateEmployee(employeeId, parsedPeriodId),
     onSuccess: async () => {
-      toast({ title: "Employee payroll recalculated", description: "The selected payroll row was recalculated." });
+      toast({ title: t("payrollPage.rowRecalculatedSuccess"), description: t("payrollPage.rowRecalculatedSuccessDescription") });
       await refreshPayroll();
     },
   });
@@ -369,7 +372,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const approvePayroll = useMutation({
     mutationFn: (employeePayrollId: number) => payrollApi.approve(employeePayrollId),
     onSuccess: async () => {
-      toast({ title: "Payroll approved", description: "The payroll row is now approved." });
+      toast({ title: t("payrollPage.approvedSuccess"), description: t("payrollPage.approvedSuccessDescription") });
       setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
       await refreshPayroll();
     },
@@ -379,7 +382,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     mutationFn: ({ employeePayrollId, amount, note }: { employeePayrollId: number; amount?: number; note?: string }) =>
       payrollApi.markPaid(employeePayrollId, { amount, note }),
     onSuccess: async () => {
-      toast({ title: "Payment recorded", description: "The payroll balance was updated." });
+      toast({ title: t("payrollPage.paymentRecorded"), description: t("payrollPage.paymentRecordedDescription") });
       setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
       await refreshPayroll();
     },
@@ -452,8 +455,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     },
     onError: (error) => {
       toast({
-        title: "Unable to delete adjustment",
-        description: getErrorMessage(error, "The backend rejected the adjustment deletion."),
+        title: t("payrollPage.deleteAdjustmentError"),
+        description: getErrorMessage(error, t("payrollPage.deleteAdjustmentErrorDescription")),
         variant: "destructive",
       });
     },
@@ -702,17 +705,17 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title={scope === "manage" ? "Payroll Overview" : "My Payroll"}
+        title={scope === "manage" ? t("payrollPage.manageTitle") : t("payrollPage.selfTitle")}
         description={
           scope === "manage"
-            ? "Run payroll safely: validate attendance, resolve discrepancies, review totals, approve rows, and record approved payments."
-            : "View your payslip-style payroll details by selecting a payroll period."
+            ? t("payrollPage.manageDescription")
+            : t("payrollPage.selfDescription")
         }
         actions={
           <>
             <Select value={periodId} onValueChange={setPeriodId}>
               <SelectTrigger className="w-56">
-                <SelectValue placeholder={periodOptionsQuery.isLoading ? "Loading periods..." : "Select payroll period"} />
+                <SelectValue placeholder={periodOptionsQuery.isLoading ? t("paymentsPage.loadingPeriods") : t("paymentsPage.selectPeriod")} />
               </SelectTrigger>
               <SelectContent>
                 {(periodOptionsQuery.data || []).map((period) => (
@@ -724,7 +727,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             </Select>
             {scope === "manage" ? (
               <Button variant="outline" onClick={() => recalculatePeriod.mutate()} disabled={!canLoadPayroll || !periodCanRecalculate || recalculatePeriod.isPending}>
-                {recalculatePeriod.isPending ? "Recalculating..." : "Recalculate period"}
+                {recalculatePeriod.isPending ? t("payrollPage.recalculating") : t("payrollPage.recalculatePeriod")}
               </Button>
             ) : null}
           </>
@@ -733,11 +736,11 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
       {!canLoadPayroll ? (
         <EmptyState
-          title="Payroll period required"
+          title={t("payrollPage.periodRequired")}
           description={
             periodOptionsQuery.isLoading
-              ? "Loading payroll periods..."
-              : "No payroll periods are available yet."
+              ? t("paymentsPage.loadingPeriods")
+              : t("payrollPage.noPeriods")
           }
         />
       ) : scope === "self" ? (
@@ -745,46 +748,49 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           {selfPayroll ? (
             <>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-                <MetricCard label="Status" value={<StatusBadge status={selfPayroll.status} />} icon={WalletCards} />
-                <MetricCard label="Earned net" value={formatCurrency(getEarnedNetSalary(selfPayroll))} icon={DollarSign} tone="success" hint="What the attendance calculation produced" />
-                <MetricCard label="Held" value={formatCurrency(getHeldForReviewAmount(selfPayroll))} icon={AlertTriangle} tone="warning" hint="Blocked until review/approval" />
-                <MetricCard label="Payable total" value={formatCurrency(getPayableAmount(selfPayroll))} icon={WalletCards} tone="info" hint="Amount currently eligible for payment" />
-                <MetricCard label="Paid" value={formatCurrency(selfPayroll.paid_amount)} icon={ReceiptText} tone="info" />
+                <MetricCard label={t("common.status")} value={<StatusBadge status={selfPayroll.status} />} icon={WalletCards} />
+                <MetricCard label={t("payrollPage.earnedNet")} value={formatCurrency(getEarnedNetSalary(selfPayroll))} icon={DollarSign} tone="success" hint={t("payrollPage.earnedNetHint")} />
+                <MetricCard label={t("payrollPage.held")} value={formatCurrency(getHeldForReviewAmount(selfPayroll))} icon={AlertTriangle} tone="warning" hint={t("payrollPage.heldHint")} />
+                <MetricCard label={t("payrollPage.payableTotal")} value={formatCurrency(getPayableAmount(selfPayroll))} icon={WalletCards} tone="info" hint={t("payrollPage.payableTotalHint")} />
+                <MetricCard label={t("labels.code.paid")} value={formatCurrency(selfPayroll.paid_amount)} icon={ReceiptText} tone="info" />
                 <MetricCard
-                  label="Balance"
+                  label={t("payrollPage.balance")}
                   value={formatCurrency(selfPayroll.balance_amount)}
                   icon={Scale}
                   tone={Number(selfPayroll.balance_amount) < 0 ? "danger" : "warning"}
-                  hint={Number(selfPayroll.balance_amount) < 0 ? "You owe company" : "Company owes you"}
+                  hint={Number(selfPayroll.balance_amount) < 0 ? t("payrollPage.employeeOwesCompany") : t("payrollPage.companyOwesEmployee")}
                 />
               </div>
               <Card>
                 <CardHeader>
-                  <CardTitle>Payroll summary</CardTitle>
-                  <CardDescription>Loaded from `/me/payroll?period_id={parsedPeriodId}`.</CardDescription>
+                  <CardTitle>{t("payrollPage.summaryTitle")}</CardTitle>
+                  <CardDescription>{t("payrollPage.summaryDescription", { periodId: parsedPeriodId })}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {Number(getHeldForReviewAmount(selfPayroll)) > 0 ? (
                     <Alert className="border-warning/40">
                       <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Part of this payroll is held for review</AlertTitle>
+                      <AlertTitle>{t("payrollPage.heldAlertTitle")}</AlertTitle>
                       <AlertDescription>
-                        You earned {formatCurrency(getEarnedNetSalary(selfPayroll))}, but only {formatCurrency(getPayableAmount(selfPayroll))} is currently payable.
+                        {t("payrollPage.heldAlertDescription", {
+                          earned: formatCurrency(getEarnedNetSalary(selfPayroll)),
+                          payable: formatCurrency(getPayableAmount(selfPayroll)),
+                        })}
                       </AlertDescription>
                     </Alert>
                   ) : null}
                   <PayrollBreakdownGrid payroll={selfPayroll} />
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-lg border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Approved at</p>
+                    <p className="text-xs text-muted-foreground">{t("payrollPage.approvedAt")}</p>
                     <p className="font-medium">{formatDateTime(selfPayroll.approved_at)}</p>
                   </div>
                   <div className="rounded-lg border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Paid at</p>
+                    <p className="text-xs text-muted-foreground">{t("payrollPage.paidAt")}</p>
                     <p className="font-medium">{formatDateTime(selfPayroll.paid_at)}</p>
                   </div>
                   <div className="rounded-lg border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Notes</p>
+                    <p className="text-xs text-muted-foreground">{t("payrollPage.notes")}</p>
                     <p className="font-medium">{selfPayroll.notes || "-"}</p>
                   </div>
                   </div>
@@ -793,8 +799,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             </>
           ) : (
             <EmptyState
-              title={selfPayrollQuery.isLoading ? "Loading payroll..." : "No payroll found for this period"}
-              description="Try another period id if the current one does not have payroll data."
+              title={selfPayrollQuery.isLoading ? t("payrollPage.loadingPayroll") : t("payrollPage.noPayrollForPeriod")}
+              description={t("payrollPage.noPayrollForPeriodDescription")}
             />
           )}
         </>
@@ -802,49 +808,49 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         <>
           <Card>
             <CardHeader>
-              <CardTitle>Payroll overview</CardTitle>
-              <CardDescription>Period totals and settlement status for the selected payroll period.</CardDescription>
+              <CardTitle>{t("payrollPage.overviewTitle")}</CardTitle>
+              <CardDescription>{t("payrollPage.overviewDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <OverviewStat label="Payable payroll" value={formatCurrency(payrollReport?.total_amount)} hint="Approved/payable total for this period" />
-              <OverviewStat label="Paid" value={formatCurrency(payrollReport?.paid_amount)} />
+              <OverviewStat label={t("payrollPage.payablePayroll")} value={formatCurrency(payrollReport?.total_amount)} hint={t("payrollPage.payablePayrollHint")} />
+              <OverviewStat label={t("labels.code.paid")} value={formatCurrency(payrollReport?.paid_amount)} />
               <OverviewStat
-                label="Balance"
+                label={t("payrollPage.balance")}
                 value={formatCurrency(payrollReport?.balance_amount)}
-                hint="Positive means company owes employees"
+                hint={t("payrollPage.balanceHint")}
               />
-              <OverviewStat label="Company owes" value={formatCurrency(payrollReport?.company_owes_employees)} />
-              <OverviewStat label="Employees owe" value={formatCurrency(payrollReport?.employees_owe_company)} />
-              <OverviewStat label="Open warnings" value={warningOpenDiscrepancies} hint="Resolve before final approval" />
+              <OverviewStat label={t("payrollPage.companyOwes")} value={formatCurrency(payrollReport?.company_owes_employees)} />
+              <OverviewStat label={t("payrollPage.employeesOwe")} value={formatCurrency(payrollReport?.employees_owe_company)} />
+              <OverviewStat label={t("payrollPage.openWarnings")} value={warningOpenDiscrepancies} hint={t("payrollPage.openWarningsHint")} />
             </CardContent>
           </Card>
 
           {warningOpenDiscrepancies > 0 ? (
             <Alert className="border-warning/40">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Payroll validation needs review</AlertTitle>
+              <AlertTitle>{t("payrollPage.validationTitle")}</AlertTitle>
               <AlertDescription>
-                This period has open discrepancies. Approval and payment controls stay blocked where those discrepancies affect a payroll row.
+                {t("payrollPage.validationDescription")}
               </AlertDescription>
             </Alert>
           ) : null}
 
           <Card>
             <CardHeader>
-              <CardTitle>Payroll run workflow</CardTitle>
-              <CardDescription>Use the existing backend controls in order; unsupported exports and locks stay unavailable until backend endpoints exist.</CardDescription>
+              <CardTitle>{t("payrollPage.workflowTitle")}</CardTitle>
+              <CardDescription>{t("payrollPage.workflowDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {[
-                ["1", "Select period", periodId ? "Complete" : "Required"],
-                ["2", "Validate attendance", warningOpenDiscrepancies ? `${warningOpenDiscrepancies} open issue(s)` : "No open issues"],
-                ["3", "Review payroll totals", payrollRows.length ? `${payrollRows.length} row(s)` : "No rows"],
-                ["4", "Approve payroll rows", "Blocked per row when discrepancies exist"],
-                ["5", "Record payment", "Only after row approval"],
-                ["6", "Lock / export / payslips", "Backend endpoint needed"],
+                ["1", t("payrollPage.workflow.selectPeriod"), periodId ? t("payrollPage.workflow.complete") : t("payrollPage.workflow.required")],
+                ["2", t("payrollPage.workflow.validateAttendance"), warningOpenDiscrepancies ? t("payrollPage.workflow.openIssues", { count: warningOpenDiscrepancies }) : t("payrollPage.workflow.noOpenIssues")],
+                ["3", t("payrollPage.workflow.reviewTotals"), payrollRows.length ? t("payrollPage.workflow.rowCount", { count: payrollRows.length }) : t("payrollPage.workflow.noRows")],
+                ["4", t("payrollPage.workflow.approveRows"), t("payrollPage.workflow.approveRowsHint")],
+                ["5", t("payrollPage.workflow.recordPayment"), t("payrollPage.workflow.recordPaymentHint")],
+                ["6", t("payrollPage.workflow.lockExportPayslips"), t("payrollPage.workflow.backendEndpointNeeded")],
               ].map(([step, title, status]) => (
                 <div key={step} className="rounded-lg border border-border p-4">
-                  <Badge variant="outline">Step {step}</Badge>
+                  <Badge variant="outline">{t("payrollPage.workflow.step", { step })}</Badge>
                   <p className="mt-2 font-medium">{title}</p>
                   <p className="text-sm text-muted-foreground">{status}</p>
                 </div>
@@ -854,19 +860,19 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Balance report</CardTitle>
-              <CardDescription>Positive balances are owed by the company. Totals here are payable totals, not just earned estimates.</CardDescription>
+              <CardTitle>{t("payrollPage.balanceReportTitle")}</CardTitle>
+              <CardDescription>{t("payrollPage.balanceReportDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
               {payrollReport?.employees.length ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Payable total</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Balance</TableHead>
-                      <TableHead className="text-right">Rows</TableHead>
+                      <TableHead>{t("common.employee")}</TableHead>
+                      <TableHead>{t("payrollPage.payableTotal")}</TableHead>
+                      <TableHead>{t("labels.code.paid")}</TableHead>
+                      <TableHead>{t("payrollPage.balance")}</TableHead>
+                      <TableHead className="text-right">{t("payrollPage.rows")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -874,7 +880,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                       <TableRow key={employee.employee_id}>
                         <TableCell>
                           <div className="font-medium">{employee.employee_name}</div>
-                          <div className="text-xs text-muted-foreground">Employee #{employee.employee_id}</div>
+                          <div className="text-xs text-muted-foreground">{t("labels.employeeId", { id: employee.employee_id })}</div>
                         </TableCell>
                         <TableCell>{formatCurrency(employee.total_amount)}</TableCell>
                         <TableCell>{formatCurrency(employee.paid_amount)}</TableCell>
@@ -888,8 +894,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 </Table>
               ) : (
                 <EmptyState
-                  title={reportQuery.isLoading ? "Loading balance report..." : "No payroll balances yet"}
-                  description="Once payroll rows are calculated, employee balances will appear here."
+                  title={reportQuery.isLoading ? t("payrollPage.loadingBalanceReport") : t("payrollPage.noPayrollBalances")}
+                  description={t("payrollPage.noPayrollBalancesDescription")}
                 />
               )}
             </CardContent>
@@ -897,26 +903,26 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Payroll rows</CardTitle>
-              <CardDescription>Open the row action menu for details, recalculation, approval, payment marking, and adjustments.</CardDescription>
+              <CardTitle>{t("payrollPage.rowsTitle")}</CardTitle>
+              <CardDescription>{t("payrollPage.rowsDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
               {payrollRows.length ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Gross</TableHead>
-                      <TableHead>Attendance deduction</TableHead>
-                      <TableHead>Manual deductions</TableHead>
-                      {showLatePenaltyColumn ? <TableHead>Late penalty</TableHead> : null}
-                      <TableHead>Held</TableHead>
-                      <TableHead>Earned net</TableHead>
-                      <TableHead>Payable total</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Balance</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>{t("common.employee")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
+                      <TableHead>{t("payrollPage.gross")}</TableHead>
+                      <TableHead>{t("payrollPage.attendanceDeduction")}</TableHead>
+                      <TableHead>{t("payrollPage.manualDeductions")}</TableHead>
+                      {showLatePenaltyColumn ? <TableHead>{t("payrollPage.latePenalty")}</TableHead> : null}
+                      <TableHead>{t("payrollPage.held")}</TableHead>
+                      <TableHead>{t("payrollPage.earnedNet")}</TableHead>
+                      <TableHead>{t("payrollPage.payableTotal")}</TableHead>
+                      <TableHead>{t("labels.code.paid")}</TableHead>
+                      <TableHead>{t("payrollPage.balance")}</TableHead>
+                      <TableHead className="text-right">{t("common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -930,12 +936,12 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                       <TableRow key={row.id}>
                         <TableCell>
                           <div className="font-medium">{getEmployeeLabel(row.employee_id)}</div>
-                          <div className="text-xs text-muted-foreground">Payroll #{row.id}</div>
+                          <div className="text-xs text-muted-foreground">{t("payrollPage.payrollRowId", { id: row.id })}</div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             <StatusBadge status={row.status} />
-                            {rowHasOpenDiscrepancy ? <Badge variant="destructive">Open issue</Badge> : null}
+                            {rowHasOpenDiscrepancy ? <Badge variant="destructive">{t("payrollPage.openIssue")}</Badge> : null}
                           </div>
                           {row.needs_review_reason ? <div className="mt-1 text-xs text-muted-foreground">{row.needs_review_reason}</div> : null}
                         </TableCell>
@@ -1011,8 +1017,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 </Table>
               ) : (
                 <EmptyState
-                  title={periodQuery.isLoading ? "Loading payroll..." : "No payroll rows found"}
-                  description="Use a valid period id to load the payroll period and its employee rows."
+                  title={periodQuery.isLoading ? t("payrollPage.loadingPayroll") : t("payrollPage.noPayrollRows")}
+                  description={t("payrollPage.noPayrollRowsDescription")}
                 />
               )}
             </CardContent>
@@ -1021,8 +1027,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           <div className="grid gap-6 xl:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Discrepancies</CardTitle>
-                <CardDescription>Grouped by employee so large payroll runs stay easier to review and act on.</CardDescription>
+                <CardTitle>{t("payrollPage.discrepanciesTitle")}</CardTitle>
+                <CardDescription>{t("payrollPage.discrepanciesDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {allDiscrepancies.length ? (
@@ -1120,16 +1126,16 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                                         {item.status !== "resolved" ? (
                                           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                                             <Input
-                                              placeholder="Resolution note"
+                                              placeholder={t("payrollPage.resolutionNote")}
                                               value={resolveNotes[item.id] || ""}
                                               onChange={(event) => setResolveNotes((value) => ({ ...value, [item.id]: event.target.value }))}
                                             />
                                             <Button
                                               variant="outline"
                                               disabled={resolveDiscrepancy.isPending}
-                                              onClick={() => resolveDiscrepancy.mutate({ discrepancyId: item.id, note: resolveNotes[item.id] || "Resolved in payroll review." })}
+                                              onClick={() => resolveDiscrepancy.mutate({ discrepancyId: item.id, note: resolveNotes[item.id] || t("payrollPage.resolvedInPayrollReview") })}
                                             >
-                                              Resolve
+                                              {t("labels.code.resolved")}
                                             </Button>
                                           </div>
                                         ) : (
@@ -1164,8 +1170,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
             <Card>
               <CardHeader>
-                <CardTitle>Payroll history</CardTitle>
-                <CardDescription>Select a payroll row and open adjustment/history actions to review backend history.</CardDescription>
+                <CardTitle>{t("payrollPage.historyTitle")}</CardTitle>
+                <CardDescription>{t("payrollPage.historyDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {selectedPayroll ? (
@@ -1193,7 +1199,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                     </div>
                   </div>
                 ) : (
-                  <EmptyState title="No payroll row selected" description="Open a payroll row to inspect adjustment and calculation history." />
+                  <EmptyState title={t("payrollPage.noRowSelected")} description={t("payrollPage.noRowSelectedDescription")} />
                 )}
               </CardContent>
             </Card>
@@ -1204,7 +1210,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       <Dialog open={Boolean(detailsPayroll)} onOpenChange={(open) => !open && setDetailsPayrollId(null)}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Payslip preview</DialogTitle>
+            <DialogTitle>{t("payrollPage.payslipPreview")}</DialogTitle>
             <DialogDescription>
               {detailsPayroll ? `${getEmployeeLabel(detailsPayroll.employee_id)} / ${periodQuery.data?.name || `Period ${detailsPayroll.payroll_period_id}`}` : ""}
             </DialogDescription>
@@ -1213,68 +1219,71 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <div className="space-y-4">
               <Alert>
                 <Lock className="h-4 w-4" />
-                <AlertTitle>Preview only</AlertTitle>
-                <AlertDescription>PDF download, export, and period lock are not active because this backend does not expose those endpoints yet.</AlertDescription>
+                <AlertTitle>{t("payrollPage.previewOnlyTitle")}</AlertTitle>
+                <AlertDescription>{t("payrollPage.previewOnlyDescription")}</AlertDescription>
               </Alert>
               {detailsPayroll.needs_review_reason ? (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Needs review</AlertTitle>
+                  <AlertTitle>{t("labels.code.needs_review")}</AlertTitle>
                   <AlertDescription>{detailsPayroll.needs_review_reason}</AlertDescription>
                 </Alert>
               ) : null}
               {Number(getHeldForReviewAmount(detailsPayroll)) > 0 ? (
                 <Alert className="border-warning/40">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Amount held for review</AlertTitle>
+                  <AlertTitle>{t("payrollPage.amountHeldForReview")}</AlertTitle>
                   <AlertDescription>
-                    Earned net is {formatCurrency(getEarnedNetSalary(detailsPayroll))}, while only {formatCurrency(getPayableAmount(detailsPayroll))} is currently payable.
+                    {t("payrollPage.amountHeldForReviewDescription", {
+                      earned: formatCurrency(getEarnedNetSalary(detailsPayroll)),
+                      payable: formatCurrency(getPayableAmount(detailsPayroll)),
+                    })}
                   </AlertDescription>
                 </Alert>
               ) : null}
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Status</p>
+                  <p className="text-xs text-muted-foreground">{t("common.status")}</p>
                   <div className="mt-1"><StatusBadge status={detailsPayroll.status} /></div>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Salary type</p>
+                  <p className="text-xs text-muted-foreground">{t("employeesPage.salaryType")}</p>
                   <p className="font-medium capitalize">{detailsPayroll.salary_type}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Calculated at</p>
+                  <p className="text-xs text-muted-foreground">{t("payrollPage.calculatedAt")}</p>
                   <p className="font-medium">{formatDateTime(detailsPayroll.calculated_at)}</p>
                 </div>
               </div>
               <PayrollBreakdownGrid payroll={detailsPayroll} />
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Approved date</p>
+                  <p className="text-xs text-muted-foreground">{t("payrollPage.approvedDate")}</p>
                   <p className="font-medium">{formatDateTime(detailsPayroll.approved_at)}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Paid date</p>
+                  <p className="text-xs text-muted-foreground">{t("payrollPage.paidDate")}</p>
                   <p className="font-medium">{formatDateTime(detailsPayroll.paid_at)}</p>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-border p-3">
-                  <Button variant="outline" disabled>Download PDF</Button>
-                  <Button variant="outline" disabled>Export</Button>
+                  <Button variant="outline" disabled>{t("payrollPage.downloadPdf")}</Button>
+                  <Button variant="outline" disabled>{t("payrollPage.export")}</Button>
                 </div>
               </div>
               <div className="space-y-3">
                 <div>
-                  <h3 className="font-medium">How this payroll was calculated</h3>
-                  <p className="text-sm text-muted-foreground">Attendance, absence, vacation, and overtime values from the latest calculation snapshot.</p>
+                  <h3 className="font-medium">{t("payrollPage.calculationTitle")}</h3>
+                  <p className="text-sm text-muted-foreground">{t("payrollPage.calculationDescription")}</p>
                 </div>
                 <CalculationGrid history={historyQuery.data} />
               </div>
               <div className="space-y-3">
                 <div>
-                  <h3 className="font-medium">Manual adjustments</h3>
-                  <p className="text-sm text-muted-foreground">Bonuses, deductions, and corrections applied to this payroll row.</p>
+                  <h3 className="font-medium">{t("payrollPage.manualAdjustmentsTitle")}</h3>
+                  <p className="text-sm text-muted-foreground">{t("payrollPage.manualAdjustmentsDescription")}</p>
                 </div>
                 {adjustmentsQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading adjustments...</p>
+                  <p className="text-sm text-muted-foreground">{t("payrollPage.loadingAdjustments")}</p>
                 ) : selectedAdjustments.length ? (
                   <div className="space-y-2">
                     {selectedAdjustments.map((adjustment) => (
@@ -1287,10 +1296,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                           <p className="text-xs text-muted-foreground">{formatDateTime(adjustment.created_at)}</p>
                         </div>
                         <div className="flex shrink-0 gap-2">
-                          <Button size="icon" variant="outline" disabled={!canAdjustPayroll(detailsPayroll)} onClick={() => openEditAdjustmentDialog(adjustment)} aria-label={`Edit adjustment ${adjustment.id}`}>
+                          <Button size="icon" variant="outline" disabled={!canAdjustPayroll(detailsPayroll)} onClick={() => openEditAdjustmentDialog(adjustment)} aria-label={t("payrollPage.editAdjustmentAria", { id: adjustment.id })}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="outline" disabled={!canAdjustPayroll(detailsPayroll)} onClick={() => setDeletingAdjustment(adjustment)} aria-label={`Delete adjustment ${adjustment.id}`}>
+                          <Button size="icon" variant="outline" disabled={!canAdjustPayroll(detailsPayroll)} onClick={() => setDeletingAdjustment(adjustment)} aria-label={t("payrollPage.deleteAdjustmentAria", { id: adjustment.id })}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -1298,7 +1307,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No manual adjustments have been added to this row.</p>
+                  <p className="text-sm text-muted-foreground">{t("payrollPage.noManualAdjustments")}</p>
                 )}
               </div>
             </div>
@@ -1318,21 +1327,21 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             {selectedPayroll ? (
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Employee</p>
+                  <p className="text-xs text-muted-foreground">{t("common.employee")}</p>
                   <p className="font-medium">{getEmployeeLabel(selectedPayroll.employee_id)}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Payroll row</p>
+                  <p className="text-xs text-muted-foreground">{t("payrollPage.payrollRow")}</p>
                   <p className="font-medium">#{selectedPayroll.id}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">Current earned net</p>
+                  <p className="text-xs text-muted-foreground">{t("payrollPage.currentEarnedNet")}</p>
                   <p className="font-medium">{formatCurrency(getEarnedNetSalary(selectedPayroll))}</p>
                 </div>
               </div>
             ) : null}
             <div className="space-y-2">
-              <Label htmlFor="adjustmentType">Adjustment type</Label>
+              <Label htmlFor="adjustmentType">{t("payrollPage.adjustmentType")}</Label>
               <Select
                 value={adjustmentForm.adjustment_type}
                 onValueChange={(value) => setAdjustmentForm((current) => ({ ...current, adjustment_type: value as PayrollAdjustmentType }))}
@@ -1350,7 +1359,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="adjustmentAmount">Amount</Label>
+              <Label htmlFor="adjustmentAmount">{t("payrollPage.amount")}</Label>
               <Input
                 id="adjustmentAmount"
                 type="number"
@@ -1361,16 +1370,16 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="adjustmentReason">Reason</Label>
+              <Label htmlFor="adjustmentReason">{t("attendancePage.reason")}</Label>
               <Textarea id="adjustmentReason" value={adjustmentForm.reason} onChange={(event) => setAdjustmentForm((value) => ({ ...value, reason: event.target.value }))} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdjustmentOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={submitAdjustment} disabled={addAdjustment.isPending || updateAdjustment.isPending || !canSubmitAdjustment}>
-              {addAdjustment.isPending || updateAdjustment.isPending ? "Saving..." : editingAdjustmentId ? "Save adjustment" : "Add adjustment"}
+              {addAdjustment.isPending || updateAdjustment.isPending ? t("common.saving") : editingAdjustmentId ? t("payrollPage.saveAdjustment") : t("payrollPage.addAdjustment")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1379,9 +1388,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       <AlertDialog open={Boolean(deletingAdjustment)} onOpenChange={(open) => !open && setDeletingAdjustment(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete adjustment</AlertDialogTitle>
+            <AlertDialogTitle>{t("payrollPage.deleteAdjustment")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the selected {deletingAdjustment?.adjustment_type} adjustment and recalculates the payroll row.
+              {t("payrollPage.deleteAdjustmentDescription", { type: deletingAdjustment?.adjustment_type || "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deletingAdjustment ? (
@@ -1391,9 +1400,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             </div>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={deleteAdjustment.isPending} onClick={() => deletingAdjustment && deleteAdjustment.mutate(deletingAdjustment.id)}>
-              {deleteAdjustment.isPending ? "Deleting..." : "Delete"}
+              {deleteAdjustment.isPending ? t("attendancePage.deleting") : t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1404,19 +1413,19 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirmAction.type === "approve"
-                ? "Approve payroll"
-                : "Record payroll payment"}
+                ? t("payrollPage.approvePayroll")
+                : t("payrollPage.recordPayrollPayment")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction.type === "approve"
-                ? "This confirms the payroll row after discrepancy review."
-                : "Record a positive payment amount for an approved payroll row. The backend rejects negative payments and paid-total corrections."}
+                ? t("payrollPage.approvePayrollDescription")
+                : t("payrollPage.recordPayrollPaymentDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {confirmAction.type === "paid" ? (
             <div className="grid gap-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="paymentAmount">Payment amount</Label>
+                <Label htmlFor="paymentAmount">{t("payrollPage.paymentAmount")}</Label>
                 <Input
                   id="paymentAmount"
                   type="number"
@@ -1427,18 +1436,18 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="paymentNote">Note</Label>
+                <Label htmlFor="paymentNote">{t("payrollPage.paymentNote")}</Label>
                 <Textarea
                   id="paymentNote"
                   value={confirmAction.note}
                   onChange={(event) => setConfirmAction((value) => ({ ...value, note: event.target.value }))}
-                  placeholder="Partial salary payment, bank transfer reference, or settlement note"
+                  placeholder={t("payrollPage.paymentNotePlaceholder")}
                 />
               </div>
             </div>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={
                 approvePayroll.isPending ||
