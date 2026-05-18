@@ -6,6 +6,7 @@ import { AlertTriangle, DollarSign, Lock, MoreHorizontal, Pencil, ReceiptText, S
 import { EmptyState } from "@/components/app/EmptyState";
 import { MetricCard } from "@/components/app/MetricCard";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -40,11 +41,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { payrollAdjustmentTypes } from "@/components/layout/navigation";
 import { getErrorMessage } from "@/lib/errors";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, formatLabel } from "@/lib/format";
 import { hasPermission } from "@/lib/roles";
 import {
   canAdjustPayroll,
@@ -53,10 +55,11 @@ import {
   canRecordPayrollPayment,
   hasOpenDiscrepancyForPayroll,
 } from "@/lib/workflow";
+import { attendanceApi } from "@/services/attendanceApi";
 import { payrollApi } from "@/services/payrollApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
-import type { EmployeePayroll, PayrollAdjustment, PayrollHistory } from "@/types/domain";
+import type { EmployeePayroll, PayrollAdjustment, PayrollDiscrepancy, PayrollHistory } from "@/types/domain";
 
 type PayrollAdjustmentType = (typeof payrollAdjustmentTypes)[number];
 
@@ -64,6 +67,16 @@ const adjustmentLabels: Record<PayrollAdjustmentType, string> = {
   bonus: "Bonus",
   deduction: "Deduction",
   correction: "Correction",
+};
+
+const discrepancyTypeLabels: Record<string, string> = {
+  missing_attendance: "Missing attendance",
+  missing_checkout: "Missing check-out",
+  missing_checkin: "Missing check-in",
+  attendance_requires_review: "Attendance needs review",
+  vacation_overlap: "Vacation overlaps attendance",
+  attendance_changed_after_approval: "Attendance changed after approval",
+  overtime_conflict: "Overtime conflict",
 };
 
 const calculationFields = [
@@ -162,6 +175,34 @@ function latestCalculationHistory(history: PayrollHistory[] | undefined) {
   return (history || []).find((item) => Object.keys(item.calculation_data_json || {}).length > 0);
 }
 
+function getDiscrepancyTypeLabel(type: string) {
+  return discrepancyTypeLabels[type] || formatLabel(type);
+}
+
+function getDiscrepancyWorkDate(discrepancy: Pick<PayrollDiscrepancy, "description">) {
+  return discrepancy.description.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0] ?? null;
+}
+
+function getDiscrepancyQuickActions(item: PayrollDiscrepancy) {
+  const workDate = getDiscrepancyWorkDate(item);
+  if (item.status === "resolved" || !workDate) {
+    return [];
+  }
+
+  if (item.discrepancy_type === "missing_attendance") {
+    return [
+      { id: "mark_present", label: "Mark present" },
+      { id: "mark_absent", label: "Mark absent" },
+    ];
+  }
+
+  if (item.discrepancy_type === "attendance_requires_review") {
+    return [{ id: "approve_attendance", label: "Approve day" }];
+  }
+
+  return [];
+}
+
 function CalculationGrid({ history }: { history?: PayrollHistory[] }) {
   const calculation = latestCalculationHistory(history);
 
@@ -204,6 +245,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const canAdjust = hasPermission(currentUser, "payroll.adjust");
   const canApprove = hasPermission(currentUser, "payroll.approve");
   const canMarkPaid = hasPermission(currentUser, "payroll.mark_paid");
+  const canCorrectAttendance = hasPermission(currentUser, "attendance.correct");
+  const canApproveAttendance = hasPermission(currentUser, "attendance.approve");
   const [searchParams, setSearchParams] = useSearchParams();
   const [periodId, setPeriodId] = useState(searchParams.get("period") || "");
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null);
@@ -225,6 +268,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     reason: "",
   });
   const [resolveNotes, setResolveNotes] = useState<Record<number, string>>({});
+  const [discrepancyTab, setDiscrepancyTab] = useState<"open" | "all" | "resolved">("open");
+  const [activeDiscrepancyAction, setActiveDiscrepancyAction] = useState<string | null>(null);
 
   const parsedPeriodId = Number(periodId);
   const canLoadPayroll = Number.isFinite(parsedPeriodId) && parsedPeriodId > 0;
@@ -422,6 +467,58 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     },
   });
 
+  const runDiscrepancyAction = useMutation({
+    mutationFn: async ({ item, actionId }: { item: PayrollDiscrepancy; actionId: string }) => {
+      const workDate = getDiscrepancyWorkDate(item);
+      if (!workDate) {
+        throw new Error("This discrepancy does not expose a work date for quick actions.");
+      }
+
+      if (actionId === "mark_present" || actionId === "mark_absent") {
+        await attendanceApi.smartCorrection(item.employee_id, workDate, {
+          target_status: actionId === "mark_present" ? "present" : "absent",
+          reason: `Resolved from payroll discrepancy review (${item.discrepancy_type})`,
+        });
+        return;
+      }
+
+      if (actionId === "approve_attendance") {
+        await attendanceApi.reviewDay(item.employee_id, workDate, {
+          review_status: "approved",
+          note: "Approved from payroll discrepancy review.",
+        });
+        return;
+      }
+
+      throw new Error("Unsupported discrepancy action.");
+    },
+    onMutate: ({ item, actionId }) => {
+      setActiveDiscrepancyAction(`${item.id}:${actionId}`);
+    },
+    onSuccess: async (_result, variables) => {
+      const labels: Record<string, string> = {
+        mark_present: "Attendance marked present",
+        mark_absent: "Attendance marked absent",
+        approve_attendance: "Attendance approved",
+      };
+      toast({
+        title: labels[variables.actionId] || "Quick action completed",
+        description: "Payroll discrepancies were refreshed for the selected row.",
+      });
+      await refreshPayroll();
+    },
+    onError: (error) => {
+      toast({
+        title: "Quick action failed",
+        description: getErrorMessage(error, "The discrepancy could not be updated from this panel."),
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setActiveDiscrepancyAction(null);
+    },
+  });
+
   const payrollRows = useMemo(() => periodQuery.data?.payrolls ?? [], [periodQuery.data?.payrolls]);
   const showLatePenaltyColumn = useMemo(
     () =>
@@ -432,7 +529,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       ),
     [payrollRows],
   );
-  const allDiscrepancies = discrepanciesQuery.data || [];
+  const allDiscrepancies = useMemo(() => discrepanciesQuery.data ?? [], [discrepanciesQuery.data]);
   const warningOpenDiscrepancies = allDiscrepancies.filter((item) => item.status !== "resolved").length;
   const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
   const detailsPayroll = useMemo(() => payrollRows.find((row) => row.id === detailsPayrollId) || null, [detailsPayrollId, payrollRows]);
@@ -444,6 +541,66 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     () => new Map((payrollReport?.employees || []).map((employee) => [employee.employee_id, employee.employee_name])),
     [payrollReport?.employees],
   );
+  const getEmployeeLabel = (employeeId: number) => employeeNameMap.get(employeeId) || `Employee #${employeeId}`;
+  const filteredDiscrepancies = useMemo(() => {
+    if (discrepancyTab === "open") {
+      return allDiscrepancies.filter((item) => item.status !== "resolved");
+    }
+    if (discrepancyTab === "resolved") {
+      return allDiscrepancies.filter((item) => item.status === "resolved");
+    }
+    return allDiscrepancies;
+  }, [allDiscrepancies, discrepancyTab]);
+  const discrepancyTypeSummary = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of filteredDiscrepancies) {
+      counts.set(item.discrepancy_type, (counts.get(item.discrepancy_type) || 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [filteredDiscrepancies]);
+  const discrepancyGroups = useMemo(() => {
+    const groups = new Map<number, {
+      employeeId: number;
+      employeeLabel: string;
+      items: PayrollDiscrepancy[];
+      openCount: number;
+      resolvedCount: number;
+    }>();
+
+    for (const item of filteredDiscrepancies) {
+      const current = groups.get(item.employee_id) || {
+        employeeId: item.employee_id,
+        employeeLabel: employeeNameMap.get(item.employee_id) || `Employee #${item.employee_id}`,
+        items: [],
+        openCount: 0,
+        resolvedCount: 0,
+      };
+      current.items.push(item);
+      if (item.status === "resolved") {
+        current.resolvedCount += 1;
+      } else {
+        current.openCount += 1;
+      }
+      groups.set(item.employee_id, current);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((a, b) => {
+          if (a.status !== b.status) {
+            return a.status === "resolved" ? 1 : -1;
+          }
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }),
+      }))
+      .sort((a, b) => {
+        if (a.openCount !== b.openCount) {
+          return b.openCount - a.openCount;
+        }
+        return a.employeeLabel.localeCompare(b.employeeLabel);
+      });
+  }, [employeeNameMap, filteredDiscrepancies]);
   const adjustmentAmount = Number(adjustmentForm.amount);
   const canSubmitAdjustment = Boolean(
     canAdjust &&
@@ -459,8 +616,6 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const periodCanRecalculate = Boolean(
     canCalculate && periodQuery.data && !["approved", "paid", "locked", "cancelled"].includes(periodQuery.data.status),
   );
-
-  const getEmployeeLabel = (employeeId: number) => employeeNameMap.get(employeeId) || `Employee #${employeeId}`;
 
   const openAdjustmentDialog = (row: EmployeePayroll, adjustmentType: PayrollAdjustmentType) => {
     setSelectedPayrollId(row.id);
@@ -867,38 +1022,137 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <Card>
               <CardHeader>
                 <CardTitle>Discrepancies</CardTitle>
-                <CardDescription>Loaded from `/payroll/discrepancies/{parsedPeriodId}`.</CardDescription>
+                <CardDescription>Grouped by employee so large payroll runs stay easier to review and act on.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {(discrepanciesQuery.data || []).length ? (
-                  discrepanciesQuery.data?.map((item) => (
-                    <div key={item.id} className="rounded-lg border border-border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{item.description}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Employee #{item.employee_id} / {item.discrepancy_type} / {item.severity}
-                          </p>
-                        </div>
-                        <StatusBadge status={item.status} />
-                      </div>
-                      {item.status !== "resolved" ? (
-                        <div className="mt-3 flex gap-2">
-                          <Input
-                            placeholder="Resolution note"
-                            value={resolveNotes[item.id] || ""}
-                            onChange={(event) => setResolveNotes((value) => ({ ...value, [item.id]: event.target.value }))}
+                {allDiscrepancies.length ? (
+                  <Tabs value={discrepancyTab} onValueChange={(value) => setDiscrepancyTab(value as "open" | "all" | "resolved")} className="space-y-4">
+                    <TabsList className="w-full justify-start">
+                      <TabsTrigger value="open">Open ({warningOpenDiscrepancies})</TabsTrigger>
+                      <TabsTrigger value="all">All ({allDiscrepancies.length})</TabsTrigger>
+                      <TabsTrigger value="resolved">Resolved ({allDiscrepancies.filter((item) => item.status === "resolved").length})</TabsTrigger>
+                    </TabsList>
+
+                    {(["open", "all", "resolved"] as const).map((tabValue) => (
+                      <TabsContent key={tabValue} value={tabValue} className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <OverviewStat label="Employees affected" value={discrepancyGroups.length} />
+                          <OverviewStat label="Issues shown" value={filteredDiscrepancies.length} />
+                          <OverviewStat
+                            label="Top type"
+                            value={discrepancyTypeSummary[0] ? getDiscrepancyTypeLabel(discrepancyTypeSummary[0][0]) : "-"}
+                            hint={discrepancyTypeSummary[0] ? `${discrepancyTypeSummary[0][1]} item(s)` : undefined}
                           />
-                          <Button
-                            variant="outline"
-                            onClick={() => resolveDiscrepancy.mutate({ discrepancyId: item.id, note: resolveNotes[item.id] || "Resolved in frontend review." })}
-                          >
-                            Resolve
-                          </Button>
                         </div>
-                      ) : null}
-                    </div>
-                  ))
+
+                        {discrepancyTypeSummary.length ? (
+                          <div className="flex flex-wrap gap-2">
+                            {discrepancyTypeSummary.map(([type, count]) => (
+                              <Badge key={type} variant="outline">
+                                {getDiscrepancyTypeLabel(type)} ({count})
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {discrepancyGroups.length ? (
+                          <Accordion type="multiple" className="w-full rounded-lg border border-border px-4">
+                            {discrepancyGroups.map((group) => (
+                              <AccordionItem key={group.employeeId} value={`employee-${group.employeeId}`}>
+                                <AccordionTrigger className="py-4 text-left hover:no-underline">
+                                  <div className="flex w-full items-center justify-between gap-3 pr-3">
+                                    <div>
+                                      <p className="font-medium">{group.employeeLabel}</p>
+                                      <p className="text-sm text-muted-foreground">Employee #{group.employeeId}</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {group.openCount ? <Badge variant="destructive">{group.openCount} open</Badge> : null}
+                                      {group.resolvedCount ? <Badge variant="secondary">{group.resolvedCount} resolved</Badge> : null}
+                                      <Badge variant="outline">{group.items.length} total</Badge>
+                                    </div>
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-3 pb-4">
+                                  {group.items.map((item) => {
+                                    const workDate = getDiscrepancyWorkDate(item);
+                                    const quickActions = getDiscrepancyQuickActions(item).filter((action) => {
+                                      if (action.id === "approve_attendance") {
+                                        return canApproveAttendance;
+                                      }
+                                      return canCorrectAttendance;
+                                    });
+
+                                    return (
+                                      <div key={item.id} className="rounded-lg border border-border p-4">
+                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                          <div className="space-y-1">
+                                            <p className="font-medium">{item.description}</p>
+                                            <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                                              <span>{getDiscrepancyTypeLabel(item.discrepancy_type)}</span>
+                                              <span>{formatLabel(item.severity)}</span>
+                                              {workDate ? <span>{formatDate(workDate)}</span> : null}
+                                              <span>{formatDateTime(item.created_at)}</span>
+                                            </div>
+                                          </div>
+                                          <StatusBadge status={item.status} />
+                                        </div>
+
+                                        {quickActions.length ? (
+                                          <div className="mt-3 flex flex-wrap gap-2">
+                                            {quickActions.map((action) => {
+                                              const actionKey = `${item.id}:${action.id}`;
+                                              const isPending = activeDiscrepancyAction === actionKey && runDiscrepancyAction.isPending;
+                                              return (
+                                                <Button
+                                                  key={action.id}
+                                                  size="sm"
+                                                  variant="secondary"
+                                                  disabled={runDiscrepancyAction.isPending}
+                                                  onClick={() => runDiscrepancyAction.mutate({ item, actionId: action.id })}
+                                                >
+                                                  {isPending ? "Working..." : action.label}
+                                                </Button>
+                                              );
+                                            })}
+                                          </div>
+                                        ) : null}
+
+                                        {item.status !== "resolved" ? (
+                                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                            <Input
+                                              placeholder="Resolution note"
+                                              value={resolveNotes[item.id] || ""}
+                                              onChange={(event) => setResolveNotes((value) => ({ ...value, [item.id]: event.target.value }))}
+                                            />
+                                            <Button
+                                              variant="outline"
+                                              disabled={resolveDiscrepancy.isPending}
+                                              onClick={() => resolveDiscrepancy.mutate({ discrepancyId: item.id, note: resolveNotes[item.id] || "Resolved in payroll review." })}
+                                            >
+                                              Resolve
+                                            </Button>
+                                          </div>
+                                        ) : (
+                                          <div className="mt-3 text-sm text-muted-foreground">
+                                            Resolved {formatDateTime(item.resolved_at)}{item.resolution_note ? ` - ${item.resolution_note}` : ""}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </AccordionContent>
+                              </AccordionItem>
+                            ))}
+                          </Accordion>
+                        ) : (
+                          <EmptyState
+                            title={discrepanciesQuery.isLoading ? "Loading discrepancies..." : "No discrepancies in this view"}
+                            description="Try another tab to review open or resolved items."
+                          />
+                        )}
+                      </TabsContent>
+                    ))}
+                  </Tabs>
                 ) : (
                   <EmptyState
                     title={discrepanciesQuery.isLoading ? "Loading discrepancies..." : "No discrepancies found"}
