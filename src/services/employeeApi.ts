@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
-import type { Employee, EmployeeReference, SalaryType } from "@/types/domain";
+import type { Employee, EmployeeCompensationHistory, EmployeeReference, SalaryType } from "@/types/domain";
 
 export const employeeApi = {
   list() {
@@ -10,6 +10,9 @@ export const employeeApi = {
   },
   get(employeeId: number) {
     return apiRequest<Employee>(`/employee/${employeeId}`);
+  },
+  getCompensationHistory(employeeId: number) {
+    return apiRequest<EmployeeCompensationHistory[]>(`/employee/${employeeId}/compensation-history`);
   },
   create(payload: Record<string, unknown>) {
     return apiRequest<Employee>("/employee/", {

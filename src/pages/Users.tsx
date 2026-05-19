@@ -44,7 +44,7 @@ const defaultUserForm = {
   employee_id: "",
   language: "en" as const,
   is_active: true,
-  must_change_password: true,
+  must_change_password: false,
   role_ids: [] as number[],
 };
 

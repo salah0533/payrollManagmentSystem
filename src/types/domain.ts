@@ -92,6 +92,27 @@ export interface Employee {
   user_id?: number | null;
 }
 
+export interface EmployeeCompensationHistory {
+  id: number;
+  employee_id: number;
+  salary_type: string;
+  base_monthly_salary?: number | string | null;
+  daily_rate?: number | string | null;
+  hourly_rate?: number | string | null;
+  overtime_rate?: number | string | null;
+  late_deduction_rate?: number | string | null;
+  daily_rate_override?: number | string | null;
+  hourly_rate_override?: number | string | null;
+  overtime_rate_override?: number | string | null;
+  late_deduction_rate_override?: number | string | null;
+  currency: string;
+  effective_from: string;
+  effective_to?: string | null;
+  is_active: boolean;
+  created_at: string;
+  created_by?: number | null;
+}
+
 export interface SalaryType {
   id: number;
   code?: string;

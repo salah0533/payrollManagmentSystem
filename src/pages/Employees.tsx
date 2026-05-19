@@ -178,6 +178,12 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
     queryFn: () => employeeApi.getPositions(),
   });
 
+  const compensationHistoryQuery = useQuery({
+    queryKey: ["employees", "compensation-history", editingId],
+    queryFn: () => employeeApi.getCompensationHistory(editingId as number),
+    enabled: Boolean(editingId && isDialogOpen),
+  });
+
   const salaryTypeMap = useMemo(
     () =>
       Object.fromEntries((salaryTypesQuery.data || []).map((item) => [item.id, item.salary_type])),
@@ -662,8 +668,68 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   />
                 </div>
               ))}
-              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2">
-                {t("employeesPage.compensationHistoryNotice")}
+              <div className="space-y-3 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{t("employeesPage.compensationHistoryTitle")}</p>
+                    <p className="text-sm text-muted-foreground">{t("employeesPage.compensationHistoryDescription")}</p>
+                  </div>
+                </div>
+                {editingId ? (
+                  compensationHistoryQuery.data?.length ? (
+                    <div className="space-y-3 rounded-lg border border-border p-4">
+                      {compensationHistoryQuery.data.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-border/70 bg-background p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium capitalize">{formatLabel(item.salary_type)}</p>
+                                <Badge variant={item.is_active ? "secondary" : "outline"}>
+                                  {item.is_active ? t("employeesPage.currentCompensation") : t("employeesPage.pastCompensation")}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {t("labels.range", {
+                                  start: formatDate(item.effective_from),
+                                  end: item.effective_to ? formatDate(item.effective_to) : t("employeesPage.presentRangeLabel"),
+                                })}
+                              </p>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
+                          </div>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div>
+                              <p className="text-xs text-muted-foreground">{t("employeesPage.monthlySalary")}</p>
+                              <p className="font-medium">{formatCurrency(item.base_monthly_salary ?? 0, item.currency)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">{t("employeesPage.dayPrice")}</p>
+                              <p className="font-medium">{formatCurrency(item.daily_rate ?? 0, item.currency)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">{t("employeesPage.hourPrice")}</p>
+                              <p className="font-medium">{formatCurrency(item.hourly_rate ?? 0, item.currency)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">{t("employeesPage.extraHoursPrice")}</p>
+                              <p className="font-medium">{formatCurrency(item.overtime_rate ?? 0, item.currency)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      {compensationHistoryQuery.isLoading
+                        ? t("employeesPage.loadingCompensationHistory")
+                        : t("employeesPage.noCompensationHistory")}
+                    </div>
+                  )
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    {t("employeesPage.createEmployeeBeforeCompensationHistory")}
+                  </div>
+                )}
               </div>
             </TabsContent>
 
