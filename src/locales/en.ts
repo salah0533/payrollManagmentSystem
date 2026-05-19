@@ -715,6 +715,7 @@ const en = {
     loadingAvailableEmployees: "Loading available employees...",
     noAvailableEmployees: "No available employees",
     noAvailableEmployeesDescription: "No active employees match the current search or status filters.",
+    availableEmployeesPage: "Page {{page}} of {{total}}",
     quickMarkPresent: "Mark present",
     quickMarkAbsent: "Mark absent",
     quickActionWorkedTime: "Worked {{worked}}. {{checkIn}} to {{checkOut}}.",

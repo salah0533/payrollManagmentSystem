@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { AlertTriangle, CalendarCheck2, CheckCircle2, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
@@ -110,6 +110,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const [reviewFilter, setReviewFilter] = useState("");
   const [issueFilter, setIssueFilter] = useState("");
   const [dateFilter, setDateFilter] = useState(toIsoDate(new Date()));
+  const [availableEmployeesPage, setAvailableEmployeesPage] = useState(1);
   const [historyEmployeeId, setHistoryEmployeeId] = useState("");
   const [historyMonth, setHistoryMonth] = useState(format(new Date(), "yyyy-MM"));
   const [range, setRange] = useState({
@@ -206,7 +207,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     [dailyAttendanceQuery.data],
   );
 
-  const availableEmployees = useMemo(() => {
+  const employeesWithoutAttendance = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return (employeesQuery.data || [])
       .filter((employee) => employee.is_active && !["inactive", "suspended"].includes(employee.status))
@@ -215,8 +216,9 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
         const haystack = [employee.full_name, employee.position, employee.email].filter(Boolean).join(" ").toLowerCase();
         return haystack.includes(normalizedSearch);
       })
+      .filter((employee) => !dailyRowsByEmployee[employee.id])
       .sort((left, right) => left.full_name.localeCompare(right.full_name));
-  }, [employeesQuery.data, search]);
+  }, [dailyRowsByEmployee, employeesQuery.data, search]);
 
   const selectedRows = useMemo(() => {
     const selected = new Set(selectedRowKeys);
@@ -259,16 +261,22 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     return { worked, lateDays, missedCheckout };
   }, [selfRows]);
 
-  const availableEmployeeStats = useMemo(() => {
-    const rows = availableEmployees.map((employee) => dailyRowsByEmployee[employee.id]).filter(Boolean);
-    return {
-      total: availableEmployees.length,
-      withRecord: rows.length,
-      noRecord: availableEmployees.length - rows.length,
-      present: rows.filter((row) => row.status === "present").length,
-      absent: rows.filter((row) => row.status === "absent").length,
-    };
-  }, [availableEmployees, dailyRowsByEmployee]);
+  const availableEmployeesPageSize = 10;
+  const totalAvailableEmployeePages = Math.max(1, Math.ceil(employeesWithoutAttendance.length / availableEmployeesPageSize));
+  const paginatedEmployeesWithoutAttendance = useMemo(() => {
+    const startIndex = (availableEmployeesPage - 1) * availableEmployeesPageSize;
+    return employeesWithoutAttendance.slice(startIndex, startIndex + availableEmployeesPageSize);
+  }, [availableEmployeesPage, employeesWithoutAttendance]);
+
+  useEffect(() => {
+    setAvailableEmployeesPage(1);
+  }, [dateFilter, search]);
+
+  useEffect(() => {
+    if (availableEmployeesPage > totalAvailableEmployeePages) {
+      setAvailableEmployeesPage(totalAvailableEmployeePages);
+    }
+  }, [availableEmployeesPage, totalAvailableEmployeePages]);
 
   const refreshManageAttendance = async () => {
     await queryClient.invalidateQueries({ queryKey: ["attendance", "manage"] });
@@ -515,6 +523,14 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     setSelectedRowKeys(checked ? filteredDailyRows.map(rowKey) : []);
   };
 
+  const goToPreviousAvailableEmployeesPage = () => {
+    setAvailableEmployeesPage((current) => Math.max(1, current - 1));
+  };
+
+  const goToNextAvailableEmployeesPage = () => {
+    setAvailableEmployeesPage((current) => Math.min(totalAvailableEmployeePages, current + 1));
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -603,93 +619,84 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               <CardDescription>{t("attendancePage.availableEmployeesDescription", { date: formatDate(dateFilter) })}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">{t("common.employees")}</p>
-                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.total}</p>
-                </div>
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">{t("attendancePage.withAttendance")}</p>
-                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.withRecord}</p>
-                </div>
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
                   <p className="text-xs text-muted-foreground">{t("attendancePage.noRecordYet")}</p>
-                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.noRecord}</p>
+                  <p className="mt-1 text-2xl font-semibold">{employeesWithoutAttendance.length}</p>
                 </div>
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">{t("attendancePage.metrics.present")}</p>
-                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.present}</p>
-                </div>
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">{t("attendancePage.metrics.absent")}</p>
-                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.absent}</p>
+                <div className="flex items-center gap-2 self-end">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={goToPreviousAvailableEmployeesPage}
+                    disabled={availableEmployeesPage === 1}
+                    aria-label={t("common.previous")}
+                  >
+                    <span aria-hidden="true">←</span>
+                  </Button>
+                  <p className="min-w-24 text-center text-sm text-muted-foreground">
+                    {t("attendancePage.availableEmployeesPage", {
+                      page: availableEmployeesPage,
+                      total: totalAvailableEmployeePages,
+                    })}
+                  </p>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={goToNextAvailableEmployeesPage}
+                    disabled={availableEmployeesPage === totalAvailableEmployeePages}
+                    aria-label={t("common.next")}
+                  >
+                    <span aria-hidden="true">→</span>
+                  </Button>
                 </div>
               </div>
 
-              {availableEmployees.length ? (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {availableEmployees.map((employee) => {
-                    const row = dailyRowsByEmployee[employee.id];
-                    const locked = isAttendanceLocked(row);
-                    const isPresent = row?.status === "present";
-                    const isAbsent = row?.status === "absent";
-
-                    return (
-                      <div key={employee.id} className="rounded-xl border border-border/70 bg-background/80 p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="space-y-2">
-                            <div>
-                              <p className="font-semibold">{employee.full_name}</p>
-                              <p className="text-sm text-muted-foreground">{employee.position || employee.email || t("common.notAvailable")}</p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <StatusBadge status={employee.status} />
-                              {row ? <StatusBadge status={row.status} /> : <Badge variant="outline">{t("common.noRecord")}</Badge>}
-                              {row ? <StatusBadge status={getAttendanceReviewStatus(row)} /> : null}
-                            </div>
-                            {row ? (
-                              <p className="text-sm text-muted-foreground">
-                                {t("attendancePage.quickActionWorkedTime", {
-                                  worked: formatMinutes(row.actual_work_minutes),
-                                  checkIn: formatTime(row.check_in_time),
-                                  checkOut: formatTime(row.check_out_time),
-                                })}
-                              </p>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">{t("attendancePage.quickActionNoRecordHint")}</p>
-                            )}
+              {paginatedEmployeesWithoutAttendance.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("common.employee")}</TableHead>
+                      <TableHead>{t("employeesPage.position")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
+                      <TableHead className="text-right">{t("common.actions")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedEmployeesWithoutAttendance.map((employee) => (
+                      <TableRow key={employee.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{employee.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{employee.email || t("common.notAvailable")}</p>
                           </div>
-                          <div className="flex flex-wrap gap-2 sm:justify-end">
+                        </TableCell>
+                        <TableCell>{employee.position || "-"}</TableCell>
+                        <TableCell><StatusBadge status={employee.status} /></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
-                              variant={isPresent ? "default" : "outline"}
-                              disabled={!canCorrect || locked || quickActionAttendance.isPending}
+                              variant="outline"
+                              disabled={!canCorrect || quickActionAttendance.isPending}
                               onClick={() => quickActionAttendance.mutate({ employeeId: employee.id, targetStatus: "present" })}
                             >
                               {t("attendancePage.quickMarkPresent")}
                             </Button>
                             <Button
                               size="sm"
-                              variant={isAbsent ? "destructive" : "outline"}
-                              disabled={!canCorrect || locked || quickActionAttendance.isPending}
+                              variant="destructive"
+                              disabled={!canCorrect || quickActionAttendance.isPending}
                               onClick={() => quickActionAttendance.mutate({ employeeId: employee.id, targetStatus: "absent" })}
                             >
                               {t("attendancePage.quickMarkAbsent")}
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={!canCorrect || locked}
-                              onClick={() => openAttendanceEditor(row || null, employee.id, dateFilter)}
-                            >
-                              {t("attendancePage.correct")}
-                            </Button>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               ) : (
                 <EmptyState
                   title={employeesQuery.isLoading ? t("attendancePage.loadingAvailableEmployees") : t("attendancePage.noAvailableEmployees")}
