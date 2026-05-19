@@ -201,6 +201,23 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     });
   }, [dailyAttendanceQuery.data, employeeMap, issueFilter, reviewFilter, search, statusFilter, t]);
 
+  const dailyRowsByEmployee = useMemo(
+    () => Object.fromEntries((dailyAttendanceQuery.data || []).map((row) => [row.employee_id, row])),
+    [dailyAttendanceQuery.data],
+  );
+
+  const availableEmployees = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    return (employeesQuery.data || [])
+      .filter((employee) => employee.is_active && !["inactive", "suspended"].includes(employee.status))
+      .filter((employee) => {
+        if (!normalizedSearch) return true;
+        const haystack = [employee.full_name, employee.position, employee.email].filter(Boolean).join(" ").toLowerCase();
+        return haystack.includes(normalizedSearch);
+      })
+      .sort((left, right) => left.full_name.localeCompare(right.full_name));
+  }, [employeesQuery.data, search]);
+
   const selectedRows = useMemo(() => {
     const selected = new Set(selectedRowKeys);
     return filteredDailyRows.filter((row) => selected.has(rowKey(row)));
@@ -241,6 +258,17 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     const missedCheckout = selfRows.filter((row) => row.check_in_time && !row.check_out_time).length;
     return { worked, lateDays, missedCheckout };
   }, [selfRows]);
+
+  const availableEmployeeStats = useMemo(() => {
+    const rows = availableEmployees.map((employee) => dailyRowsByEmployee[employee.id]).filter(Boolean);
+    return {
+      total: availableEmployees.length,
+      withRecord: rows.length,
+      noRecord: availableEmployees.length - rows.length,
+      present: rows.filter((row) => row.status === "present").length,
+      absent: rows.filter((row) => row.status === "absent").length,
+    };
+  }, [availableEmployees, dailyRowsByEmployee]);
 
   const refreshManageAttendance = async () => {
     await queryClient.invalidateQueries({ queryKey: ["attendance", "manage"] });
@@ -452,6 +480,32 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     },
   });
 
+  const quickActionAttendance = useMutation({
+    mutationFn: ({ employeeId, targetStatus }: { employeeId: number; targetStatus: "present" | "absent" }) =>
+      attendanceApi.smartCorrection(employeeId, dateFilter, {
+        target_status: targetStatus,
+        reason: t("attendancePage.quickActionReason", { status: formatLabel(targetStatus), date: formatDate(dateFilter) }),
+      }),
+    onSuccess: async (_, variables) => {
+      toast({
+        title: t("attendancePage.quickActionUpdated"),
+        description: t("attendancePage.quickActionUpdatedDescription", {
+          status: formatLabel(variables.targetStatus),
+        }),
+      });
+      await refreshManageAttendance();
+      await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
+      await queryClient.invalidateQueries({ queryKey: ["payroll"] });
+    },
+    onError: (error) => {
+      toast({
+        title: t("attendancePage.quickActionError"),
+        description: getErrorMessage(error, t("attendancePage.quickActionErrorDescription")),
+        variant: "destructive",
+      });
+    },
+  });
+
   const toggleRowSelection = (row: AttendanceDay, checked: boolean) => {
     const key = rowKey(row);
     setSelectedRowKeys((current) => (checked ? [...new Set([...current, key])] : current.filter((item) => item !== key)));
@@ -540,6 +594,108 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   ))}
                 </SelectContent>
               </Select>
+            </CardContent>
+          </Card>
+
+          <Card className="filter-card">
+            <CardHeader>
+              <CardTitle>{t("attendancePage.availableEmployeesTitle")}</CardTitle>
+              <CardDescription>{t("attendancePage.availableEmployeesDescription", { date: formatDate(dateFilter) })}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">{t("common.employees")}</p>
+                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.total}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">{t("attendancePage.withAttendance")}</p>
+                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.withRecord}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">{t("attendancePage.noRecordYet")}</p>
+                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.noRecord}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">{t("attendancePage.metrics.present")}</p>
+                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.present}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                  <p className="text-xs text-muted-foreground">{t("attendancePage.metrics.absent")}</p>
+                  <p className="mt-1 text-2xl font-semibold">{availableEmployeeStats.absent}</p>
+                </div>
+              </div>
+
+              {availableEmployees.length ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {availableEmployees.map((employee) => {
+                    const row = dailyRowsByEmployee[employee.id];
+                    const locked = isAttendanceLocked(row);
+                    const isPresent = row?.status === "present";
+                    const isAbsent = row?.status === "absent";
+
+                    return (
+                      <div key={employee.id} className="rounded-xl border border-border/70 bg-background/80 p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-2">
+                            <div>
+                              <p className="font-semibold">{employee.full_name}</p>
+                              <p className="text-sm text-muted-foreground">{employee.position || employee.email || t("common.notAvailable")}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <StatusBadge status={employee.status} />
+                              {row ? <StatusBadge status={row.status} /> : <Badge variant="outline">{t("common.noRecord")}</Badge>}
+                              {row ? <StatusBadge status={getAttendanceReviewStatus(row)} /> : null}
+                            </div>
+                            {row ? (
+                              <p className="text-sm text-muted-foreground">
+                                {t("attendancePage.quickActionWorkedTime", {
+                                  worked: formatMinutes(row.actual_work_minutes),
+                                  checkIn: formatTime(row.check_in_time),
+                                  checkOut: formatTime(row.check_out_time),
+                                })}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">{t("attendancePage.quickActionNoRecordHint")}</p>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2 sm:justify-end">
+                            <Button
+                              size="sm"
+                              variant={isPresent ? "default" : "outline"}
+                              disabled={!canCorrect || locked || quickActionAttendance.isPending}
+                              onClick={() => quickActionAttendance.mutate({ employeeId: employee.id, targetStatus: "present" })}
+                            >
+                              {t("attendancePage.quickMarkPresent")}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={isAbsent ? "destructive" : "outline"}
+                              disabled={!canCorrect || locked || quickActionAttendance.isPending}
+                              onClick={() => quickActionAttendance.mutate({ employeeId: employee.id, targetStatus: "absent" })}
+                            >
+                              {t("attendancePage.quickMarkAbsent")}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={!canCorrect || locked}
+                              onClick={() => openAttendanceEditor(row || null, employee.id, dateFilter)}
+                            >
+                              {t("attendancePage.correct")}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState
+                  title={employeesQuery.isLoading ? t("attendancePage.loadingAvailableEmployees") : t("attendancePage.noAvailableEmployees")}
+                  description={t("attendancePage.noAvailableEmployeesDescription")}
+                />
+              )}
             </CardContent>
           </Card>
 
