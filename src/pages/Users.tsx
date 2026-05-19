@@ -318,7 +318,9 @@ export default function Users() {
                     </TableCell>
                     <TableCell>{user.email || "-"}</TableCell>
                     <TableCell>{APP_LANGUAGE_LABELS[user.language]}</TableCell>
-                    <TableCell>{user.employee_id ? employeeMap[user.employee_id] || `Employee #${user.employee_id}` : "-"}</TableCell>
+                    <TableCell>
+                      {user.employee_id ? employeeMap[user.employee_id] || t("users.employeeNumber", { id: user.employee_id }) : "-"}
+                    </TableCell>
                     <TableCell>{user.roles.map((role) => role.code).join(", ") || "-"}</TableCell>
                     <TableCell><StatusBadge status={user.is_active ? "active" : "inactive"} /></TableCell>
                     <TableCell>{formatDateTime(user.last_login_at)}</TableCell>

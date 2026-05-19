@@ -255,6 +255,7 @@ const en = {
     employeeSelect: "Employee link",
     selectEmployee: "Select employee",
     noEmployeeLink: "No employee link",
+    employeeNumber: "Employee #{{id}}",
     optionalAccountEmail: "Optional account email",
     usingSelectedEmployeeEmail: "Using selected employee email",
     activeAccount: "Active account",
