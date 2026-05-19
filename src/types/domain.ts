@@ -524,6 +524,8 @@ export interface WorkSchedule {
   name: string;
   start_time: string;
   end_time: string;
+  break_start_time?: string | null;
+  break_end_time?: string | null;
   break_minutes: number;
   weekly_off_days: string[];
   timezone: string;
@@ -536,6 +538,8 @@ export interface WorkSchedulePayload {
   name: string;
   start_time: string;
   end_time: string;
+  break_start_time?: string | null;
+  break_end_time?: string | null;
   break_minutes: number;
   weekly_off_days: string[];
   timezone: string;

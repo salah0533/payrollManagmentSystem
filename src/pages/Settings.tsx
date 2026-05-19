@@ -21,6 +21,26 @@ import { settingsApi } from "@/services/settingsApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 
+function toTimeInputValue(value?: string | null) {
+  return value ? value.slice(0, 5) : "";
+}
+
+function toTimePayloadValue(value: string) {
+  return value ? `${value}:00` : null;
+}
+
+function getBreakMinutesFromWindow(breakStartTime?: string | null, breakEndTime?: string | null, fallback = 0) {
+  if (!breakStartTime || !breakEndTime) {
+    return fallback;
+  }
+
+  const [startHours, startMinutes] = breakStartTime.slice(0, 5).split(":").map(Number);
+  const [endHours, endMinutes] = breakEndTime.slice(0, 5).split(":").map(Number);
+  const startTotal = startHours * 60 + startMinutes;
+  const endTotal = endHours * 60 + endMinutes;
+  return Math.max(0, endTotal - startTotal);
+}
+
 export default function Settings() {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
@@ -40,6 +60,8 @@ export default function Settings() {
     name: "Default Schedule",
     start_time: "08:00:00",
     end_time: "17:00:00",
+    break_start_time: "12:00:00" as string | null,
+    break_end_time: "13:00:00" as string | null,
     break_minutes: 60,
     weekly_off_days: ["friday", "saturday"],
     timezone: "Africa/Algiers",
@@ -74,6 +96,8 @@ export default function Settings() {
         name: workScheduleQuery.data.name,
         start_time: workScheduleQuery.data.start_time,
         end_time: workScheduleQuery.data.end_time,
+        break_start_time: workScheduleQuery.data.break_start_time ?? null,
+        break_end_time: workScheduleQuery.data.break_end_time ?? null,
         break_minutes: workScheduleQuery.data.break_minutes,
         weekly_off_days: workScheduleQuery.data.weekly_off_days,
         timezone: workScheduleQuery.data.timezone,
@@ -109,7 +133,15 @@ export default function Settings() {
   }, [payrollPolicyQuery.data]);
 
   const saveWorkSchedule = useMutation({
-    mutationFn: () => settingsApi.updateWorkSchedule(workSchedule),
+    mutationFn: () =>
+      settingsApi.updateWorkSchedule({
+        ...workSchedule,
+        break_minutes: getBreakMinutesFromWindow(
+          workSchedule.break_start_time,
+          workSchedule.break_end_time,
+          workSchedule.break_minutes,
+        ),
+      }),
     onSuccess: () => {
       toast({ title: t("settings.saveWorkScheduleSuccess"), description: t("settings.saveWorkScheduleSuccessDescription") });
     },
@@ -140,6 +172,12 @@ export default function Settings() {
     },
   });
 
+  const displayedBreakMinutes = getBreakMinutesFromWindow(
+    workSchedule.break_start_time,
+    workSchedule.break_end_time,
+    workSchedule.break_minutes,
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -161,18 +199,54 @@ export default function Settings() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="startTime">{t("settings.startTime")}</Label>
-                <Input id="startTime" value={workSchedule.start_time.slice(0, 5)} onChange={(event) => setWorkSchedule((value) => ({ ...value, start_time: `${event.target.value}:00` }))} type="time" />
+                <Input id="startTime" value={toTimeInputValue(workSchedule.start_time)} onChange={(event) => setWorkSchedule((value) => ({ ...value, start_time: `${event.target.value}:00` }))} type="time" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="endTime">{t("settings.endTime")}</Label>
-                <Input id="endTime" value={workSchedule.end_time.slice(0, 5)} onChange={(event) => setWorkSchedule((value) => ({ ...value, end_time: `${event.target.value}:00` }))} type="time" />
+                <Input id="endTime" value={toTimeInputValue(workSchedule.end_time)} onChange={(event) => setWorkSchedule((value) => ({ ...value, end_time: `${event.target.value}:00` }))} type="time" />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="breakStartTime">{t("settings.breakStartTime")}</Label>
+                <Input
+                  id="breakStartTime"
+                  value={toTimeInputValue(workSchedule.break_start_time)}
+                  onChange={(event) =>
+                    setWorkSchedule((value) => ({
+                      ...value,
+                      break_start_time: toTimePayloadValue(event.target.value),
+                    }))
+                  }
+                  type="time"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="breakEndTime">{t("settings.breakEndTime")}</Label>
+                <Input
+                  id="breakEndTime"
+                  value={toTimeInputValue(workSchedule.break_end_time)}
+                  onChange={(event) =>
+                    setWorkSchedule((value) => ({
+                      ...value,
+                      break_end_time: toTimePayloadValue(event.target.value),
+                    }))
+                  }
+                  type="time"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="breakMinutes">{t("settings.breakMinutes")}</Label>
+                <Input
+                  id="breakMinutes"
+                  type="number"
+                  value={displayedBreakMinutes}
+                  onChange={(event) => setWorkSchedule((value) => ({ ...value, break_minutes: Number(event.target.value) }))}
+                  disabled={Boolean(workSchedule.break_start_time && workSchedule.break_end_time)}
+                />
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="breakMinutes">{t("settings.breakMinutes")}</Label>
-                <Input id="breakMinutes" type="number" value={workSchedule.break_minutes} onChange={(event) => setWorkSchedule((value) => ({ ...value, break_minutes: Number(event.target.value) }))} />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="scheduleTimezone">{t("settings.timezone")}</Label>
                 <Select

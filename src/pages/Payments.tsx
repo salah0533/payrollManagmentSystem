@@ -48,6 +48,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { payrollAdjustmentTypes } from "@/components/layout/navigation";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate, formatDateTime, formatLabel } from "@/lib/format";
+import i18n from "@/lib/i18n";
 import { hasPermission } from "@/lib/roles";
 import {
   canAdjustPayroll,
@@ -64,51 +65,39 @@ import type { EmployeePayroll, PayrollAdjustment, PayrollDiscrepancy, PayrollHis
 
 type PayrollAdjustmentType = (typeof payrollAdjustmentTypes)[number];
 
-const adjustmentLabels: Record<PayrollAdjustmentType, string> = {
-  bonus: "Bonus",
-  deduction: "Deduction",
-  correction: "Correction",
-};
-
-const discrepancyTypeLabels: Record<string, string> = {
-  missing_attendance: "Missing attendance",
-  missing_checkout: "Missing check-out",
-  missing_checkin: "Missing check-in",
-  attendance_requires_review: "Attendance needs review",
-  vacation_overlap: "Vacation overlaps attendance",
-  attendance_changed_after_approval: "Attendance changed after approval",
-  overtime_conflict: "Overtime conflict",
-};
-
 const calculationFields = [
-  { key: "actual_work_minutes", label: "Worked time", format: "minutes" },
-  { key: "normal_paid_minutes", label: "Paid time", format: "minutes" },
-  { key: "earned_paid_minutes", label: "Earned paid time", format: "minutes" },
-  { key: "paid_minutes", label: "Payable time", format: "minutes" },
-  { key: "period_expected_minutes", label: "Expected time", format: "minutes" },
-  { key: "overtime_minutes", label: "Overtime", format: "minutes" },
-  { key: "payable_overtime_minutes", label: "Payable overtime", format: "minutes" },
-  { key: "late_minutes", label: "Late", format: "minutes" },
-  { key: "early_leave_minutes", label: "Early leave", format: "minutes" },
-  { key: "late_makeup_minutes", label: "Late makeup", format: "minutes" },
-  { key: "absence_minutes", label: "Absent time", format: "minutes" },
-  { key: "unpaid_minutes", label: "Unpaid time", format: "minutes" },
-  { key: "missing_workday_minutes", label: "Missing workdays", format: "minutes" },
-  { key: "partial_unpaid_minutes", label: "Partial unpaid", format: "minutes" },
-  { key: "absence_days", label: "Absent days", format: "number" },
-  { key: "paid_vacation_days", label: "Paid vacation", format: "number" },
-  { key: "unpaid_vacation_days", label: "Unpaid vacation", format: "number" },
-  { key: "missing_attendance_days", label: "Missing attendance", format: "number" },
-  { key: "auto_minute_rate", label: "Auto minute rate", format: "currency" },
-  { key: "attendance_deduction", label: "Attendance deduction", format: "currency" },
-  { key: "earned_attendance_deduction", label: "Earned attendance deduction", format: "currency" },
-  { key: "manual_deduction_amount", label: "Manual deductions", format: "currency" },
-  { key: "earned_deduction_amount", label: "Earned deductions", format: "currency" },
-  { key: "late_penalty_amount", label: "Late penalty", format: "currency" },
-  { key: "earned_net_salary", label: "Earned net", format: "currency" },
-  { key: "held_for_review_amount", label: "Held for review", format: "currency" },
-  { key: "payable_amount", label: "Payable total", format: "currency" },
+  { key: "actual_work_minutes", labelKey: "payrollPage.calculationFields.actual_work_minutes", format: "minutes" },
+  { key: "normal_paid_minutes", labelKey: "payrollPage.calculationFields.normal_paid_minutes", format: "minutes" },
+  { key: "earned_paid_minutes", labelKey: "payrollPage.calculationFields.earned_paid_minutes", format: "minutes" },
+  { key: "paid_minutes", labelKey: "payrollPage.calculationFields.paid_minutes", format: "minutes" },
+  { key: "period_expected_minutes", labelKey: "payrollPage.calculationFields.period_expected_minutes", format: "minutes" },
+  { key: "overtime_minutes", labelKey: "payrollPage.calculationFields.overtime_minutes", format: "minutes" },
+  { key: "payable_overtime_minutes", labelKey: "payrollPage.calculationFields.payable_overtime_minutes", format: "minutes" },
+  { key: "late_minutes", labelKey: "payrollPage.calculationFields.late_minutes", format: "minutes" },
+  { key: "early_leave_minutes", labelKey: "payrollPage.calculationFields.early_leave_minutes", format: "minutes" },
+  { key: "late_makeup_minutes", labelKey: "payrollPage.calculationFields.late_makeup_minutes", format: "minutes" },
+  { key: "absence_minutes", labelKey: "payrollPage.calculationFields.absence_minutes", format: "minutes" },
+  { key: "unpaid_minutes", labelKey: "payrollPage.calculationFields.unpaid_minutes", format: "minutes" },
+  { key: "missing_workday_minutes", labelKey: "payrollPage.calculationFields.missing_workday_minutes", format: "minutes" },
+  { key: "partial_unpaid_minutes", labelKey: "payrollPage.calculationFields.partial_unpaid_minutes", format: "minutes" },
+  { key: "absence_days", labelKey: "payrollPage.calculationFields.absence_days", format: "number" },
+  { key: "paid_vacation_days", labelKey: "payrollPage.calculationFields.paid_vacation_days", format: "number" },
+  { key: "unpaid_vacation_days", labelKey: "payrollPage.calculationFields.unpaid_vacation_days", format: "number" },
+  { key: "missing_attendance_days", labelKey: "payrollPage.calculationFields.missing_attendance_days", format: "number" },
+  { key: "auto_minute_rate", labelKey: "payrollPage.calculationFields.auto_minute_rate", format: "currency" },
+  { key: "attendance_deduction", labelKey: "payrollPage.calculationFields.attendance_deduction", format: "currency" },
+  { key: "earned_attendance_deduction", labelKey: "payrollPage.calculationFields.earned_attendance_deduction", format: "currency" },
+  { key: "manual_deduction_amount", labelKey: "payrollPage.calculationFields.manual_deduction_amount", format: "currency" },
+  { key: "earned_deduction_amount", labelKey: "payrollPage.calculationFields.earned_deduction_amount", format: "currency" },
+  { key: "late_penalty_amount", labelKey: "payrollPage.calculationFields.late_penalty_amount", format: "currency" },
+  { key: "earned_net_salary", labelKey: "payrollPage.calculationFields.earned_net_salary", format: "currency" },
+  { key: "held_for_review_amount", labelKey: "payrollPage.calculationFields.held_for_review_amount", format: "currency" },
+  { key: "payable_amount", labelKey: "payrollPage.calculationFields.payable_amount", format: "currency" },
 ] as const;
+
+function getAdjustmentLabel(type: PayrollAdjustmentType | string) {
+  return formatLabel(type);
+}
 
 function getSnapshotValue(payroll: EmployeePayroll, key: string, fallback: number | string = 0) {
   const snapshot = payroll.calculation_data_json || {};
@@ -130,21 +119,22 @@ function getHeldForReviewAmount(payroll: EmployeePayroll) {
 }
 
 function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
+  const { t } = useTranslation();
   const breakdownFields: Array<{ label: string; value: number | string }> = [
-    { label: "Base salary", value: payroll.base_salary },
-    { label: "Normal pay", value: payroll.normal_amount },
-    { label: "Overtime", value: payroll.overtime_amount },
-    { label: "Bonus", value: payroll.bonus_amount },
-    { label: "Attendance deduction", value: payroll.attendance_deduction_amount ?? payroll.deduction_amount ?? 0 },
-    { label: "Manual deductions", value: payroll.manual_deduction_amount ?? 0 },
-    { label: "Late penalty", value: payroll.late_penalty_amount ?? payroll.late_deduction_amount ?? 0 },
-    { label: "Adjustment total", value: payroll.adjustment_amount },
-    { label: "Gross salary", value: payroll.gross_salary },
-    { label: "Earned net", value: getEarnedNetSalary(payroll) },
-    { label: "Held for review", value: getHeldForReviewAmount(payroll) },
-    { label: "Payable total", value: getPayableAmount(payroll) },
-    { label: "Paid", value: payroll.paid_amount },
-    { label: "Balance", value: payroll.balance_amount },
+    { label: t("payrollPage.breakdown.base_salary"), value: payroll.base_salary },
+    { label: t("payrollPage.breakdown.normal_pay"), value: payroll.normal_amount },
+    { label: t("payrollPage.breakdown.overtime"), value: payroll.overtime_amount },
+    { label: t("payrollPage.breakdown.bonus"), value: payroll.bonus_amount },
+    { label: t("payrollPage.breakdown.attendance_deduction"), value: payroll.attendance_deduction_amount ?? payroll.deduction_amount ?? 0 },
+    { label: t("payrollPage.breakdown.manual_deductions"), value: payroll.manual_deduction_amount ?? 0 },
+    { label: t("payrollPage.breakdown.late_penalty"), value: payroll.late_penalty_amount ?? payroll.late_deduction_amount ?? 0 },
+    { label: t("payrollPage.breakdown.adjustment_total"), value: payroll.adjustment_amount },
+    { label: t("payrollPage.breakdown.gross_salary"), value: payroll.gross_salary },
+    { label: t("payrollPage.breakdown.earned_net"), value: getEarnedNetSalary(payroll) },
+    { label: t("payrollPage.breakdown.held_for_review"), value: getHeldForReviewAmount(payroll) },
+    { label: t("payrollPage.breakdown.payable_total"), value: getPayableAmount(payroll) },
+    { label: t("payrollPage.breakdown.paid"), value: payroll.paid_amount },
+    { label: t("payrollPage.breakdown.balance"), value: payroll.balance_amount },
   ];
 
   return (
@@ -177,7 +167,7 @@ function latestCalculationHistory(history: PayrollHistory[] | undefined) {
 }
 
 function getDiscrepancyTypeLabel(type: string) {
-  return discrepancyTypeLabels[type] || formatLabel(type);
+  return formatLabel(type);
 }
 
 function getDiscrepancyWorkDate(discrepancy: Pick<PayrollDiscrepancy, "description">) {
@@ -192,13 +182,13 @@ function getDiscrepancyQuickActions(item: PayrollDiscrepancy) {
 
   if (item.discrepancy_type === "missing_attendance") {
     return [
-      { id: "mark_present", label: "Mark present" },
-      { id: "mark_absent", label: "Mark absent" },
+      { id: "mark_present", label: i18n.t("payrollPage.quickActions.markPresent") },
+      { id: "mark_absent", label: i18n.t("payrollPage.quickActions.markAbsent") },
     ];
   }
 
   if (item.discrepancy_type === "attendance_requires_review") {
-    return [{ id: "approve_attendance", label: "Approve day" }];
+    return [{ id: "approve_attendance", label: i18n.t("payrollPage.quickActions.approveDay") }];
   }
 
   return [];
@@ -221,7 +211,7 @@ function CalculationGrid({ history }: { history?: PayrollHistory[] }) {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {calculationFields.map((field) => (
           <div key={field.key} className="rounded-lg border border-border p-3">
-            <p className="text-xs text-muted-foreground">{field.label}</p>
+            <p className="text-xs text-muted-foreground">{t(field.labelKey)}</p>
             <p className="font-medium">{formatCalculationValue(calculation.calculation_data_json[field.key], field.format)}</p>
           </div>
         ))}
@@ -410,15 +400,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         reason: adjustmentForm.reason.trim(),
       }),
     onSuccess: async () => {
-      toast({ title: "Adjustment added", description: "The payroll adjustment was sent to the backend." });
+      toast({ title: t("payrollPage.adjustmentAdded"), description: t("payrollPage.adjustmentAddedDescription") });
       setAdjustmentOpen(false);
       resetAdjustmentForm();
       await refreshPayroll();
     },
     onError: (error) => {
       toast({
-        title: "Unable to add adjustment",
-        description: getErrorMessage(error, "Please review the adjustment data."),
+        title: t("payrollPage.adjustmentAddError"),
+        description: getErrorMessage(error, t("payrollPage.adjustmentAddErrorDescription")),
         variant: "destructive",
       });
     },
@@ -432,15 +422,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         reason: adjustmentForm.reason.trim(),
       }),
     onSuccess: async () => {
-      toast({ title: "Adjustment updated", description: "The payroll row was recalculated with the updated adjustment." });
+      toast({ title: t("payrollPage.adjustmentUpdated"), description: t("payrollPage.adjustmentUpdatedDescription") });
       setAdjustmentOpen(false);
       resetAdjustmentForm();
       await refreshPayroll();
     },
     onError: (error) => {
       toast({
-        title: "Unable to update adjustment",
-        description: getErrorMessage(error, "Please review the adjustment data."),
+        title: t("payrollPage.adjustmentUpdateError"),
+        description: getErrorMessage(error, t("payrollPage.adjustmentUpdateErrorDescription")),
         variant: "destructive",
       });
     },
@@ -449,7 +439,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const deleteAdjustment = useMutation({
     mutationFn: (adjustmentId: number) => payrollApi.deleteAdjustment(adjustmentId),
     onSuccess: async () => {
-      toast({ title: "Adjustment deleted", description: "The payroll row was recalculated without that adjustment." });
+      toast({ title: t("payrollPage.adjustmentDeleted"), description: t("payrollPage.adjustmentDeletedDescription") });
       setDeletingAdjustment(null);
       await refreshPayroll();
     },
@@ -465,7 +455,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const resolveDiscrepancy = useMutation({
     mutationFn: ({ discrepancyId, note }: { discrepancyId: number; note: string }) => payrollApi.resolveDiscrepancy(discrepancyId, note),
     onSuccess: async () => {
-      toast({ title: "Discrepancy resolved", description: "The discrepancy was marked as resolved." });
+      toast({ title: t("payrollPage.discrepancyResolved"), description: t("payrollPage.discrepancyResolvedDescription") });
       await refreshPayroll();
     },
   });
@@ -474,13 +464,13 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     mutationFn: async ({ item, actionId }: { item: PayrollDiscrepancy; actionId: string }) => {
       const workDate = getDiscrepancyWorkDate(item);
       if (!workDate) {
-        throw new Error("This discrepancy does not expose a work date for quick actions.");
+        throw new Error(t("payrollPage.quickActionMissingWorkDate"));
       }
 
       if (actionId === "mark_present" || actionId === "mark_absent") {
         await attendanceApi.smartCorrection(item.employee_id, workDate, {
           target_status: actionId === "mark_present" ? "present" : "absent",
-          reason: `Resolved from payroll discrepancy review (${item.discrepancy_type})`,
+          reason: t("payrollPage.quickActionResolutionReason", { type: getDiscrepancyTypeLabel(item.discrepancy_type) }),
         });
         return;
       }
@@ -488,32 +478,32 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       if (actionId === "approve_attendance") {
         await attendanceApi.reviewDay(item.employee_id, workDate, {
           review_status: "approved",
-          note: "Approved from payroll discrepancy review.",
+          note: t("payrollPage.quickActionApproveAttendanceNote"),
         });
         return;
       }
 
-      throw new Error("Unsupported discrepancy action.");
+      throw new Error(t("payrollPage.quickActionUnsupported"));
     },
     onMutate: ({ item, actionId }) => {
       setActiveDiscrepancyAction(`${item.id}:${actionId}`);
     },
     onSuccess: async (_result, variables) => {
       const labels: Record<string, string> = {
-        mark_present: "Attendance marked present",
-        mark_absent: "Attendance marked absent",
-        approve_attendance: "Attendance approved",
+        mark_present: t("payrollPage.quickActionSuccess.mark_present"),
+        mark_absent: t("payrollPage.quickActionSuccess.mark_absent"),
+        approve_attendance: t("payrollPage.quickActionSuccess.approve_attendance"),
       };
       toast({
-        title: labels[variables.actionId] || "Quick action completed",
-        description: "Payroll discrepancies were refreshed for the selected row.",
+        title: labels[variables.actionId] || t("payrollPage.quickActionCompleted"),
+        description: t("payrollPage.quickActionCompletedDescription"),
       });
       await refreshPayroll();
     },
     onError: (error) => {
       toast({
-        title: "Quick action failed",
-        description: getErrorMessage(error, "The discrepancy could not be updated from this panel."),
+        title: t("payrollPage.quickActionFailed"),
+        description: getErrorMessage(error, t("payrollPage.quickActionFailedDescription")),
         variant: "destructive",
       });
     },
@@ -544,7 +534,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     () => new Map((payrollReport?.employees || []).map((employee) => [employee.employee_id, employee.employee_name])),
     [payrollReport?.employees],
   );
-  const getEmployeeLabel = (employeeId: number) => employeeNameMap.get(employeeId) || `Employee #${employeeId}`;
+  const getEmployeeLabel = (employeeId: number) => employeeNameMap.get(employeeId) || t("labels.employeeId", { id: employeeId });
+  const getPeriodLabel = (currentPeriodId: number, periodName?: string | null) => periodName || t("payrollPage.periodNumber", { id: currentPeriodId });
   const filteredDiscrepancies = useMemo(() => {
     if (discrepancyTab === "open") {
       return allDiscrepancies.filter((item) => item.status !== "resolved");
@@ -573,7 +564,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     for (const item of filteredDiscrepancies) {
       const current = groups.get(item.employee_id) || {
         employeeId: item.employee_id,
-        employeeLabel: employeeNameMap.get(item.employee_id) || `Employee #${item.employee_id}`,
+        employeeLabel: employeeNameMap.get(item.employee_id) || t("labels.employeeId", { id: item.employee_id }),
         items: [],
         openCount: 0,
         resolvedCount: 0,
@@ -603,7 +594,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         }
         return a.employeeLabel.localeCompare(b.employeeLabel);
       });
-  }, [employeeNameMap, filteredDiscrepancies]);
+  }, [employeeNameMap, filteredDiscrepancies, t]);
   const adjustmentAmount = Number(adjustmentForm.amount);
   const canSubmitAdjustment = Boolean(
     canAdjust &&
@@ -653,8 +644,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const submitAdjustment = () => {
     if (!canSubmitAdjustment) {
       toast({
-        title: "Adjustment needs review",
-        description: "Choose a type, enter an amount greater than zero, and add a reason.",
+        title: t("payrollPage.adjustmentNeedsReview"),
+        description: t("payrollPage.adjustmentNeedsReviewDescription"),
         variant: "destructive",
       });
       return;
@@ -676,8 +667,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     if (confirmAction.type === "approve") {
       if (!canApprovePayroll(confirmPayroll, allDiscrepancies)) {
         toast({
-          title: "Payroll approval blocked",
-          description: "Resolve open discrepancies before approving this row.",
+          title: t("payrollPage.approvalBlocked"),
+          description: t("payrollPage.approvalBlockedDescription"),
           variant: "destructive",
         });
         return;
@@ -688,8 +679,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
 
     if (!canRecordPayrollPayment(confirmPayroll)) {
       toast({
-        title: "Payment recording blocked",
-        description: "Payroll must be approved before payment is recorded.",
+        title: t("payrollPage.paymentBlocked"),
+        description: t("payrollPage.paymentBlockedDescription"),
         variant: "destructive",
       });
       return;
@@ -720,7 +711,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               <SelectContent>
                 {(periodOptionsQuery.data || []).map((period) => (
                   <SelectItem key={period.id} value={String(period.id)}>
-                    {period.name} ({formatDate(period.start_date)} to {formatDate(period.end_date)})
+                    {period.name} ({t("labels.range", { start: formatDate(period.start_date), end: formatDate(period.end_date) })})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -747,7 +738,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
         <>
           {selfPayroll ? (
             <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <MetricCard label={t("common.status")} value={<StatusBadge status={selfPayroll.status} />} icon={WalletCards} />
                 <MetricCard label={t("payrollPage.earnedNet")} value={formatCurrency(getEarnedNetSalary(selfPayroll))} icon={DollarSign} tone="success" hint={t("payrollPage.earnedNetHint")} />
                 <MetricCard label={t("payrollPage.held")} value={formatCurrency(getHeldForReviewAmount(selfPayroll))} icon={AlertTriangle} tone="warning" hint={t("payrollPage.heldHint")} />
@@ -959,7 +950,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button size="icon" variant="outline" aria-label={`Open actions for payroll ${row.id}`}>
+                              <Button size="icon" variant="outline" aria-label={t("payrollPage.openActionsAria", { id: row.id })}>
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -971,16 +962,16 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                                   setDetailsPayrollId(row.id);
                                 }}
                               >
-                                Details
+                                {t("payrollPage.details")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 disabled={!rowCanRecalculate || recalculateEmployee.isPending}
                                 onSelect={() => recalculateEmployee.mutate({ employeeId: row.employee_id })}
                               >
-                                Recalculate
+                                {t("payrollPage.recalculate")}
                               </DropdownMenuItem>
                               <DropdownMenuItem disabled={!rowCanApprove} onSelect={() => setConfirmAction({ type: "approve", payrollId: row.id, amount: "", note: "" })}>
-                                Approve
+                                {t("payrollPage.approve")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 disabled={!rowCanRecordPayment}
@@ -993,18 +984,18 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                                   })
                                 }
                               >
-                                Record payment
+                                {t("payrollPage.recordPayment")}
                               </DropdownMenuItem>
                               <DropdownMenuItem disabled>
-                                Lock period unavailable
+                                {t("payrollPage.lockPeriodUnavailable")}
                               </DropdownMenuItem>
                               <DropdownMenuItem disabled>
-                                Export / PDF unavailable
+                                {t("payrollPage.exportPdfUnavailable")}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {payrollAdjustmentTypes.map((type) => (
                                 <DropdownMenuItem key={type} disabled={!rowCanAdjust} onSelect={() => openAdjustmentDialog(row, type)}>
-                                  Add {adjustmentLabels[type].toLowerCase()}
+                                  {t("payrollPage.addTypeAdjustment", { type: getAdjustmentLabel(type).toLowerCase() })}
                                 </DropdownMenuItem>
                               ))}
                             </DropdownMenuContent>
@@ -1034,20 +1025,20 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 {allDiscrepancies.length ? (
                   <Tabs value={discrepancyTab} onValueChange={(value) => setDiscrepancyTab(value as "open" | "all" | "resolved")} className="space-y-4">
                     <TabsList className="w-full justify-start">
-                      <TabsTrigger value="open">Open ({warningOpenDiscrepancies})</TabsTrigger>
-                      <TabsTrigger value="all">All ({allDiscrepancies.length})</TabsTrigger>
-                      <TabsTrigger value="resolved">Resolved ({allDiscrepancies.filter((item) => item.status === "resolved").length})</TabsTrigger>
+                      <TabsTrigger value="open">{t("payrollPage.discrepancyTabs.open", { count: warningOpenDiscrepancies })}</TabsTrigger>
+                      <TabsTrigger value="all">{t("payrollPage.discrepancyTabs.all", { count: allDiscrepancies.length })}</TabsTrigger>
+                      <TabsTrigger value="resolved">{t("payrollPage.discrepancyTabs.resolved", { count: allDiscrepancies.filter((item) => item.status === "resolved").length })}</TabsTrigger>
                     </TabsList>
 
                     {(["open", "all", "resolved"] as const).map((tabValue) => (
                       <TabsContent key={tabValue} value={tabValue} className="space-y-4">
                         <div className="grid gap-3 sm:grid-cols-3">
-                          <OverviewStat label="Employees affected" value={discrepancyGroups.length} />
-                          <OverviewStat label="Issues shown" value={filteredDiscrepancies.length} />
+                          <OverviewStat label={t("payrollPage.employeesAffected")} value={discrepancyGroups.length} />
+                          <OverviewStat label={t("payrollPage.issuesShown")} value={filteredDiscrepancies.length} />
                           <OverviewStat
-                            label="Top type"
+                            label={t("payrollPage.topType")}
                             value={discrepancyTypeSummary[0] ? getDiscrepancyTypeLabel(discrepancyTypeSummary[0][0]) : "-"}
-                            hint={discrepancyTypeSummary[0] ? `${discrepancyTypeSummary[0][1]} item(s)` : undefined}
+                            hint={discrepancyTypeSummary[0] ? t("payrollPage.itemCount", { count: discrepancyTypeSummary[0][1] }) : undefined}
                           />
                         </div>
 
@@ -1069,12 +1060,12 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                                   <div className="flex w-full items-center justify-between gap-3 pr-3">
                                     <div>
                                       <p className="font-medium">{group.employeeLabel}</p>
-                                      <p className="text-sm text-muted-foreground">Employee #{group.employeeId}</p>
+                                      <p className="text-sm text-muted-foreground">{t("labels.employeeId", { id: group.employeeId })}</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                      {group.openCount ? <Badge variant="destructive">{group.openCount} open</Badge> : null}
-                                      {group.resolvedCount ? <Badge variant="secondary">{group.resolvedCount} resolved</Badge> : null}
-                                      <Badge variant="outline">{group.items.length} total</Badge>
+                                      {group.openCount ? <Badge variant="destructive">{t("payrollPage.openCount", { count: group.openCount })}</Badge> : null}
+                                      {group.resolvedCount ? <Badge variant="secondary">{t("payrollPage.resolvedCount", { count: group.resolvedCount })}</Badge> : null}
+                                      <Badge variant="outline">{t("payrollPage.totalCount", { count: group.items.length })}</Badge>
                                     </div>
                                   </div>
                                 </AccordionTrigger>
@@ -1116,7 +1107,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                                                   disabled={runDiscrepancyAction.isPending}
                                                   onClick={() => runDiscrepancyAction.mutate({ item, actionId: action.id })}
                                                 >
-                                                  {isPending ? "Working..." : action.label}
+                                                  {isPending ? t("payrollPage.working") : action.label}
                                                 </Button>
                                               );
                                             })}
@@ -1140,7 +1131,12 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                                           </div>
                                         ) : (
                                           <div className="mt-3 text-sm text-muted-foreground">
-                                            Resolved {formatDateTime(item.resolved_at)}{item.resolution_note ? ` - ${item.resolution_note}` : ""}
+                                            {item.resolution_note
+                                              ? t("payrollPage.resolvedAtWithNote", {
+                                                  date: formatDateTime(item.resolved_at),
+                                                  note: item.resolution_note,
+                                                })
+                                              : t("payrollPage.resolvedAt", { date: formatDateTime(item.resolved_at) })}
                                           </div>
                                         )}
                                       </div>
@@ -1152,8 +1148,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                           </Accordion>
                         ) : (
                           <EmptyState
-                            title={discrepanciesQuery.isLoading ? "Loading discrepancies..." : "No discrepancies in this view"}
-                            description="Try another tab to review open or resolved items."
+                            title={discrepanciesQuery.isLoading ? t("payrollPage.loadingDiscrepancies") : t("payrollPage.noDiscrepanciesInView")}
+                            description={t("payrollPage.noDiscrepanciesInViewDescription")}
                           />
                         )}
                       </TabsContent>
@@ -1161,8 +1157,8 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   </Tabs>
                 ) : (
                   <EmptyState
-                    title={discrepanciesQuery.isLoading ? "Loading discrepancies..." : "No discrepancies found"}
-                    description="Open payroll discrepancies will appear here for the selected period."
+                    title={discrepanciesQuery.isLoading ? t("payrollPage.loadingDiscrepancies") : t("payrollPage.noDiscrepanciesFound")}
+                    description={t("payrollPage.noDiscrepanciesFoundDescription")}
                   />
                 )}
               </CardContent>
@@ -1176,9 +1172,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               <CardContent className="space-y-3">
                 {selectedPayroll ? (
                   <div className="rounded-lg border border-border p-4">
-                    <p className="font-medium">Selected payroll #{selectedPayroll.id}</p>
+                    <p className="font-medium">{t("payrollPage.selectedPayroll", { id: selectedPayroll.id })}</p>
                     <p className="text-sm text-muted-foreground">
-                      {getEmployeeLabel(selectedPayroll.employee_id)} / Period {selectedPayroll.payroll_period_id}
+                      {getEmployeeLabel(selectedPayroll.employee_id)} / {getPeriodLabel(selectedPayroll.payroll_period_id)}
                     </p>
                     <div className="mt-3 space-y-2">
                       {(historyQuery.data || []).length ? (
@@ -1187,13 +1183,16 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                             <p className="text-sm font-medium">{item.reason}</p>
                             <p className="text-xs text-muted-foreground">{formatDateTime(item.created_at)}</p>
                             <p className="text-xs text-muted-foreground">
-                              Gross {formatCurrency(item.old_gross_salary)} to {formatCurrency(item.new_gross_salary)}
+                              {t("payrollPage.historyGrossChange", {
+                                from: formatCurrency(item.old_gross_salary),
+                                to: formatCurrency(item.new_gross_salary),
+                              })}
                             </p>
                           </div>
                         ))
                       ) : (
                         <p className="text-sm text-muted-foreground">
-                          {historyQuery.isLoading ? "Loading history..." : "No history returned for this payroll row yet."}
+                          {historyQuery.isLoading ? t("payrollPage.loadingHistory") : t("payrollPage.noPayrollHistory")}
                         </p>
                       )}
                     </div>
@@ -1212,7 +1211,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           <DialogHeader>
             <DialogTitle>{t("payrollPage.payslipPreview")}</DialogTitle>
             <DialogDescription>
-              {detailsPayroll ? `${getEmployeeLabel(detailsPayroll.employee_id)} / ${periodQuery.data?.name || `Period ${detailsPayroll.payroll_period_id}`}` : ""}
+              {detailsPayroll ? `${getEmployeeLabel(detailsPayroll.employee_id)} / ${getPeriodLabel(detailsPayroll.payroll_period_id, periodQuery.data?.name)}` : ""}
             </DialogDescription>
           </DialogHeader>
           {detailsPayroll ? (
@@ -1248,7 +1247,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 </div>
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">{t("employeesPage.salaryType")}</p>
-                  <p className="font-medium capitalize">{detailsPayroll.salary_type}</p>
+                  <p className="font-medium capitalize">{formatLabel(detailsPayroll.salary_type)}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">{t("payrollPage.calculatedAt")}</p>
@@ -1290,7 +1289,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                       <div key={adjustment.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
                         <div>
                           <p className="font-medium">
-                            {adjustmentLabels[adjustment.adjustment_type as PayrollAdjustmentType] || adjustment.adjustment_type} / {formatCurrency(adjustment.amount)}
+                            {getAdjustmentLabel(adjustment.adjustment_type)} / {formatCurrency(adjustment.amount)}
                           </p>
                           <p className="text-sm text-muted-foreground">{adjustment.reason}</p>
                           <p className="text-xs text-muted-foreground">{formatDateTime(adjustment.created_at)}</p>
@@ -1318,9 +1317,11 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       <Dialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingAdjustmentId ? "Edit" : "Add"} {adjustmentLabels[adjustmentForm.adjustment_type].toLowerCase()}</DialogTitle>
+            <DialogTitle>{editingAdjustmentId ? t("common.edit") : t("common.add")} {getAdjustmentLabel(adjustmentForm.adjustment_type).toLowerCase()}</DialogTitle>
             <DialogDescription>
-              {selectedPayroll ? `${getEmployeeLabel(selectedPayroll.employee_id)} / ${periodQuery.data?.name || `Period ${selectedPayroll.payroll_period_id}`}` : "Select a payroll row before saving an adjustment."}
+              {selectedPayroll
+                ? `${getEmployeeLabel(selectedPayroll.employee_id)} / ${getPeriodLabel(selectedPayroll.payroll_period_id, periodQuery.data?.name)}`
+                : t("payrollPage.selectPayrollBeforeAdjustment")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -1352,7 +1353,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 <SelectContent>
                   {payrollAdjustmentTypes.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {adjustmentLabels[type]}
+                      {getAdjustmentLabel(type)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1390,7 +1391,9 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("payrollPage.deleteAdjustment")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("payrollPage.deleteAdjustmentDescription", { type: deletingAdjustment?.adjustment_type || "" })}
+              {t("payrollPage.deleteAdjustmentDescription", {
+                type: deletingAdjustment ? getAdjustmentLabel(deletingAdjustment.adjustment_type) : "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deletingAdjustment ? (
@@ -1462,7 +1465,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               }
               onClick={submitConfirmAction}
             >
-              Confirm
+              {t("common.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

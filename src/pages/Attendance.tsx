@@ -65,13 +65,13 @@ function buildManualCorrectionValues(
   const updates: Partial<Record<AttendanceField, string | null>> = {};
 
   for (const field of correctionFields) {
-    const originalValue = valueForField(row, field.value);
-    const nextValue = (form[field.value] || "").trim();
+    const originalValue = valueForField(row, field);
+    const nextValue = (form[field] || "").trim();
 
     if (nextValue === originalValue) {
       continue;
     }
-    updates[field.value] = nextValue || null;
+    updates[field] = nextValue || null;
   }
 
   return updates;
@@ -193,13 +193,13 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const filteredDailyRows = useMemo(() => {
     return (dailyAttendanceQuery.data || []).filter((row) => {
       const employee = employeeMap[row.employee_id];
-      const employeeName = employee?.full_name || `Employee #${row.employee_id}`;
+      const employeeName = employee?.full_name || t("labels.employeeId", { id: row.employee_id });
       const matchesSearch = employeeName.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = !statusFilter || row.status === statusFilter;
       const matchesReview = !reviewFilter || getAttendanceReviewStatus(row) === reviewFilter;
       return matchesSearch && matchesStatus && matchesReview && matchesIssueFilter(row, issueFilter);
     });
-  }, [dailyAttendanceQuery.data, employeeMap, issueFilter, reviewFilter, search, statusFilter]);
+  }, [dailyAttendanceQuery.data, employeeMap, issueFilter, reviewFilter, search, statusFilter, t]);
 
   const selectedRows = useMemo(() => {
     const selected = new Set(selectedRowKeys);
@@ -321,7 +321,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const submitCorrection = useMutation({
     mutationFn: () => {
       if (correctionLocked) {
-        throw new Error("Locked attendance days cannot be corrected.");
+        throw new Error(t("attendancePage.lockedCorrectionError"));
       }
 
       if (correctionMode === "smart") {
@@ -364,7 +364,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const deleteAttendance = useMutation({
     mutationFn: () => {
       if (correctionLocked) {
-        throw new Error("Locked attendance days cannot be deleted.");
+        throw new Error(t("attendancePage.lockedDeleteError"));
       }
       return attendanceApi.deleteDay(Number(correctionForm.employee_id), correctionForm.work_date);
     },
@@ -595,7 +595,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                               checked={selected}
                               disabled={locked}
                               onCheckedChange={(checked) => toggleRowSelection(row, Boolean(checked))}
-                              aria-label={`Select attendance row ${row.id}`}
+                              aria-label={t("attendancePage.selectRowAria", { id: row.id })}
                             />
                           </TableCell>
                           <TableCell>

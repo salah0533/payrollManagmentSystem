@@ -24,6 +24,7 @@ export default function Login() {
 
   const from = location.state?.from;
   const activeLanguage = normalizeAppLanguage(i18n.resolvedLanguage);
+  const isRtl = i18n.dir() === "rtl";
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -60,13 +61,15 @@ export default function Login() {
       <div className="relative mx-auto grid min-h-[calc(100vh-2rem)] max-w-7xl overflow-hidden rounded-[2rem] border border-white/70 bg-card/55 shadow-[0_30px_110px_-55px_hsl(var(--foreground)/0.85)] backdrop-blur-2xl md:min-h-[calc(100vh-3rem)] lg:grid-cols-[1.08fr_0.92fr]">
         <section className="relative hidden overflow-hidden bg-primary p-10 text-primary-foreground lg:flex lg:flex-col lg:justify-between">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,hsl(var(--sidebar-primary)/0.42),transparent_20rem),radial-gradient(circle_at_72%_72%,hsl(var(--warning)/0.28),transparent_18rem)]" />
-          <div className="relative">
+          <div className={`relative ${isRtl ? "text-right" : "text-left"}`}>
             <div className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur">
               <Sparkles className="h-4 w-4" />
               {t("login.productTag")}
             </div>
             <div className="mt-16 max-w-xl">
-              <p className="mb-4 text-sm font-bold uppercase tracking-[0.24em] text-white/60">PayRollPro</p>
+              <p className="mb-4 text-left text-sm font-bold uppercase tracking-[0.24em] text-white/60" dir="ltr">
+                PayRollPro
+              </p>
               <h1 className="font-display text-6xl font-semibold leading-[0.98] tracking-tight">
                 {t("login.heroTitle")}
               </h1>
@@ -106,11 +109,13 @@ export default function Login() {
                 </Button>
               ))}
             </div>
-            <div className="mb-10 lg:hidden">
-              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-lg font-extrabold text-primary-foreground">
-                PP
+            <div className={`mb-10 lg:hidden ${isRtl ? "text-right" : "text-left"}`}>
+              <div className="text-left" dir="ltr">
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-lg font-extrabold text-primary-foreground">
+                  PP
+                </div>
+                <p className="text-sm font-bold uppercase tracking-[0.22em] text-primary/70">PayRollPro</p>
               </div>
-              <p className="text-sm font-bold uppercase tracking-[0.22em] text-primary/70">PayRollPro</p>
               <h1 className="mt-3 font-display text-4xl font-semibold">{t("login.welcomeBack")}</h1>
             </div>
 
