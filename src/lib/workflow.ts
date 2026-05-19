@@ -41,6 +41,13 @@ export function isAttendanceLocked(day?: Pick<AttendanceDay, "review_status" | "
   return getAttendanceReviewStatus(day) === "locked" || Boolean(day?.locked_at);
 }
 
+export function getSmartCorrectionStatuses(day?: Pick<AttendanceDay, "status"> | null) {
+  if (day?.status === "weekly_off") {
+    return smartAttendanceStatuses.filter((status) => status !== "absent");
+  }
+  return smartAttendanceStatuses;
+}
+
 export function hasOpenDiscrepancyForPayroll(payroll: EmployeePayroll, discrepancies: PayrollDiscrepancy[] = []) {
   return getPayrollDiscrepancySummary(payroll, discrepancies).openCount > 0;
 }

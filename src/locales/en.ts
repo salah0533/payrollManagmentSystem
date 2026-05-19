@@ -784,6 +784,8 @@ const en = {
     smartTab: "Smart status correction",
     manualHelp: "Update any combination of times here. Leave a field blank to clear it.",
     targetStatus: "Target status",
+    weeklyOffRuleTitle: "Weekly off stays paid",
+    weeklyOffRuleDescription: "Weekly off days remain paid non-working days and cannot be changed to absent.",
     lateMinutes: "Late minutes",
     customCheckIn: "Custom check-in",
     customCheckOut: "Custom check-out",

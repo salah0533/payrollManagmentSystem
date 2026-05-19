@@ -748,6 +748,8 @@ const ar = {
     smartTab: "تصحيح الحالة الذكي",
     manualHelp: "حدّث أي مجموعة من الأوقات هنا. اترك الحقل فارغًا لمسحه.",
     targetStatus: "الحالة المستهدفة",
+    weeklyOffRuleTitle: "العطلة تبقى مدفوعة",
+    weeklyOffRuleDescription: "أيام العطلة الأسبوعية تبقى أيامًا غير عاملة ومدفوعة ولا يمكن تحويلها إلى غياب.",
     lateMinutes: "دقائق التأخير",
     customCheckIn: "تسجيل دخول مخصص",
     customCheckOut: "تسجيل خروج مخصص",

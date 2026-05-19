@@ -748,6 +748,8 @@ const fr = {
     smartTab: "Correction intelligente du statut",
     manualHelp: "Mettez à jour n'importe quelle combinaison d'horaires ici. Laissez un champ vide pour l'effacer.",
     targetStatus: "Statut cible",
+    weeklyOffRuleTitle: "Le repos reste payé",
+    weeklyOffRuleDescription: "Les jours de repos hebdomadaire restent des jours payés non travaillés et ne peuvent pas être changés en absence.",
     lateMinutes: "Minutes de retard",
     customCheckIn: "Entrée personnalisée",
     customCheckOut: "Sortie personnalisée",

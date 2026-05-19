@@ -34,8 +34,8 @@ import {
   attendanceReviewStatuses,
   attendanceStatuses,
   getAttendanceReviewStatus,
+  getSmartCorrectionStatuses,
   isAttendanceLocked,
-  smartAttendanceStatuses,
 } from "@/lib/workflow";
 import { attendanceApi } from "@/services/attendanceApi";
 import { employeeApi } from "@/services/employeeApi";
@@ -288,6 +288,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
 
   const selectedCorrectionEmployee = employeeMap[Number(correctionForm.employee_id)];
   const correctionLocked = isAttendanceLocked(editingAttendance);
+  const smartCorrectionStatuses = getSmartCorrectionStatuses(editingAttendance);
+  const weeklyOffAbsentBlocked = editingAttendance?.status === "weekly_off";
   const affectedEmployees = employeesQuery.data || [];
   const canSubmitBulk = bulkForm.reason.trim().length >= 5 && bulkForm.confirmation.trim().toUpperCase() === "GENERATE";
   const dayLabels = [
@@ -1068,6 +1070,13 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               </p>
             </TabsContent>
             <TabsContent value="smart" className="grid gap-4 py-2">
+              {weeklyOffAbsentBlocked ? (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>{t("attendancePage.weeklyOffRuleTitle")}</AlertTitle>
+                  <AlertDescription>{t("attendancePage.weeklyOffRuleDescription")}</AlertDescription>
+                </Alert>
+              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="targetStatus">{t("attendancePage.targetStatus")}</Label>
                 <Select value={correctionForm.target_status} onValueChange={(value) => setCorrectionForm((current) => ({ ...current, target_status: value }))}>
@@ -1075,7 +1084,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {smartAttendanceStatuses.map((status) => (
+                    {smartCorrectionStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
                         {formatLabel(status)}
                       </SelectItem>

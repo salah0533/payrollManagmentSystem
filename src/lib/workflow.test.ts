@@ -5,6 +5,7 @@ import {
   canApprovePayroll,
   canRecalculatePayroll,
   canRecordPayrollPayment,
+  getSmartCorrectionStatuses,
   getPayrollDiscrepancySummary,
   getAttendanceReviewStatus,
   hasOpenDiscrepancyForPayroll,
@@ -57,6 +58,11 @@ describe("attendance workflow guards", () => {
     expect(isAttendanceLocked({ review_status: "locked" })).toBe(true);
     expect(isAttendanceLocked({ review_status: "approved", locked_at: "2026-05-01T00:00:00Z" } as AttendanceDay)).toBe(true);
     expect(isAttendanceLocked({ review_status: "approved" })).toBe(false);
+  });
+
+  it("does not offer absent as a smart correction status for weekly off rows", () => {
+    expect(getSmartCorrectionStatuses({ status: "weekly_off" } as AttendanceDay)).not.toContain("absent");
+    expect(getSmartCorrectionStatuses({ status: "present" } as AttendanceDay)).toContain("absent");
   });
 });
 
