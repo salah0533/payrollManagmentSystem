@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
@@ -25,12 +25,7 @@ export default function ChangePassword() {
     confirm: false,
   });
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (currentUser && !currentUser.must_change_password) {
-      navigate(homePath, { replace: true });
-    }
-  }, [currentUser, homePath, navigate]);
+  const requiresPasswordChange = Boolean(currentUser?.must_change_password);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -82,15 +77,17 @@ export default function ChangePassword() {
               <p className="mb-4 text-sm font-bold uppercase tracking-[0.24em] text-white/60">{t("changePassword.securityCheckpoint")}</p>
               <h1 className="font-display text-5xl font-semibold leading-tight">{t("changePassword.heroTitle")}</h1>
               <p className="mt-5 text-base leading-7 text-white/70">
-                {t("changePassword.heroDescription")}
+                {requiresPasswordChange ? t("changePassword.heroDescription") : t("changePassword.optionalHeroDescription")}
               </p>
             </div>
           </div>
           <div className="rounded-[1.4rem] border border-white/15 bg-white/10 p-5 backdrop-blur">
             <ShieldCheck className="mb-5 h-6 w-6 text-white/70" />
-            <p className="font-display text-2xl font-semibold">{t("changePassword.protectedAccess")}</p>
+            <p className="font-display text-2xl font-semibold">
+              {requiresPasswordChange ? t("changePassword.protectedAccess") : t("changePassword.accountSecurity")}
+            </p>
             <p className="mt-2 text-sm leading-6 text-white/65">
-              {t("changePassword.protectedAccessDescription")}
+              {requiresPasswordChange ? t("changePassword.protectedAccessDescription") : t("changePassword.accountSecurityDescription")}
             </p>
           </div>
         </section>
@@ -104,17 +101,19 @@ export default function ChangePassword() {
               <div>
                 <CardTitle className="text-4xl">{t("changePassword.title")}</CardTitle>
                 <CardDescription className="mt-3">
-                  {t("changePassword.description")}
+                  {requiresPasswordChange ? t("changePassword.description") : t("changePassword.optionalDescription")}
                 </CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <Alert className="rounded-2xl border-primary/20 bg-accent/45">
-                <AlertTitle>{t("changePassword.alertTitle")}</AlertTitle>
-                <AlertDescription>
-                  {t("changePassword.alertDescription")}
-                </AlertDescription>
-              </Alert>
+              {requiresPasswordChange ? (
+                <Alert className="rounded-2xl border-primary/20 bg-accent/45">
+                  <AlertTitle>{t("changePassword.alertTitle")}</AlertTitle>
+                  <AlertDescription>
+                    {t("changePassword.alertDescription")}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">

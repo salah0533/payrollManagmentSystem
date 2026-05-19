@@ -29,14 +29,8 @@ interface TopBarProps {
   brandLabel: string;
 }
 
-function initials(label: string) {
-  return label
-    .split(" ")
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+function firstLetter(label: string) {
+  return label.trim().charAt(0).toUpperCase() || "U";
 }
 
 export function TopBar({ sidebarCollapsed, items, brandLabel }: TopBarProps) {
@@ -68,38 +62,61 @@ export function TopBar({ sidebarCollapsed, items, brandLabel }: TopBarProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex h-11 items-center gap-2 rounded-full border border-border/70 bg-card/50 px-2 pr-3">
+            <Button
+              variant="ghost"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-card/50 p-1"
+              aria-label={t("layout.topbar.myAccount")}
+            >
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary text-sm font-bold text-primary-foreground">{initials(displayName)}</AvatarFallback>
+                <AvatarFallback className="bg-primary text-sm font-bold text-primary-foreground">{firstLetter(displayName)}</AvatarFallback>
               </Avatar>
-              <div className="hidden text-left lg:block">
-                <p className="text-sm font-medium">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{t(getRoleLabelKey(primaryRole))}</p>
-              </div>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>{t("layout.topbar.myAccount")}</DropdownMenuLabel>
+          <DropdownMenuContent
+            align="end"
+            dir={isRtl ? "rtl" : "ltr"}
+            className={cn("w-64", isRtl ? "text-right" : "text-left")}
+          >
+            <DropdownMenuLabel className={cn(isRtl ? "text-right" : "text-left")}>
+              <div className={cn("flex items-center gap-3", isRtl && "flex-row-reverse")}>
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-primary text-sm font-bold text-primary-foreground">
+                    {firstLetter(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{displayName}</p>
+                  <p className="text-xs text-muted-foreground">{t(getRoleLabelKey(primaryRole))}</p>
+                  {currentUser?.username && currentUser.username !== displayName ? (
+                    <p className="truncate text-xs text-muted-foreground">@{currentUser.username}</p>
+                  ) : null}
+                </div>
+              </div>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/change-password">
-                <KeyRound className="mr-2 h-4 w-4" />
+              <Link to="/change-password" className={cn("flex w-full items-center", isRtl ? "flex-row-reverse justify-end gap-2 text-right" : "gap-2")}>
+                <KeyRound className="h-4 w-4" />
                 {t("layout.topbar.changePassword")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to={currentUser?.employee_id ? "/employee/profile" : homePath}>
-                <span className="mr-2 inline-flex h-4 w-4 items-center justify-center text-xs font-semibold">
+              <Link
+                to={currentUser?.employee_id ? "/employee/profile" : homePath}
+                className={cn("flex w-full items-center", isRtl ? "flex-row-reverse justify-end gap-2 text-right" : "gap-2")}
+              >
+                <span className="inline-flex h-4 w-4 items-center justify-center text-xs font-semibold">
                   @
                 </span>
                 {currentUser?.employee_id ? t("layout.topbar.myProfile") : t("common.home")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>{t("common.language")}</DropdownMenuLabel>
+            <DropdownMenuLabel className={cn(isRtl ? "text-right" : "text-left")}>{t("common.language")}</DropdownMenuLabel>
             {APP_LANGUAGES.map((language) => (
               <DropdownMenuItem
                 key={language}
+                className={cn(isRtl ? "flex-row-reverse justify-end gap-2 text-right" : "gap-2")}
                 onClick={async () => {
                   try {
                     await updateLanguagePreference(language);
@@ -116,15 +133,18 @@ export function TopBar({ sidebarCollapsed, items, brandLabel }: TopBarProps) {
                   }
                 }}
               >
-                <span className="mr-2 inline-flex h-4 w-4 items-center justify-center">
+                <span className="inline-flex h-4 w-4 items-center justify-center">
                   {activeLanguage === language ? <Check className="h-4 w-4" /> : null}
                 </span>
                 {APP_LANGUAGE_LABELS[language]}
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" onClick={() => logout()}>
-              <LogOut className="mr-2 h-4 w-4" />
+            <DropdownMenuItem
+              className={cn("text-destructive", isRtl ? "flex-row-reverse justify-end gap-2 text-right" : "gap-2")}
+              onClick={() => logout()}
+            >
+              <LogOut className="h-4 w-4" />
               {t("common.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
