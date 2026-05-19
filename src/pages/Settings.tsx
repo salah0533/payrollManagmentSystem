@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { payrollCycles, workWeekOptions } from "@/components/layout/navigation";
 import { currencyOptions, isAllowedCurrency } from "@/lib/currencies";
 import { getErrorMessage } from "@/lib/errors";
@@ -82,7 +81,6 @@ export default function Settings() {
     late_deduction_enabled: false,
     auto_recalculate_draft_payroll: true,
     lock_payroll_after_payment: true,
-    holidays_json: [] as string[],
     allow_vacation_carryover: true,
     max_vacation_carryover_days: null as number | null,
     carryover_expiry_month: null as number | null,
@@ -122,7 +120,6 @@ export default function Settings() {
         late_deduction_enabled: payrollPolicyQuery.data.late_deduction_enabled,
         auto_recalculate_draft_payroll: payrollPolicyQuery.data.auto_recalculate_draft_payroll,
         lock_payroll_after_payment: payrollPolicyQuery.data.lock_payroll_after_payment,
-        holidays_json: payrollPolicyQuery.data.holidays_json,
         allow_vacation_carryover: payrollPolicyQuery.data.allow_vacation_carryover,
         max_vacation_carryover_days: payrollPolicyQuery.data.max_vacation_carryover_days ?? null,
         carryover_expiry_month: payrollPolicyQuery.data.carryover_expiry_month ?? null,
@@ -448,23 +445,6 @@ export default function Settings() {
                   />
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="holidays">{t("settings.holidays")}</Label>
-              <Textarea
-                id="holidays"
-                value={payrollPolicy.holidays_json.join("\n")}
-                onChange={(event) =>
-                  setPayrollPolicy((value) => ({
-                    ...value,
-                    holidays_json: event.target.value
-                      .split("\n")
-                      .map((item) => item.trim())
-                      .filter(Boolean),
-                  }))
-                }
-              />
             </div>
 
             <Button onClick={() => savePayrollPolicy.mutate()} disabled={!canUpdateSettings || savePayrollPolicy.isPending}>

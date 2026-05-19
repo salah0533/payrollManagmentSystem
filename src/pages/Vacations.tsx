@@ -8,6 +8,7 @@ import { VacationBalancePanel } from "@/components/vacations/VacationBalancePane
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   });
   const [form, setForm] = useState({
     employee_id: "",
+    employee_ids: [] as string[],
     start_date: "",
     end_date: "",
     vacation_type: "",
@@ -75,6 +77,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     setEditingVacationId(null);
     setForm({
       employee_id: "",
+      employee_ids: [],
       start_date: "",
       end_date: "",
       vacation_type: "",
@@ -161,6 +164,25 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     () => vacationStatusesQuery.data?.find((item) => item.vacation_status.toLowerCase() === "pending")?.id ?? null,
     [vacationStatusesQuery.data],
   );
+  const holidayTypeId = useMemo(
+    () =>
+      vacationTypesQuery.data?.find((item) => {
+        const value = (item.code || item.vacation_type || "").toLowerCase();
+        return value === "holiday";
+      })?.id ?? null,
+    [vacationTypesQuery.data],
+  );
+  const selectableVacationTypes = useMemo(
+    () =>
+      (vacationTypesQuery.data || []).filter((item) => {
+        if (scope === "manage") {
+          return true;
+        }
+        return holidayTypeId == null || item.id !== holidayTypeId;
+      }),
+    [holidayTypeId, scope, vacationTypesQuery.data],
+  );
+  const isHolidayTypeSelected = scope === "manage" && !editingVacationId && holidayTypeId != null && Number(form.vacation_type) === holidayTypeId;
 
   const refreshVacations = async () => {
     await queryClient.invalidateQueries({ queryKey: ["vacations"] });
@@ -170,14 +192,23 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const createVacation = useMutation({
     mutationFn: () =>
       scope === "manage"
-        ? vacationApi.create({
-            employee_id: Number(form.employee_id),
-            start_date: form.start_date,
-            end_date: form.end_date,
-            vacation_type: Number(form.vacation_type),
-            vacation_status: Number(form.vacation_status || pendingStatusId || 0),
-            is_paid: form.is_paid,
-          })
+        ? isHolidayTypeSelected
+          ? vacationApi.createBulk({
+              employee_ids: form.employee_ids.map(Number),
+              start_date: form.start_date,
+              end_date: form.end_date,
+              vacation_type: Number(form.vacation_type),
+              vacation_status: Number(approvedStatusId || 0),
+              is_paid: true,
+            })
+          : vacationApi.create({
+              employee_id: Number(form.employee_id),
+              start_date: form.start_date,
+              end_date: form.end_date,
+              vacation_type: Number(form.vacation_type),
+              vacation_status: Number(form.vacation_status || pendingStatusId || 0),
+              is_paid: form.is_paid,
+            })
         : vacationApi.requestSelf({
             start_date: form.start_date,
             end_date: form.end_date,
@@ -233,6 +264,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     setEditingVacationId(vacation.id);
     setForm({
       employee_id: String(vacation.employee_id),
+      employee_ids: [String(vacation.employee_id)],
       start_date: vacation.start_date,
       end_date: vacation.end_date,
       vacation_type: String(vacation.vacation_type),
@@ -475,7 +507,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            {scope === "manage" ? (
+            {scope === "manage" && !isHolidayTypeSelected ? (
               <div className="space-y-2">
                 <Label htmlFor="vacationEmployee">{t("common.employee")}</Label>
                 <Select value={form.employee_id} onValueChange={(value) => setForm((current) => ({ ...current, employee_id: value }))}>
@@ -492,6 +524,54 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 </Select>
               </div>
             ) : null}
+            {isHolidayTypeSelected ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>{t("vacationsPage.selectEmployeesForHoliday")}</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        employee_ids:
+                          current.employee_ids.length === (employeesQuery.data || []).length
+                            ? []
+                            : (employeesQuery.data || []).map((employee) => String(employee.id)),
+                      }))
+                    }
+                  >
+                    {form.employee_ids.length === (employeesQuery.data || []).length
+                      ? t("vacationsPage.clearEmployeeSelection")
+                      : t("vacationsPage.selectAllEmployees")}
+                  </Button>
+                </div>
+                <div className="grid max-h-56 gap-3 overflow-y-auto rounded-lg border border-border p-3">
+                  {(employeesQuery.data || []).map((employee) => {
+                    const value = String(employee.id);
+                    const checked = form.employee_ids.includes(value);
+                    return (
+                      <label key={employee.id} className="flex items-center gap-3 text-sm">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(nextChecked) =>
+                            setForm((current) => ({
+                              ...current,
+                              employee_ids:
+                                nextChecked === true
+                                  ? [...current.employee_ids, value]
+                                  : current.employee_ids.filter((item) => item !== value),
+                            }))
+                          }
+                        />
+                        <span>{employee.full_name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="vacationStart">{t("common.startDate")}</Label>
               <Input id="vacationStart" type="date" value={form.start_date} onChange={(event) => setForm((value) => ({ ...value, start_date: event.target.value }))} />
@@ -504,10 +584,10 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               <Label htmlFor="vacationType">{t("common.type")}</Label>
               <Select value={form.vacation_type} onValueChange={(value) => setForm((current) => ({ ...current, vacation_type: value }))}>
                 <SelectTrigger id="vacationType">
-                  <SelectValue placeholder={t("vacationsPage.allVacationTypes")} />
+                <SelectValue placeholder={t("vacationsPage.allVacationTypes")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(vacationTypesQuery.data || []).map((type) => (
+                  {selectableVacationTypes.map((type) => (
                     <SelectItem key={type.id} value={String(type.id)}>
                       {formatLabel(type.vacation_type)}
                     </SelectItem>
@@ -515,7 +595,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 </SelectContent>
               </Select>
             </div>
-            {scope === "manage" ? (
+            {scope === "manage" && !isHolidayTypeSelected ? (
               <div className="space-y-2">
                 <Label htmlFor="vacationStatus">{t("vacationsPage.vacationStatus")}</Label>
                 <Select value={form.vacation_status || String(pendingStatusId ?? "")} onValueChange={(value) => setForm((current) => ({ ...current, vacation_status: value }))}>
@@ -532,10 +612,16 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 </Select>
               </div>
             ) : null}
-            <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
-              {t("vacationsPage.paidVacation")}
-              <input type="checkbox" checked={form.is_paid} onChange={(event) => setForm((value) => ({ ...value, is_paid: event.target.checked }))} />
-            </label>
+            {!isHolidayTypeSelected ? (
+              <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
+                {t("vacationsPage.paidVacation")}
+                <input type="checkbox" checked={form.is_paid} onChange={(event) => setForm((value) => ({ ...value, is_paid: event.target.checked }))} />
+              </label>
+            ) : (
+              <div className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
+                {t("vacationsPage.holidayVacationHint")}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRequestOpen(false)}>
@@ -555,7 +641,12 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                     })
                   : createVacation.mutate()
               }
-              disabled={createVacation.isPending || updateVacation.isPending}
+              disabled={
+                createVacation.isPending ||
+                updateVacation.isPending ||
+                (scope === "manage" && !editingVacationId && !isHolidayTypeSelected && !form.employee_id) ||
+                (isHolidayTypeSelected && form.employee_ids.length === 0)
+              }
             >
               {createVacation.isPending || updateVacation.isPending
                 ? t("common.saving")

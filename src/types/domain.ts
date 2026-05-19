@@ -246,6 +246,11 @@ export interface VacationPayload extends SelfVacationRequestPayload {
   vacation_status: number;
 }
 
+export interface BulkVacationPayload extends SelfVacationRequestPayload {
+  employee_ids: number[];
+  vacation_status: number;
+}
+
 export interface VacationUpdatePayload {
   id: number;
   employee_id?: number;
@@ -561,7 +566,6 @@ export interface PayrollPolicy {
   late_deduction_enabled: boolean;
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
-  holidays_json: string[];
   allow_vacation_carryover: boolean;
   max_vacation_carryover_days?: number | null;
   carryover_expiry_month?: number | null;
@@ -585,7 +589,6 @@ export interface PayrollPolicyPayload {
   late_deduction_enabled: boolean;
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
-  holidays_json: string[];
   allow_vacation_carryover: boolean;
   max_vacation_carryover_days?: number | null;
   carryover_expiry_month?: number | null;

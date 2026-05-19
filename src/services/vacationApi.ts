@@ -4,6 +4,7 @@ import type {
   AnnualVacationEntitlementDeletePayload,
   AnnualVacationEntitlementPayload,
   SelfVacationRequestPayload,
+  BulkVacationPayload,
   VacationBalance,
   Vacation,
   VacationPayload,
@@ -63,6 +64,12 @@ export const vacationApi = {
   },
   create(payload: VacationPayload) {
     return apiRequest<null>("/vacation/", {
+      method: "PUT",
+      body: payload,
+    });
+  },
+  createBulk(payload: BulkVacationPayload) {
+    return apiRequest<null>("/vacation/bulk", {
       method: "PUT",
       body: payload,
     });
