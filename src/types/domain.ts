@@ -572,6 +572,8 @@ export interface WorkSchedulePayload {
   is_default: boolean;
 }
 
+export type MonthlyPayrollCalculationMode = "working_days" | "calendar_days";
+
 export interface PayrollPolicy {
   id: number;
   name: string;
@@ -585,6 +587,7 @@ export interface PayrollPolicy {
   overtime_enabled: boolean;
   late_makeup_enabled: boolean;
   late_deduction_enabled: boolean;
+  monthly_payroll_calculation_mode: MonthlyPayrollCalculationMode;
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
   allow_vacation_carryover: boolean;
@@ -608,6 +611,7 @@ export interface PayrollPolicyPayload {
   overtime_enabled: boolean;
   late_makeup_enabled: boolean;
   late_deduction_enabled: boolean;
+  monthly_payroll_calculation_mode: MonthlyPayrollCalculationMode;
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
   allow_vacation_carryover: boolean;

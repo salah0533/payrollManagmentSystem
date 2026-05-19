@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { payrollCycles, workWeekOptions } from "@/components/layout/navigation";
@@ -79,6 +80,7 @@ export default function Settings() {
     overtime_enabled: true,
     late_makeup_enabled: true,
     late_deduction_enabled: false,
+    monthly_payroll_calculation_mode: "calendar_days" as "working_days" | "calendar_days",
     auto_recalculate_draft_payroll: true,
     lock_payroll_after_payment: true,
     allow_vacation_carryover: true,
@@ -118,6 +120,7 @@ export default function Settings() {
         overtime_enabled: payrollPolicyQuery.data.overtime_enabled,
         late_makeup_enabled: payrollPolicyQuery.data.late_makeup_enabled,
         late_deduction_enabled: payrollPolicyQuery.data.late_deduction_enabled,
+        monthly_payroll_calculation_mode: payrollPolicyQuery.data.monthly_payroll_calculation_mode,
         auto_recalculate_draft_payroll: payrollPolicyQuery.data.auto_recalculate_draft_payroll,
         lock_payroll_after_payment: payrollPolicyQuery.data.lock_payroll_after_payment,
         allow_vacation_carryover: payrollPolicyQuery.data.allow_vacation_carryover,
@@ -341,6 +344,32 @@ export default function Settings() {
                 <Label htmlFor="allowedLateMinutes">{t("settings.allowedLateMinutes")}</Label>
                 <Input id="allowedLateMinutes" type="number" value={payrollPolicy.allowed_late_minutes} onChange={(event) => setPayrollPolicy((value) => ({ ...value, allowed_late_minutes: Number(event.target.value) }))} />
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>{t("settings.payrollCalculationMode")}</Label>
+              <RadioGroup
+                value={payrollPolicy.monthly_payroll_calculation_mode}
+                onValueChange={(value: "working_days" | "calendar_days") =>
+                  setPayrollPolicy((current) => ({ ...current, monthly_payroll_calculation_mode: value }))
+                }
+                className="grid gap-3"
+              >
+                {(["calendar_days", "working_days"] as const).map((mode) => (
+                  <label key={mode} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-4">
+                    <RadioGroupItem value={mode} id={`monthly-payroll-mode-${mode}`} className="mt-1" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">
+                        {t(`settings.payrollModeOptions.${mode}.label`)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t(`settings.payrollModeOptions.${mode}.description`)}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">{t("settings.payrollCalculationModeHint")}</p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

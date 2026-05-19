@@ -203,6 +203,18 @@ const en = {
     minimumOvertimeMinutes: "Minimum overtime minutes",
     minimumAutoPayMinutes: "Minimum auto-pay minutes",
     allowedLateMinutes: "Allowed late minutes",
+    payrollCalculationMode: "Monthly payroll calculation mode",
+    payrollCalculationModeHint: "This affects monthly salary accrual only. Attendance rows keep their visible status, including weekly off days.",
+    payrollModeOptions: {
+      calendar_days: {
+        label: "Calendar days",
+        description: "Spread monthly salary across every calendar day in the month. Weekly off days still count as paid for payroll.",
+      },
+      working_days: {
+        label: "Working days",
+        description: "Keep the current approach: spread monthly salary only across scheduled workdays in the month.",
+      },
+    },
     currency: "Currency",
     selectCurrency: "Select currency",
     preview: "Preview",
