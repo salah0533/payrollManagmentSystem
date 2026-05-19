@@ -2,6 +2,7 @@ import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "
 import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatNumber } from "@/lib/format";
 
 export function AttendanceChart({ attendancePercent = 0 }: { attendancePercent?: number }) {
   const { t } = useTranslation();
@@ -17,7 +18,7 @@ export function AttendanceChart({ attendancePercent = 0 }: { attendancePercent?:
       <CardContent>
         <div className="relative h-64">
           <div className="absolute inset-0 flex flex-col items-center justify-center pt-7">
-            <span className="font-display text-5xl font-semibold">{safePercent.toFixed(1)}%</span>
+            <span className="font-display text-5xl font-semibold">{formatNumber(safePercent, true)}%</span>
             <span className="mt-2 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">{t("charts.today")}</span>
           </div>
         <ResponsiveContainer width="100%" height="100%">

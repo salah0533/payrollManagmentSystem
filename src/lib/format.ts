@@ -88,15 +88,29 @@ export function formatCurrency(value?: number | string | null, currency = defaul
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number.isFinite(numeric) ? numeric : 0);
   } catch {
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "DZD",
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number.isFinite(numeric) ? numeric : 0);
   }
+}
+
+export function formatNumber(value?: number | string | null, forceTwoDecimals = false) {
+  const numeric = Number(value ?? 0);
+  const safeNumber = Number.isFinite(numeric) ? numeric : 0;
+  const locale = getLocaleTag(getCurrentLanguage());
+  const showTwoDecimals = forceTwoDecimals || !Number.isInteger(safeNumber);
+
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: showTwoDecimals ? 2 : 0,
+    maximumFractionDigits: showTwoDecimals ? 2 : 0,
+  }).format(safeNumber);
 }
 
 export function formatMinutes(minutes?: number | null) {

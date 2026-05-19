@@ -48,7 +48,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { payrollAdjustmentTypes } from "@/components/layout/navigation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getErrorMessage } from "@/lib/errors";
-import { formatCurrency, formatDate, formatDateTime, formatLabel } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, formatLabel, formatNumber } from "@/lib/format";
 import i18n from "@/lib/i18n";
 import { hasPermission } from "@/lib/roles";
 import {
@@ -181,7 +181,7 @@ function formatCalculationValue(value: unknown, format: "minutes" | "number" | "
   if (format === "currency") {
     return formatCurrency(numericValue);
   }
-  return Number.isFinite(numericValue) ? numericValue.toLocaleString() : "0";
+  return formatNumber(numericValue);
 }
 
 function latestCalculationHistory(history: PayrollHistory[] | undefined) {

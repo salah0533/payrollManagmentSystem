@@ -2,6 +2,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatNumber } from "@/lib/format";
 
 export function VacationChart({
   totalEmployees = 0,
@@ -32,7 +33,7 @@ export function VacationChart({
               <p className="mt-1 font-display text-4xl font-semibold">{employeesOnVacation}</p>
             </div>
             <p className="rounded-full bg-card/70 px-3 py-1 text-sm font-semibold text-primary">
-              {vacationPercent.toFixed(1)}%
+              {formatNumber(vacationPercent, true)}%
             </p>
           </div>
         </div>

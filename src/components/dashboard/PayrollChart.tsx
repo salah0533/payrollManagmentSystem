@@ -2,6 +2,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatNumber } from "@/lib/format";
 
 export function PayrollChart({
   activeEmployees = 0,
@@ -47,7 +48,7 @@ export function PayrollChart({
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number, name: string) => [value.toLocaleString(), name]}
+              formatter={(value: number, name: string) => [formatNumber(value), name]}
               contentStyle={{
                 backgroundColor: "hsl(var(--card))",
                 border: "1px solid hsl(var(--border))",

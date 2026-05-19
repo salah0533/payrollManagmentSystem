@@ -88,6 +88,37 @@ const compensationFormFields: Array<{
   { key: "dues", label: "Dues", type: "number" },
 ];
 
+export function normalizeNumericInputValue(value?: number | string | null) {
+  if (value == null || value === "") {
+    return "0";
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric === 0) {
+    return "0";
+  }
+
+  if (Number.isInteger(numeric)) {
+    return String(numeric);
+  }
+
+  return numeric.toLocaleString("en-US", {
+    useGrouping: false,
+    maximumFractionDigits: 20,
+  });
+}
+
+export function isEmployeeCreateFormComplete(form: typeof defaultForm) {
+  return [
+    form.first_name,
+    form.last_name,
+    form.hire_date,
+    form.phone_number,
+    form.department_id,
+    form.position_id,
+  ].every((value) => value.trim().length > 0);
+}
+
 export function toEmployeePayload(form: typeof defaultForm) {
   return {
     first_name: form.first_name,
@@ -315,18 +346,19 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       status: employee.status,
       hire_date: employee.hire_date ? String(employee.hire_date).split("T")[0] : "",
       salary_type: String(employee.salary_type),
-      monthly_price: String(employee.monthly_price || 0),
-      day_price: String(employee.day_price || 0),
-      hour_price: String(employee.hour_price || 0),
-      extra_hours_price: String(employee.extra_hours_price || 0),
+      monthly_price: normalizeNumericInputValue(employee.monthly_price),
+      day_price: normalizeNumericInputValue(employee.day_price),
+      hour_price: normalizeNumericInputValue(employee.hour_price),
+      extra_hours_price: normalizeNumericInputValue(employee.extra_hours_price),
       vacation_days: String(employee.vacation_days || 0),
-      dues: String(employee.dues || 0),
+      dues: normalizeNumericInputValue(employee.dues),
       auto_attendance_enabled: Boolean(employee.auto_attendance_enabled),
     });
     setIsDialogOpen(true);
   };
 
   const isSaving = createEmployee.isPending || updateEmployee.isPending;
+  const isCreateFormComplete = isEmployeeCreateFormComplete(form);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -464,6 +496,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   <Input
                     id={field.key}
                     type={field.type}
+                    step="0.01"
                     value={form[field.key]}
                     onChange={(event) => setForm((value) => ({ ...value, [field.key]: event.target.value }))}
                   />
@@ -694,7 +727,10 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={() => (editingId ? updateEmployee.mutate() : createEmployee.mutate())} disabled={isSaving || (editingId ? !canUpdateEmployee : !canCreateEmployee)}>
+            <Button
+              onClick={() => (editingId ? updateEmployee.mutate() : createEmployee.mutate())}
+              disabled={isSaving || (editingId ? !canUpdateEmployee : !canCreateEmployee || !isCreateFormComplete)}
+            >
               {isSaving ? t("common.saving") : editingId ? t("employeesPage.saveChanges") : t("employeesPage.createEmployeeAction")}
             </Button>
           </DialogFooter>

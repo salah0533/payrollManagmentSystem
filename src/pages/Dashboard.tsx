@@ -10,7 +10,7 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { VacationChart } from "@/components/dashboard/VacationChart";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatDateTime, formatMinutes } from "@/lib/format";
+import { formatCurrency, formatDateTime, formatMinutes, formatNumber } from "@/lib/format";
 import { adminDashboardFocus, hrDashboardFocus } from "@/components/layout/navigation";
 import { dashboardApi } from "@/services/dashboardApi";
 import { notificationApi } from "@/services/notificationApi";
@@ -78,7 +78,7 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
         <MetricCard label={t("dashboard.activeEmployees")} value={stats?.total_active_emps ?? 0} icon={Users} tone="success" />
         <MetricCard
           label={t("dashboard.attendanceRate")}
-          value={`${Number(stats?.total_att_percent || 0).toFixed(1)}%`}
+          value={`${formatNumber(stats?.total_att_percent || 0, true)}%`}
           icon={Clock3}
           tone="info"
         />
