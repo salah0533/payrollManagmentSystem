@@ -46,6 +46,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { payrollAdjustmentTypes } from "@/components/layout/navigation";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate, formatDateTime, formatLabel } from "@/lib/format";
 import i18n from "@/lib/i18n";
@@ -117,6 +118,26 @@ function getPayableAmount(payroll: EmployeePayroll) {
 function getHeldForReviewAmount(payroll: EmployeePayroll) {
   const fallback = Math.max(0, Number(payroll.net_salary || 0) - Number(payroll.total_amount || 0));
   return getSnapshotValue(payroll, "held_for_review_amount", fallback);
+}
+
+function getPayrollRowStatusPreview(
+  row: EmployeePayroll,
+  rowHasOpenDiscrepancy: boolean,
+  rowDiscrepancySummary: ReturnType<typeof getPayrollDiscrepancySummary>,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  if (rowHasOpenDiscrepancy) {
+    return rowDiscrepancySummary.hasBlocking
+      ? t("payrollPage.discrepancySummaryBlocking", {
+          blocking: rowDiscrepancySummary.blockingCount,
+          warning: rowDiscrepancySummary.warningCount,
+        })
+      : t("payrollPage.discrepancySummaryWarning", {
+          warning: rowDiscrepancySummary.warningCount,
+        });
+  }
+
+  return row.needs_review_reason || "";
 }
 
 function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
@@ -944,25 +965,51 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                           <div className="font-medium">{getEmployeeLabel(row.employee_id)}</div>
                           <div className="text-xs text-muted-foreground">{t("payrollPage.payrollRowId", { id: row.id })}</div>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            <StatusBadge status={row.status} />
-                            {rowDiscrepancySummary.hasBlocking ? <Badge variant="destructive">{t("payrollPage.blockingIssue")}</Badge> : null}
-                            {!rowDiscrepancySummary.hasBlocking && rowHasOpenDiscrepancy ? <Badge variant="outline">{t("payrollPage.warningIssue")}</Badge> : null}
-                          </div>
-                          {rowHasOpenDiscrepancy ? (
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {rowDiscrepancySummary.hasBlocking
-                                ? t("payrollPage.discrepancySummaryBlocking", {
-                                    blocking: rowDiscrepancySummary.blockingCount,
-                                    warning: rowDiscrepancySummary.warningCount,
-                                  })
-                                : t("payrollPage.discrepancySummaryWarning", {
-                                    warning: rowDiscrepancySummary.warningCount,
-                                  })}
-                            </div>
-                          ) : null}
-                          {row.needs_review_reason ? <div className="mt-1 text-xs text-muted-foreground">{row.needs_review_reason}</div> : null}
+                        <TableCell className="w-[260px]">
+                          {(() => {
+                            const statusPreview = getPayrollRowStatusPreview(row, rowHasOpenDiscrepancy, rowDiscrepancySummary, t);
+                            const statusDetails = [statusPreview, row.needs_review_reason]
+                              .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
+
+                            return (
+                              <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap gap-1">
+                                    <StatusBadge status={row.status} />
+                                    {rowDiscrepancySummary.hasBlocking ? <Badge variant="destructive">{t("payrollPage.blockingIssue")}</Badge> : null}
+                                    {!rowDiscrepancySummary.hasBlocking && rowHasOpenDiscrepancy ? <Badge variant="outline">{t("payrollPage.warningIssue")}</Badge> : null}
+                                  </div>
+                                  {statusPreview ? (
+                                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground" title={statusPreview}>
+                                      {statusPreview}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                {statusDetails.length ? (
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                          aria-label={t("payrollPage.validationTitle")}
+                                        >
+                                          <AlertTriangle className="h-3.5 w-3.5" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" align="start" className="max-w-sm space-y-2">
+                                        {statusDetails.map((detail) => (
+                                          <p key={detail} className="text-xs leading-relaxed">
+                                            {detail}
+                                          </p>
+                                        ))}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>{formatCurrency(row.gross_salary)}</TableCell>
                         <TableCell>{formatCurrency(row.attendance_deduction_amount ?? row.deduction_amount ?? 0)}</TableCell>
