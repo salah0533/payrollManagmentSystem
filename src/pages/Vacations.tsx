@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -56,7 +57,8 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedBalanceEmployeeId, setSelectedBalanceEmployeeId] = useState("");
   const [requestOpen, setRequestOpen] = useState(false);
-  const [actionState, setActionState] = useState<{ vacationId: number | null; statusId: number | null; label: string }>({
+  const [editingVacationId, setEditingVacationId] = useState<number | null>(null);
+  const [actionState, setActionState] = useState<{ vacationId: number | null; statusId: number | null; label: "approve" | "reject" | "cancel" | "" }>({
     vacationId: null,
     statusId: null,
     label: "",
@@ -69,6 +71,17 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     vacation_status: "",
     is_paid: true,
   });
+  const resetForm = () => {
+    setEditingVacationId(null);
+    setForm({
+      employee_id: "",
+      start_date: "",
+      end_date: "",
+      vacation_type: "",
+      vacation_status: "",
+      is_paid: true,
+    });
+  };
 
   const employeesQuery = useQuery({
     queryKey: ["vacations", "employees"],
@@ -137,6 +150,13 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     () => vacationStatusesQuery.data?.find((item) => item.vacation_status.toLowerCase() === "rejected")?.id ?? null,
     [vacationStatusesQuery.data],
   );
+  const cancelledStatusId = useMemo(
+    () => vacationStatusesQuery.data?.find((item) => {
+      const value = item.vacation_status.toLowerCase();
+      return value === "cancelled" || value === "canceled";
+    })?.id ?? null,
+    [vacationStatusesQuery.data],
+  );
   const pendingStatusId = useMemo(
     () => vacationStatusesQuery.data?.find((item) => item.vacation_status.toLowerCase() === "pending")?.id ?? null,
     [vacationStatusesQuery.data],
@@ -175,14 +195,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             ? t("vacationsPage.createSuccessManageDescription")
             : t("vacationsPage.createSuccessSelfDescription"),
       });
-      setForm({
-        employee_id: "",
-        start_date: "",
-        end_date: "",
-        vacation_type: "",
-        vacation_status: "",
-        is_paid: true,
-      });
+      resetForm();
       setRequestOpen(false);
       await refreshVacations();
     },
@@ -196,17 +209,15 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   });
 
   const updateVacation = useMutation({
-    mutationFn: ({ vacationId, statusId }: { vacationId: number; statusId: number }) =>
-      vacationApi.update({
-        id: vacationId,
-        vacation_status: statusId,
-      }),
+    mutationFn: (payload: Parameters<typeof vacationApi.update>[0]) => vacationApi.update(payload),
     onSuccess: async () => {
       toast({
         title: t("vacationsPage.updateSuccess"),
         description: t("vacationsPage.updateSuccessDescription"),
       });
       setActionState({ vacationId: null, statusId: null, label: "" });
+      setRequestOpen(false);
+      resetForm();
       await refreshVacations();
     },
     onError: (error) => {
@@ -217,6 +228,19 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       });
     },
   });
+
+  const openEditVacation = (vacation: NonNullable<(typeof vacationsQuery.data)>[number]) => {
+    setEditingVacationId(vacation.id);
+    setForm({
+      employee_id: String(vacation.employee_id),
+      start_date: vacation.start_date,
+      end_date: vacation.end_date,
+      vacation_type: String(vacation.vacation_type),
+      vacation_status: String(vacation.vacation_status),
+      is_paid: vacation.is_paid,
+    });
+    setRequestOpen(true);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -361,7 +385,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={!approvedStatusId}
+                            disabled={!approvedStatusId || Number(vacation.vacation_status) === approvedStatusId}
                             onClick={() =>
                               setActionState({
                                 vacationId: vacation.id,
@@ -375,7 +399,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={!rejectedStatusId}
+                            disabled={!rejectedStatusId || Number(vacation.vacation_status) === rejectedStatusId}
                             onClick={() =>
                               setActionState({
                                 vacationId: vacation.id,
@@ -385,6 +409,24 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                             }
                           >
                             {t("vacationsPage.reject")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!cancelledStatusId || Number(vacation.vacation_status) === cancelledStatusId}
+                            onClick={() =>
+                              setActionState({
+                                vacationId: vacation.id,
+                                statusId: cancelledStatusId,
+                                label: "cancel",
+                              })
+                            }
+                          >
+                            {t("vacationsPage.cancelVacation")}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openEditVacation(vacation)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            {t("common.edit")}
                           </Button>
                         </div>
                       </TableCell>
@@ -406,13 +448,29 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
         </CardContent>
       </Card>
 
-      <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
+      <Dialog
+        open={requestOpen}
+        onOpenChange={(open) => {
+          setRequestOpen(open);
+          if (!open) {
+            resetForm();
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{scope === "manage" ? t("vacationsPage.addVacation") : t("vacationsPage.requestVacation")}</DialogTitle>
+            <DialogTitle>
+              {scope === "manage"
+                ? editingVacationId
+                  ? t("vacationsPage.editVacation")
+                  : t("vacationsPage.addVacation")
+                : t("vacationsPage.requestVacation")}
+            </DialogTitle>
             <DialogDescription>
               {scope === "manage"
-                ? t("vacationsPage.dialogDescriptionManage")
+                ? editingVacationId
+                  ? t("vacationsPage.dialogDescriptionEditManage")
+                  : t("vacationsPage.dialogDescriptionManage")
                 : t("vacationsPage.dialogDescriptionSelf")}
             </DialogDescription>
           </DialogHeader>
@@ -483,8 +541,29 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
             <Button variant="outline" onClick={() => setRequestOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={() => createVacation.mutate()} disabled={createVacation.isPending}>
-              {createVacation.isPending ? t("common.saving") : scope === "manage" ? t("vacationsPage.addVacation") : t("vacationsPage.requestVacation")}
+            <Button
+              onClick={() =>
+                editingVacationId
+                  ? updateVacation.mutate({
+                      id: editingVacationId,
+                      employee_id: Number(form.employee_id),
+                      start_date: form.start_date,
+                      end_date: form.end_date,
+                      vacation_type: Number(form.vacation_type),
+                      vacation_status: Number(form.vacation_status || pendingStatusId || 0),
+                      is_paid: form.is_paid,
+                    })
+                  : createVacation.mutate()
+              }
+              disabled={createVacation.isPending || updateVacation.isPending}
+            >
+              {createVacation.isPending || updateVacation.isPending
+                ? t("common.saving")
+                : editingVacationId
+                  ? t("vacationsPage.saveChanges")
+                  : scope === "manage"
+                    ? t("vacationsPage.addVacation")
+                    : t("vacationsPage.requestVacation")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -493,11 +572,13 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       <AlertDialog open={Boolean(actionState.vacationId)} onOpenChange={(open) => !open && setActionState({ vacationId: null, statusId: null, label: "" })}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{formatLabel(actionState.label)} {t("vacationsPage.vacationNoun")}</AlertDialogTitle>
+            <AlertDialogTitle>{t(`vacationsPage.actionLabels.${actionState.label || "approve"}`)} {t("vacationsPage.vacationNoun")}</AlertDialogTitle>
             <AlertDialogDescription>
               {actionState.label === "reject"
                 ? t("vacationsPage.actionDescriptionReject")
-                : t("vacationsPage.actionDescriptionDefault")}
+                : actionState.label === "cancel"
+                  ? t("vacationsPage.actionDescriptionCancel")
+                  : t("vacationsPage.actionDescriptionDefault")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -507,8 +588,8 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 actionState.vacationId &&
                 actionState.statusId &&
                 updateVacation.mutate({
-                  vacationId: actionState.vacationId,
-                  statusId: actionState.statusId,
+                  id: actionState.vacationId,
+                  vacation_status: actionState.statusId,
                 })
               }
             >
