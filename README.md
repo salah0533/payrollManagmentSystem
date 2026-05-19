@@ -36,6 +36,22 @@ npm i
 npm run dev
 ```
 
+## Environment variables
+
+Create a local `.env` file in this project folder or copy `.env.example`.
+
+```env
+VITE_API_BASE_URL=http://localhost:8000
+VITE_DEV_HOST=::
+VITE_DEV_PORT=8080
+```
+
+Variables:
+
+- `VITE_API_BASE_URL`: backend base URL used by the frontend API client.
+- `VITE_DEV_HOST`: host/address used by the Vite dev server.
+- `VITE_DEV_PORT`: port used by the Vite dev server.
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
