@@ -5,6 +5,7 @@ import {
   canApprovePayroll,
   canRecalculatePayroll,
   canRecordPayrollPayment,
+  getPayrollDiscrepancySummary,
   getAttendanceReviewStatus,
   hasOpenDiscrepancyForPayroll,
   isAttendanceLocked,
@@ -60,16 +61,29 @@ describe("attendance workflow guards", () => {
 });
 
 describe("payroll workflow guards", () => {
-  it("blocks approval when a row has open discrepancies", () => {
+  it("distinguishes blocking vs warning discrepancies", () => {
     const row = payroll("draft");
-    expect(hasOpenDiscrepancyForPayroll(row, [discrepancy()])).toBe(true);
-    expect(canApprovePayroll(row, [discrepancy()])).toBe(false);
-    expect(canApprovePayroll(row, [discrepancy({ status: "resolved" })])).toBe(true);
+    const warning = discrepancy({ severity: "medium" });
+    const blocking = discrepancy();
+
+    expect(hasOpenDiscrepancyForPayroll(row, [warning])).toBe(true);
+    expect(getPayrollDiscrepancySummary(row, [warning])).toMatchObject({
+      openCount: 1,
+      blockingCount: 0,
+      warningCount: 1,
+      hasBlocking: false,
+      hasWarning: true,
+    });
+    expect(canApprovePayroll(row, [warning])).toBe(true);
+    expect(canApprovePayroll(row, [blocking])).toBe(false);
+    expect(canApprovePayroll(row, [blocking, discrepancy({ status: "resolved" })])).toBe(false);
   });
 
-  it("allows payment only after approval and blocks recalculation/adjustment once final", () => {
+  it("allows payment only after approval and only when blocking discrepancies are absent", () => {
     expect(canRecordPayrollPayment(payroll("draft"))).toBe(false);
     expect(canRecordPayrollPayment(payroll("approved"))).toBe(true);
+    expect(canRecordPayrollPayment(payroll("approved"), [discrepancy({ severity: "medium" })])).toBe(true);
+    expect(canRecordPayrollPayment(payroll("approved"), [discrepancy({ severity: "high" })])).toBe(false);
     expect(canRecalculatePayroll(payroll("draft"))).toBe(true);
     expect(canRecalculatePayroll(payroll("paid"))).toBe(false);
     expect(canAdjustPayroll(payroll("locked"))).toBe(false);

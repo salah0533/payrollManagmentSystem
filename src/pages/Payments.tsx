@@ -55,6 +55,7 @@ import {
   canApprovePayroll,
   canRecalculatePayroll,
   canRecordPayrollPayment,
+  getPayrollDiscrepancySummary,
   hasOpenDiscrepancyForPayroll,
 } from "@/lib/workflow";
 import { attendanceApi } from "@/services/attendanceApi";
@@ -527,6 +528,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const selectedPayroll = useMemo(() => payrollRows.find((row) => row.id === selectedPayrollId) || null, [payrollRows, selectedPayrollId]);
   const detailsPayroll = useMemo(() => payrollRows.find((row) => row.id === detailsPayrollId) || null, [detailsPayrollId, payrollRows]);
   const confirmPayroll = useMemo(() => payrollRows.find((row) => row.id === confirmAction.payrollId) || null, [confirmAction.payrollId, payrollRows]);
+  const confirmDiscrepancySummary = useMemo(
+    () => getPayrollDiscrepancySummary(confirmPayroll, allDiscrepancies),
+    [allDiscrepancies, confirmPayroll],
+  );
   const selfPayroll = selfPayrollQuery.data;
   const payrollReport = reportQuery.data;
   const selectedAdjustments = adjustmentsQuery.data || [];
@@ -665,7 +670,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
     }
 
     if (confirmAction.type === "approve") {
-      if (!canApprovePayroll(confirmPayroll, allDiscrepancies)) {
+      if (confirmDiscrepancySummary.hasBlocking) {
         toast({
           title: t("payrollPage.approvalBlocked"),
           description: t("payrollPage.approvalBlockedDescription"),
@@ -677,7 +682,16 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       return;
     }
 
-    if (!canRecordPayrollPayment(confirmPayroll)) {
+    if (confirmDiscrepancySummary.hasBlocking) {
+      toast({
+        title: t("payrollPage.paymentBlockedHighSeverity"),
+        description: t("payrollPage.paymentBlockedHighSeverityDescription"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!canRecordPayrollPayment(confirmPayroll, allDiscrepancies)) {
       toast({
         title: t("payrollPage.paymentBlocked"),
         description: t("payrollPage.paymentBlockedDescription"),
@@ -918,10 +932,11 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   </TableHeader>
                   <TableBody>
                     {payrollRows.map((row) => {
+                      const rowDiscrepancySummary = getPayrollDiscrepancySummary(row, allDiscrepancies);
                       const rowHasOpenDiscrepancy = hasOpenDiscrepancyForPayroll(row, allDiscrepancies);
                       const rowCanRecalculate = canCalculate && canRecalculatePayroll(row);
                       const rowCanApprove = canApprove && canApprovePayroll(row, allDiscrepancies);
-                      const rowCanRecordPayment = canMarkPaid && canRecordPayrollPayment(row);
+                      const rowCanRecordPayment = canMarkPaid && canRecordPayrollPayment(row, allDiscrepancies);
                       const rowCanAdjust = canAdjust && canAdjustPayroll(row);
                       return (
                       <TableRow key={row.id}>
@@ -932,8 +947,21 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             <StatusBadge status={row.status} />
-                            {rowHasOpenDiscrepancy ? <Badge variant="destructive">{t("payrollPage.openIssue")}</Badge> : null}
+                            {rowDiscrepancySummary.hasBlocking ? <Badge variant="destructive">{t("payrollPage.blockingIssue")}</Badge> : null}
+                            {!rowDiscrepancySummary.hasBlocking && rowHasOpenDiscrepancy ? <Badge variant="outline">{t("payrollPage.warningIssue")}</Badge> : null}
                           </div>
+                          {rowHasOpenDiscrepancy ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {rowDiscrepancySummary.hasBlocking
+                                ? t("payrollPage.discrepancySummaryBlocking", {
+                                    blocking: rowDiscrepancySummary.blockingCount,
+                                    warning: rowDiscrepancySummary.warningCount,
+                                  })
+                                : t("payrollPage.discrepancySummaryWarning", {
+                                    warning: rowDiscrepancySummary.warningCount,
+                                  })}
+                            </div>
+                          ) : null}
                           {row.needs_review_reason ? <div className="mt-1 text-xs text-muted-foreground">{row.needs_review_reason}</div> : null}
                         </TableCell>
                         <TableCell>{formatCurrency(row.gross_salary)}</TableCell>
@@ -1421,10 +1449,41 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction.type === "approve"
-                ? t("payrollPage.approvePayrollDescription")
-                : t("payrollPage.recordPayrollPaymentDescription")}
+                ? confirmDiscrepancySummary.hasBlocking
+                  ? t("payrollPage.approvePayrollBlockedDescription")
+                  : confirmDiscrepancySummary.hasWarning
+                    ? t("payrollPage.approvePayrollWarningDescription")
+                    : t("payrollPage.approvePayrollDescription")
+                : confirmDiscrepancySummary.hasBlocking
+                  ? t("payrollPage.recordPayrollPaymentBlockedDescription")
+                  : confirmDiscrepancySummary.hasWarning
+                    ? t("payrollPage.recordPayrollPaymentWarningDescription")
+                    : t("payrollPage.recordPayrollPaymentDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmDiscrepancySummary.hasBlocking ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>{t("payrollPage.blockingIssue")}</AlertTitle>
+              <AlertDescription>
+                {t("payrollPage.discrepancySummaryBlocking", {
+                  blocking: confirmDiscrepancySummary.blockingCount,
+                  warning: confirmDiscrepancySummary.warningCount,
+                })}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {!confirmDiscrepancySummary.hasBlocking && confirmDiscrepancySummary.hasWarning ? (
+            <Alert className="border-warning/40">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>{t("payrollPage.warningIssue")}</AlertTitle>
+              <AlertDescription>
+                {t("payrollPage.discrepancySummaryWarning", {
+                  warning: confirmDiscrepancySummary.warningCount,
+                })}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {confirmAction.type === "paid" ? (
             <div className="grid gap-4 py-2">
               <div className="space-y-2">
@@ -1456,7 +1515,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                 approvePayroll.isPending ||
                 markPayrollPaid.isPending ||
                 (confirmAction.type === "approve" && !canApprovePayroll(confirmPayroll, allDiscrepancies)) ||
-                (confirmAction.type === "paid" && !canRecordPayrollPayment(confirmPayroll)) ||
+                (confirmAction.type === "paid" && !canRecordPayrollPayment(confirmPayroll, allDiscrepancies)) ||
                 (confirmAction.type === "paid" &&
                   (!confirmAction.amount ||
                     !Number.isFinite(Number(confirmAction.amount)) ||

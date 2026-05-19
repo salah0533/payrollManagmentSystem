@@ -42,7 +42,11 @@ export function isAttendanceLocked(day?: Pick<AttendanceDay, "review_status" | "
 }
 
 export function hasOpenDiscrepancyForPayroll(payroll: EmployeePayroll, discrepancies: PayrollDiscrepancy[] = []) {
-  return discrepancies.some(
+  return getPayrollDiscrepancySummary(payroll, discrepancies).openCount > 0;
+}
+
+function getPayrollDiscrepanciesForRow(payroll: EmployeePayroll, discrepancies: PayrollDiscrepancy[] = []) {
+  return discrepancies.filter(
     (item) =>
       item.status !== "resolved" &&
       (item.employee_payroll_id === payroll.id ||
@@ -50,6 +54,29 @@ export function hasOpenDiscrepancyForPayroll(payroll: EmployeePayroll, discrepan
           item.employee_id === payroll.employee_id &&
           item.payroll_period_id === payroll.payroll_period_id)),
   );
+}
+
+export function getPayrollDiscrepancySummary(payroll?: EmployeePayroll | null, discrepancies: PayrollDiscrepancy[] = []) {
+  if (!payroll) {
+    return {
+      openCount: 0,
+      blockingCount: 0,
+      warningCount: 0,
+      hasBlocking: false,
+      hasWarning: false,
+    };
+  }
+
+  const openItems = getPayrollDiscrepanciesForRow(payroll, discrepancies);
+  const blockingCount = openItems.filter((item) => item.severity === "high").length;
+  const warningCount = openItems.length - blockingCount;
+  return {
+    openCount: openItems.length,
+    blockingCount,
+    warningCount,
+    hasBlocking: blockingCount > 0,
+    hasWarning: warningCount > 0,
+  };
 }
 
 export function canRecalculatePayroll(payroll?: Pick<EmployeePayroll, "status"> | null) {
@@ -61,9 +88,11 @@ export function canAdjustPayroll(payroll?: Pick<EmployeePayroll, "status"> | nul
 }
 
 export function canApprovePayroll(payroll?: EmployeePayroll | null, discrepancies: PayrollDiscrepancy[] = []) {
-  return Boolean(payroll && payroll.status !== "locked" && !payrollPaidStatuses.includes(payroll.status as never) && !hasOpenDiscrepancyForPayroll(payroll, discrepancies));
+  const summary = getPayrollDiscrepancySummary(payroll, discrepancies);
+  return Boolean(payroll && payroll.status !== "locked" && !payrollPaidStatuses.includes(payroll.status as never) && !summary.hasBlocking);
 }
 
-export function canRecordPayrollPayment(payroll?: Pick<EmployeePayroll, "status"> | null) {
-  return payroll?.status === "approved";
+export function canRecordPayrollPayment(payroll?: EmployeePayroll | null, discrepancies: PayrollDiscrepancy[] = []) {
+  const summary = getPayrollDiscrepancySummary(payroll, discrepancies);
+  return payroll?.status === "approved" && !summary.hasBlocking;
 }
