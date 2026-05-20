@@ -4,6 +4,7 @@ export const attendanceStatuses = [
   "present",
   "late",
   "absent",
+  "unpaid",
   "paid_vacation",
   "unpaid_vacation",
   "sick_leave",
@@ -16,6 +17,7 @@ export const smartAttendanceStatuses = [
   "present",
   "late",
   "absent",
+  "unpaid",
   "paid_vacation",
   "unpaid_vacation",
   "sick_leave",
@@ -43,7 +45,7 @@ export function isAttendanceLocked(day?: Pick<AttendanceDay, "review_status" | "
 
 export function getSmartCorrectionStatuses(day?: Pick<AttendanceDay, "status"> | null) {
   if (day?.status === "weekly_off") {
-    return smartAttendanceStatuses.filter((status) => status !== "absent");
+    return smartAttendanceStatuses.filter((status) => status !== "absent" && status !== "unpaid_vacation");
   }
   return smartAttendanceStatuses;
 }

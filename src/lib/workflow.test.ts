@@ -62,6 +62,8 @@ describe("attendance workflow guards", () => {
 
   it("does not offer absent as a smart correction status for weekly off rows", () => {
     expect(getSmartCorrectionStatuses({ status: "weekly_off" } as AttendanceDay)).not.toContain("absent");
+    expect(getSmartCorrectionStatuses({ status: "weekly_off" } as AttendanceDay)).not.toContain("unpaid_vacation");
+    expect(getSmartCorrectionStatuses({ status: "weekly_off" } as AttendanceDay)).toContain("unpaid");
     expect(getSmartCorrectionStatuses({ status: "present" } as AttendanceDay)).toContain("absent");
   });
 });

@@ -78,7 +78,7 @@ function buildManualCorrectionValues(
 }
 
 function isMissingCheckIn(row: AttendanceDay) {
-  return !row.check_in_time && !["absent", "paid_vacation", "unpaid_vacation", "sick_leave", "weekly_off", "holiday"].includes(row.status);
+  return !row.check_in_time && !["absent", "unpaid", "paid_vacation", "unpaid_vacation", "sick_leave", "weekly_off", "holiday"].includes(row.status);
 }
 
 function isMissingCheckOut(row: AttendanceDay) {
