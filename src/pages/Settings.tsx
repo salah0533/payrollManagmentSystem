@@ -18,6 +18,7 @@ import { formatCurrency, setDefaultCurrency } from "@/lib/format";
 import { timezoneOptions } from "@/lib/timezones";
 import { hasPermission } from "@/lib/roles";
 import { settingsApi } from "@/services/settingsApi";
+import type { WorkSchedule } from "@/types/domain";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 
@@ -41,14 +42,54 @@ function getBreakMinutesFromWindow(breakStartTime?: string | null, breakEndTime?
   return Math.max(0, endTotal - startTotal);
 }
 
+type WorkScheduleFormState = {
+  name: string;
+  start_time: string;
+  end_time: string;
+  break_start_time: string | null;
+  break_end_time: string | null;
+  break_minutes: number;
+  weekly_off_days: string[];
+  timezone: string;
+  is_default: boolean;
+};
+
+function createEmptyWorkScheduleForm(): WorkScheduleFormState {
+  return {
+    name: "",
+    start_time: "08:00:00",
+    end_time: "17:00:00",
+    break_start_time: "12:00:00",
+    break_end_time: "13:00:00",
+    break_minutes: 60,
+    weekly_off_days: ["friday", "saturday"],
+    timezone: "Africa/Algiers",
+    is_default: false,
+  };
+}
+
+function mapWorkScheduleToForm(schedule: WorkSchedule): WorkScheduleFormState {
+  return {
+    name: schedule.name,
+    start_time: schedule.start_time,
+    end_time: schedule.end_time,
+    break_start_time: schedule.break_start_time ?? null,
+    break_end_time: schedule.break_end_time ?? null,
+    break_minutes: schedule.break_minutes,
+    weekly_off_days: schedule.weekly_off_days,
+    timezone: schedule.timezone,
+    is_default: schedule.is_default,
+  };
+}
+
 export default function Settings() {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const canUpdateSettings = hasPermission(currentUser, "settings.update");
-  const workScheduleQuery = useQuery({
-    queryKey: ["settings", "work-schedule"],
-    queryFn: () => settingsApi.getWorkSchedule(),
+  const workSchedulesQuery = useQuery({
+    queryKey: ["settings", "work-schedules"],
+    queryFn: () => settingsApi.listWorkSchedules(),
   });
 
   const payrollPolicyQuery = useQuery({
@@ -56,17 +97,9 @@ export default function Settings() {
     queryFn: () => settingsApi.getPayrollPolicy(),
   });
 
-  const [workSchedule, setWorkSchedule] = useState({
-    name: "Default Schedule",
-    start_time: "08:00:00",
-    end_time: "17:00:00",
-    break_start_time: "12:00:00" as string | null,
-    break_end_time: "13:00:00" as string | null,
-    break_minutes: 60,
-    weekly_off_days: ["friday", "saturday"],
-    timezone: "Africa/Algiers",
-    is_default: true,
-  });
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
+  const [workSchedule, setWorkSchedule] = useState<WorkScheduleFormState>(createEmptyWorkScheduleForm());
 
   const [payrollPolicy, setPayrollPolicy] = useState({
     name: "default",
@@ -78,8 +111,6 @@ export default function Settings() {
     significant_change_threshold: 1,
     paid_vacation_counts_for_daily: true,
     overtime_enabled: true,
-    late_makeup_enabled: true,
-    late_deduction_enabled: false,
     monthly_payroll_calculation_mode: "calendar_days" as "working_days" | "calendar_days",
     auto_recalculate_draft_payroll: true,
     lock_payroll_after_payment: true,
@@ -91,20 +122,28 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    if (workScheduleQuery.data) {
-      setWorkSchedule({
-        name: workScheduleQuery.data.name,
-        start_time: workScheduleQuery.data.start_time,
-        end_time: workScheduleQuery.data.end_time,
-        break_start_time: workScheduleQuery.data.break_start_time ?? null,
-        break_end_time: workScheduleQuery.data.break_end_time ?? null,
-        break_minutes: workScheduleQuery.data.break_minutes,
-        weekly_off_days: workScheduleQuery.data.weekly_off_days,
-        timezone: workScheduleQuery.data.timezone,
-        is_default: workScheduleQuery.data.is_default,
-      });
+    const schedules = workSchedulesQuery.data || [];
+    if (!schedules.length || isCreatingSchedule) {
+      return;
     }
-  }, [workScheduleQuery.data]);
+
+    const selectedExists = selectedScheduleId !== null && schedules.some((schedule) => schedule.id === selectedScheduleId);
+    if (!selectedExists) {
+      const fallbackSchedule = schedules.find((schedule) => schedule.is_default) || schedules[0];
+      setSelectedScheduleId(fallbackSchedule.id);
+    }
+  }, [isCreatingSchedule, selectedScheduleId, workSchedulesQuery.data]);
+
+  useEffect(() => {
+    if (isCreatingSchedule || selectedScheduleId === null) {
+      return;
+    }
+
+    const selectedSchedule = (workSchedulesQuery.data || []).find((schedule) => schedule.id === selectedScheduleId);
+    if (selectedSchedule) {
+      setWorkSchedule(mapWorkScheduleToForm(selectedSchedule));
+    }
+  }, [isCreatingSchedule, selectedScheduleId, workSchedulesQuery.data]);
 
   useEffect(() => {
     if (payrollPolicyQuery.data) {
@@ -118,8 +157,6 @@ export default function Settings() {
         significant_change_threshold: Number(payrollPolicyQuery.data.significant_change_threshold),
         paid_vacation_counts_for_daily: payrollPolicyQuery.data.paid_vacation_counts_for_daily,
         overtime_enabled: payrollPolicyQuery.data.overtime_enabled,
-        late_makeup_enabled: payrollPolicyQuery.data.late_makeup_enabled,
-        late_deduction_enabled: payrollPolicyQuery.data.late_deduction_enabled,
         monthly_payroll_calculation_mode: payrollPolicyQuery.data.monthly_payroll_calculation_mode,
         auto_recalculate_draft_payroll: payrollPolicyQuery.data.auto_recalculate_draft_payroll,
         lock_payroll_after_payment: payrollPolicyQuery.data.lock_payroll_after_payment,
@@ -133,22 +170,48 @@ export default function Settings() {
   }, [payrollPolicyQuery.data]);
 
   const saveWorkSchedule = useMutation({
-    mutationFn: () =>
-      settingsApi.updateWorkSchedule({
+    mutationFn: () => {
+      const payload = {
         ...workSchedule,
         break_minutes: getBreakMinutesFromWindow(
           workSchedule.break_start_time,
           workSchedule.break_end_time,
           workSchedule.break_minutes,
         ),
-      }),
-    onSuccess: () => {
-      toast({ title: t("settings.saveWorkScheduleSuccess"), description: t("settings.saveWorkScheduleSuccessDescription") });
+      };
+      if (isCreatingSchedule || selectedScheduleId === null) {
+        return settingsApi.createWorkSchedule(payload);
+      }
+      return settingsApi.updateWorkScheduleById(selectedScheduleId, payload);
+    },
+    onSuccess: async (schedule) => {
+      setIsCreatingSchedule(false);
+      setSelectedScheduleId(schedule.id);
+      setWorkSchedule(mapWorkScheduleToForm(schedule));
+      queryClient.setQueryData(["settings", "work-schedules"], (current: WorkSchedule[] | undefined) => {
+        const nextSchedules = (current || []).filter((item) => item.id !== schedule.id);
+        nextSchedules.push(schedule);
+        return nextSchedules
+          .map((item) => ({
+            ...item,
+            is_default: schedule.is_default ? item.id === schedule.id : item.is_default,
+          }))
+          .sort((left, right) => Number(right.is_default) - Number(left.is_default) || left.id - right.id);
+      });
+      if (schedule.is_default) {
+        queryClient.setQueryData(["settings", "work-schedule"], schedule);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["settings", "work-schedules"] });
+      await queryClient.invalidateQueries({ queryKey: ["settings", "work-schedule"] });
+      toast({
+        title: isCreatingSchedule ? t("settings.createWorkScheduleSuccess") : t("settings.saveWorkScheduleSuccess"),
+        description: isCreatingSchedule ? t("settings.createWorkScheduleSuccessDescription") : t("settings.saveWorkScheduleSuccessDescription"),
+      });
     },
     onError: (error) => {
       toast({
-        title: t("settings.saveWorkScheduleError"),
-        description: getErrorMessage(error, t("settings.saveWorkScheduleErrorDescription")),
+        title: isCreatingSchedule ? t("settings.createWorkScheduleError") : t("settings.saveWorkScheduleError"),
+        description: getErrorMessage(error, isCreatingSchedule ? t("settings.createWorkScheduleErrorDescription") : t("settings.saveWorkScheduleErrorDescription")),
         variant: "destructive",
       });
     },
@@ -177,6 +240,12 @@ export default function Settings() {
     workSchedule.break_end_time,
     workSchedule.break_minutes,
   );
+  const schedules = workSchedulesQuery.data || [];
+  const scheduleSelectValue = isCreatingSchedule
+    ? "__new__"
+    : selectedScheduleId !== null
+      ? String(selectedScheduleId)
+      : "__loading__";
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -192,6 +261,47 @@ export default function Settings() {
             <CardDescription>{t("settings.workScheduleDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="savedSchedule">{t("settings.savedSchedules")}</Label>
+                <Select
+                  value={scheduleSelectValue}
+                  onValueChange={(value) => {
+                    if (value === "__new__" || value === "__loading__") {
+                      return;
+                    }
+                    setIsCreatingSchedule(false);
+                    setSelectedScheduleId(Number(value));
+                  }}
+                >
+                  <SelectTrigger id="savedSchedule">
+                    <SelectValue placeholder={t("settings.selectSchedule")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__loading__" disabled>{t("common.loading")}</SelectItem>
+                    <SelectItem value="__new__">{t("settings.newSchedule")}</SelectItem>
+                    {schedules.map((schedule) => (
+                      <SelectItem key={schedule.id} value={String(schedule.id)}>
+                        {schedule.is_default ? `${schedule.name} (${t("settings.defaultScheduleBadge")})` : schedule.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsCreatingSchedule(true);
+                  setSelectedScheduleId(null);
+                  setWorkSchedule(createEmptyWorkScheduleForm());
+                }}
+                disabled={!canUpdateSettings}
+              >
+                {t("settings.newSchedule")}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("settings.savedSchedulesHint")}</p>
             <div className="space-y-2">
               <Label htmlFor="scheduleName">{t("settings.scheduleName")}</Label>
               <Input id="scheduleName" value={workSchedule.name} onChange={(event) => setWorkSchedule((value) => ({ ...value, name: event.target.value }))} />
@@ -296,7 +406,7 @@ export default function Settings() {
               <Switch checked={workSchedule.is_default} onCheckedChange={(checked) => setWorkSchedule((value) => ({ ...value, is_default: checked }))} />
             </div>
             <Button onClick={() => saveWorkSchedule.mutate()} disabled={!canUpdateSettings || saveWorkSchedule.isPending}>
-              {saveWorkSchedule.isPending ? t("common.saving") : t("settings.saveWorkSchedule")}
+              {saveWorkSchedule.isPending ? t("common.saving") : isCreatingSchedule ? t("settings.createWorkSchedule") : t("settings.saveWorkSchedule")}
             </Button>
           </CardContent>
         </Card>
@@ -404,8 +514,6 @@ export default function Settings() {
               {[
                 ["paid_vacation_counts_for_daily", t("settings.toggles.paidVacationCountsForDaily")],
                 ["overtime_enabled", t("settings.toggles.overtimeEnabled")],
-                ["late_makeup_enabled", t("settings.toggles.lateMakeupEnabled")],
-                ["late_deduction_enabled", t("settings.toggles.lateDeductionEnabled")],
                 ["auto_recalculate_draft_payroll", t("settings.toggles.autoRecalculateDraftPayroll")],
                 ["lock_payroll_after_payment", t("settings.toggles.lockPayrollAfterPayment")],
                 ["allow_vacation_carryover", t("settings.toggles.allowVacationCarryover")],

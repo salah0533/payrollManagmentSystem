@@ -611,8 +611,6 @@ export interface PayrollPolicy {
   significant_change_threshold: number | string;
   paid_vacation_counts_for_daily: boolean;
   overtime_enabled: boolean;
-  late_makeup_enabled: boolean;
-  late_deduction_enabled: boolean;
   monthly_payroll_calculation_mode: MonthlyPayrollCalculationMode;
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;
@@ -635,8 +633,6 @@ export interface PayrollPolicyPayload {
   significant_change_threshold: number;
   paid_vacation_counts_for_daily: boolean;
   overtime_enabled: boolean;
-  late_makeup_enabled: boolean;
-  late_deduction_enabled: boolean;
   monthly_payroll_calculation_mode: MonthlyPayrollCalculationMode;
   auto_recalculate_draft_payroll: boolean;
   lock_payroll_after_payment: boolean;

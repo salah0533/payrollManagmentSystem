@@ -14,8 +14,23 @@ export const settingsApi = {
   getWorkSchedule() {
     return apiRequest<WorkSchedule>("/settings/work-schedule");
   },
+  listWorkSchedules() {
+    return apiRequest<WorkSchedule[]>("/settings/work-schedules");
+  },
+  createWorkSchedule(payload: WorkSchedulePayload) {
+    return apiRequest<WorkSchedule>("/settings/work-schedules", {
+      method: "POST",
+      body: payload,
+    });
+  },
   updateWorkSchedule(payload: WorkSchedulePayload) {
     return apiRequest<WorkSchedule>("/settings/work-schedule", {
+      method: "PUT",
+      body: payload,
+    });
+  },
+  updateWorkScheduleById(scheduleId: number, payload: WorkSchedulePayload) {
+    return apiRequest<WorkSchedule>(`/settings/work-schedules/${scheduleId}`, {
       method: "PUT",
       body: payload,
     });
