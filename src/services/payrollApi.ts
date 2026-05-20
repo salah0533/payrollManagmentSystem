@@ -54,6 +54,17 @@ export const payrollApi = {
       method: "POST",
     });
   },
+  unapprove(employeePayrollId: number) {
+    return apiRequest<EmployeePayroll>(`/payroll/unapprove/${employeePayrollId}`, {
+      method: "POST",
+    });
+  },
+  reopen(employeePayrollId: number, payload: { reason: string }) {
+    return apiRequest<EmployeePayroll>(`/payroll/reopen/${employeePayrollId}`, {
+      method: "POST",
+      body: payload,
+    });
+  },
   markPaid(employeePayrollId: number, payload?: { amount?: number; note?: string }) {
     return apiRequest<EmployeePayroll>(`/payroll/mark-paid/${employeePayrollId}`, {
       method: "POST",

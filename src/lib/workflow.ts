@@ -112,6 +112,14 @@ export function canApprovePayroll(payroll?: EmployeePayroll | null, discrepancie
   return Boolean(payroll && payroll.status !== "locked" && !payrollPaidStatuses.includes(payroll.status as never) && !summary.hasBlocking);
 }
 
+export function canUnapprovePayroll(payroll?: Pick<EmployeePayroll, "status" | "paid_amount"> | null) {
+  return Boolean(payroll && payroll.status === "approved" && Number(payroll.paid_amount || 0) <= 0);
+}
+
+export function canReopenLockedPayroll(payroll?: Pick<EmployeePayroll, "status" | "paid_amount"> | null) {
+  return Boolean(payroll && payroll.status === "locked" && Number(payroll.paid_amount || 0) > 0);
+}
+
 export function canRecordPayrollPayment(payroll?: EmployeePayroll | null, discrepancies: PayrollDiscrepancy[] = []) {
   const summary = getPayrollDiscrepancySummary(payroll, discrepancies);
   return payroll?.status === "approved" && !summary.hasBlocking;
