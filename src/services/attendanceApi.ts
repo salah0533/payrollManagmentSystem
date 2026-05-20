@@ -13,6 +13,9 @@ export const attendanceApi = {
   listByDate(date: string) {
     return apiRequest<AttendanceDay[]>(`/attendance/days/${date}`);
   },
+  listRange(startDate: string, endDate: string) {
+    return apiRequest<AttendanceDay[]>(`/attendance/attbytim/${startDate}/${endDate}`);
+  },
   getEmployeeRange(employeeId: number, startDate: string, endDate: string) {
     return apiRequest<AttendanceDay[]>(`/attendance/employee/${employeeId}/${startDate}/${endDate}`);
   },
