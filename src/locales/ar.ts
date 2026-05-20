@@ -81,6 +81,7 @@ const ar = {
     employees: "الموظفون",
     attendance: "الحضور",
     payroll: "الرواتب",
+    paymentHistory: "Pyment Hist",
     vacations: "الإجازات",
     settings: "الإعدادات",
     notifications: "الإشعارات",

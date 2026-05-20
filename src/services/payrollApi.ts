@@ -1,6 +1,7 @@
-import { apiRequest } from "@/lib/api-client";
+import { apiRequest, buildQueryString } from "@/lib/api-client";
 import type {
   EmployeePayroll,
+  PayrollEmployeeHistoryResponse,
   PayrollBalanceReport,
   PayrollAdjustment,
   PayrollAdjustmentPayload,
@@ -23,6 +24,10 @@ export const payrollApi = {
   getReport(periodId?: number) {
     const query = periodId ? `?period_id=${periodId}` : "";
     return apiRequest<PayrollBalanceReport>(`/payroll/report${query}`);
+  },
+  getEmployeeHistory(employeeId: number, page = 1, pageSize = 20) {
+    const query = buildQueryString({ page, page_size: pageSize });
+    return apiRequest<PayrollEmployeeHistoryResponse>(`/payroll/employee-history/${employeeId}${query}`);
   },
   getSelfReport(periodId?: number) {
     const query = periodId ? `?period_id=${periodId}` : "";

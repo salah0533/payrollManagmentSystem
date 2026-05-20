@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -38,6 +38,7 @@ import { employeeApi } from "@/services/employeeApi";
 import { vacationApi } from "@/services/vacationApi";
 import { toast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import type { Vacation } from "@/types/domain";
 
 function daysBetween(start: string, end: string) {
   const startDate = new Date(start);
@@ -49,6 +50,16 @@ function daysBetween(start: string, end: string) {
   return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
+type HolidayGroup = {
+  key: string;
+  start_date: string;
+  end_date: string;
+  vacation_type: number | string;
+  vacation_status: number | string;
+  is_paid: boolean;
+  vacations: Vacation[];
+};
+
 export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -57,6 +68,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedBalanceEmployeeId, setSelectedBalanceEmployeeId] = useState("");
+  const [expandedHolidayGroups, setExpandedHolidayGroups] = useState<string[]>([]);
   const [requestOpen, setRequestOpen] = useState(false);
   const [editingVacationId, setEditingVacationId] = useState<number | null>(null);
   const [actionState, setActionState] = useState<{ vacationId: number | null; statusId: number | null; label: "approve" | "reject" | "cancel" | "" }>({
@@ -137,14 +149,6 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     [vacationStatusesQuery.data],
   );
 
-  const filteredVacations = useMemo(() => {
-    return (vacationsQuery.data || []).filter((vacation) => {
-      const matchesStatus = !statusFilter || String(vacation.vacation_status) === statusFilter;
-      const matchesType = !typeFilter || String(vacation.vacation_type) === typeFilter;
-      return matchesStatus && matchesType;
-    });
-  }, [statusFilter, typeFilter, vacationsQuery.data]);
-
   const approvedStatusId = useMemo(
     () => vacationStatusesQuery.data?.find((item) => item.vacation_status.toLowerCase() === "approved")?.id ?? null,
     [vacationStatusesQuery.data],
@@ -182,7 +186,72 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       }),
     [holidayTypeId, scope, vacationTypesQuery.data],
   );
+  const requestTableVacationTypes = useMemo(
+    () => (vacationTypesQuery.data || []).filter((item) => holidayTypeId == null || item.id !== holidayTypeId),
+    [holidayTypeId, vacationTypesQuery.data],
+  );
+  const regularVacations = useMemo(() => {
+    return (vacationsQuery.data || []).filter((vacation) => {
+      const isHoliday = holidayTypeId != null && Number(vacation.vacation_type) === holidayTypeId;
+      if (isHoliday) {
+        return false;
+      }
+
+      const matchesStatus = !statusFilter || String(vacation.vacation_status) === statusFilter;
+      const matchesType = !typeFilter || String(vacation.vacation_type) === typeFilter;
+      return matchesStatus && matchesType;
+    });
+  }, [holidayTypeId, statusFilter, typeFilter, vacationsQuery.data]);
+  const holidayGroups = useMemo(() => {
+    const grouped = new Map<string, HolidayGroup>();
+
+    for (const vacation of vacationsQuery.data || []) {
+      const isHoliday = holidayTypeId != null && Number(vacation.vacation_type) === holidayTypeId;
+      const matchesStatus = !statusFilter || String(vacation.vacation_status) === statusFilter;
+      if (!isHoliday || !matchesStatus) {
+        continue;
+      }
+
+      const key = [
+        String(vacation.vacation_type),
+        vacation.start_date,
+        vacation.end_date,
+        String(vacation.vacation_status),
+        vacation.is_paid ? "paid" : "unpaid",
+      ].join("|");
+
+      const current = grouped.get(key);
+      if (current) {
+        current.vacations.push(vacation);
+      } else {
+        grouped.set(key, {
+          key,
+          start_date: vacation.start_date,
+          end_date: vacation.end_date,
+          vacation_type: vacation.vacation_type,
+          vacation_status: vacation.vacation_status,
+          is_paid: vacation.is_paid,
+          vacations: [vacation],
+        });
+      }
+    }
+
+    return [...grouped.values()]
+      .map((group) => ({
+        ...group,
+        vacations: [...group.vacations].sort((left, right) => {
+          const leftName = employeeMap[left.employee_id] || "";
+          const rightName = employeeMap[right.employee_id] || "";
+          return leftName.localeCompare(rightName) || left.employee_id - right.employee_id;
+        }),
+      }))
+      .sort((left, right) => right.start_date.localeCompare(left.start_date) || right.end_date.localeCompare(left.end_date));
+  }, [employeeMap, holidayTypeId, statusFilter, vacationsQuery.data]);
   const isHolidayTypeSelected = scope === "manage" && !editingVacationId && holidayTypeId != null && Number(form.vacation_type) === holidayTypeId;
+
+  useEffect(() => {
+    setExpandedHolidayGroups((current) => current.filter((key) => holidayGroups.some((group) => group.key === key)));
+  }, [holidayGroups]);
 
   const refreshVacations = async () => {
     await queryClient.invalidateQueries({ queryKey: ["vacations"] });
@@ -260,7 +329,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     },
   });
 
-  const openEditVacation = (vacation: NonNullable<(typeof vacationsQuery.data)>[number]) => {
+  const openEditVacation = (vacation: Vacation) => {
     setEditingVacationId(vacation.id);
     setForm({
       employee_id: String(vacation.employee_id),
@@ -273,6 +342,63 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     });
     setRequestOpen(true);
   };
+
+  const toggleHolidayGroup = (groupKey: string) => {
+    setExpandedHolidayGroups((current) =>
+      current.includes(groupKey) ? current.filter((key) => key !== groupKey) : [...current, groupKey],
+    );
+  };
+
+  const renderManageActions = (vacation: Vacation) => (
+    <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!approvedStatusId || Number(vacation.vacation_status) === approvedStatusId}
+        onClick={() =>
+          setActionState({
+            vacationId: vacation.id,
+            statusId: approvedStatusId,
+            label: "approve",
+          })
+        }
+      >
+        {t("vacationsPage.approve")}
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!rejectedStatusId || Number(vacation.vacation_status) === rejectedStatusId}
+        onClick={() =>
+          setActionState({
+            vacationId: vacation.id,
+            statusId: rejectedStatusId,
+            label: "reject",
+          })
+        }
+      >
+        {t("vacationsPage.reject")}
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!cancelledStatusId || Number(vacation.vacation_status) === cancelledStatusId}
+        onClick={() =>
+          setActionState({
+            vacationId: vacation.id,
+            statusId: cancelledStatusId,
+            label: "cancel",
+          })
+        }
+      >
+        {t("vacationsPage.cancelVacation")}
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => openEditVacation(vacation)}>
+        <Pencil className="mr-2 h-4 w-4" />
+        {t("common.edit")}
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -308,7 +434,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("vacationsPage.allVacationTypes")}</SelectItem>
-                {(vacationTypesQuery.data || []).map((type) => (
+                {requestTableVacationTypes.map((type) => (
                   <SelectItem key={type.id} value={String(type.id)}>
                     {formatLabel(type.vacation_type)}
                   </SelectItem>
@@ -377,6 +503,99 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
         />
       )}
 
+      {scope === "manage" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("vacationsPage.holidayScheduleTitle")}</CardTitle>
+            <CardDescription>{t("vacationsPage.holidayScheduleDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {holidayGroups.length ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("vacationsPage.start")}</TableHead>
+                    <TableHead>{t("vacationsPage.end")}</TableHead>
+                    <TableHead>{t("vacationsPage.days")}</TableHead>
+                    <TableHead>{t("common.type")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                    <TableHead>{t("vacationsPage.employeeCountHeader")}</TableHead>
+                    <TableHead className="text-right">{t("vacationsPage.details")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {holidayGroups.map((group) => {
+                    const isExpanded = expandedHolidayGroups.includes(group.key);
+
+                    return (
+                      <Fragment key={group.key}>
+                        <TableRow className="cursor-pointer" onClick={() => toggleHolidayGroup(group.key)}>
+                          <TableCell>{formatDate(group.start_date)}</TableCell>
+                          <TableCell>{formatDate(group.end_date)}</TableCell>
+                          <TableCell>{daysBetween(group.start_date, group.end_date)}</TableCell>
+                          <TableCell>{formatLabel(vacationTypeMap[Number(group.vacation_type)] || String(group.vacation_type))}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={vacationStatusMap[Number(group.vacation_status)] || String(group.vacation_status)} />
+                          </TableCell>
+                          <TableCell>{t("vacationsPage.employeeCount", { count: group.vacations.length })}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <span>{isExpanded ? t("vacationsPage.collapseEmployees") : t("vacationsPage.expandEmployees")}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="bg-muted/20">
+                              <div className="space-y-3 p-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-medium">{t("vacationsPage.employeesOnHoliday")}</p>
+                                  <p className="text-xs text-muted-foreground">{t("vacationsPage.employeeCount", { count: group.vacations.length })}</p>
+                                </div>
+                                <div className="overflow-hidden rounded-lg border border-border/70">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>{t("common.employee")}</TableHead>
+                                        <TableHead>{t("vacationsPage.paid")}</TableHead>
+                                        <TableHead>{t("common.status")}</TableHead>
+                                        <TableHead className="text-right">{t("common.actions")}</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {group.vacations.map((vacation) => (
+                                        <TableRow key={vacation.id}>
+                                          <TableCell>{employeeMap[vacation.employee_id] || t("labels.employeeId", { id: vacation.employee_id })}</TableCell>
+                                          <TableCell>{vacation.is_paid ? t("common.yes") : t("common.no")}</TableCell>
+                                          <TableCell>
+                                            <StatusBadge status={vacationStatusMap[Number(vacation.vacation_status)] || String(vacation.vacation_status)} />
+                                          </TableCell>
+                                          <TableCell className="text-right">{renderManageActions(vacation)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <EmptyState
+                title={vacationsQuery.isLoading ? t("vacationsPage.loadingVacations") : t("vacationsPage.noHolidaysTitle")}
+                description={t("vacationsPage.noHolidaysDescription")}
+              />
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>{scope === "manage" ? t("vacationsPage.requestsTitleManage") : t("vacationsPage.requestsTitleSelf")}</CardTitle>
@@ -387,7 +606,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredVacations.length ? (
+          {regularVacations.length ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -402,7 +621,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredVacations.map((vacation) => (
+                {regularVacations.map((vacation) => (
                   <TableRow key={vacation.id}>
                     {scope === "manage" ? <TableCell>{employeeMap[vacation.employee_id] || t("labels.employeeId", { id: vacation.employee_id })}</TableCell> : null}
                     <TableCell>{formatDate(vacation.start_date)}</TableCell>
@@ -412,56 +631,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                     <TableCell><StatusBadge status={vacationStatusMap[Number(vacation.vacation_status)] || String(vacation.vacation_status)} /></TableCell>
                     <TableCell>{vacation.is_paid ? t("common.yes") : t("common.no")}</TableCell>
                     {scope === "manage" ? (
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!approvedStatusId || Number(vacation.vacation_status) === approvedStatusId}
-                            onClick={() =>
-                              setActionState({
-                                vacationId: vacation.id,
-                                statusId: approvedStatusId,
-                                label: "approve",
-                              })
-                            }
-                          >
-                            {t("vacationsPage.approve")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!rejectedStatusId || Number(vacation.vacation_status) === rejectedStatusId}
-                            onClick={() =>
-                              setActionState({
-                                vacationId: vacation.id,
-                                statusId: rejectedStatusId,
-                                label: "reject",
-                              })
-                            }
-                          >
-                            {t("vacationsPage.reject")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!cancelledStatusId || Number(vacation.vacation_status) === cancelledStatusId}
-                            onClick={() =>
-                              setActionState({
-                                vacationId: vacation.id,
-                                statusId: cancelledStatusId,
-                                label: "cancel",
-                              })
-                            }
-                          >
-                            {t("vacationsPage.cancelVacation")}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEditVacation(vacation)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            {t("common.edit")}
-                          </Button>
-                        </div>
-                      </TableCell>
+                      <TableCell className="text-right">{renderManageActions(vacation)}</TableCell>
                     ) : null}
                   </TableRow>
                 ))}

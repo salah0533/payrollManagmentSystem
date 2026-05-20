@@ -81,6 +81,7 @@ const fr = {
     employees: "Employés",
     attendance: "Présence",
     payroll: "Paie",
+    paymentHistory: "Pyment Hist",
     vacations: "Congés",
     settings: "Paramètres",
     notifications: "Notifications",

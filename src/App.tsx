@@ -20,6 +20,7 @@ import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import Notifications from "@/pages/Notifications";
+import PaymentHist from "@/pages/PaymentHist";
 import Payments from "@/pages/Payments";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
@@ -74,6 +75,7 @@ const App = () => (
                 <Route path="/admin/employees" element={<Employees scope="admin" />} />
                 <Route path="/admin/attendance" element={<Attendance scope="manage" />} />
                 <Route path="/admin/payroll" element={<Payments scope="manage" />} />
+                <Route path="/admin/pyment-hist" element={<PaymentHist />} />
                 <Route path="/admin/vacations" element={<Vacations scope="manage" />} />
                 <Route path="/admin/settings" element={<Settings />} />
                 <Route path="/admin/notifications" element={<Notifications />} />
@@ -87,6 +89,7 @@ const App = () => (
                 <Route path="/hr/employees" element={<Employees scope="hr" />} />
                 <Route path="/hr/attendance" element={<Attendance scope="manage" />} />
                 <Route path="/hr/payroll" element={<Payments scope="manage" />} />
+                <Route path="/hr/pyment-hist" element={<PaymentHist />} />
                 <Route path="/hr/vacations" element={<Vacations scope="manage" />} />
                 <Route path="/hr/notifications" element={<Notifications />} />
               </Route>
