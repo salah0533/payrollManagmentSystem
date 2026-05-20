@@ -58,7 +58,7 @@ const defaultForm = {
   day_price: "0",
   hour_price: "0",
   extra_hours_price: "0",
-  vacation_days: "21",
+  vacation_days: "30",
   dues: "0",
   auto_attendance_enabled: false,
 };
