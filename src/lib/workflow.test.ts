@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  calendarBulkCorrectionStatuses,
   canAdjustPayroll,
   canApprovePayroll,
   canRecalculatePayroll,
@@ -65,6 +66,18 @@ describe("attendance workflow guards", () => {
     expect(getSmartCorrectionStatuses({ status: "weekly_off" } as AttendanceDay)).not.toContain("unpaid_vacation");
     expect(getSmartCorrectionStatuses({ status: "weekly_off" } as AttendanceDay)).toContain("unpaid");
     expect(getSmartCorrectionStatuses({ status: "present" } as AttendanceDay)).toContain("absent");
+  });
+
+  it("limits calendar bulk correction to statuses that do not require time input", () => {
+    expect(calendarBulkCorrectionStatuses).toEqual([
+      "present",
+      "absent",
+      "unpaid",
+      "unpaid_vacation",
+      "paid_vacation",
+      "weekly_off",
+      "sick_leave",
+    ]);
   });
 });
 

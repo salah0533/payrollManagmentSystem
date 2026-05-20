@@ -33,10 +33,12 @@ import { hasPermission } from "@/lib/roles";
 import {
   attendanceReviewStatuses,
   attendanceStatuses,
+  calendarBulkCorrectionStatuses,
   getAttendanceReviewStatus,
   getSmartCorrectionStatuses,
   isAttendanceLocked,
 } from "@/lib/workflow";
+import { cn } from "@/lib/utils";
 import { attendanceApi } from "@/services/attendanceApi";
 import { employeeApi } from "@/services/employeeApi";
 import { useAuth } from "@/providers/AuthProvider";
@@ -45,6 +47,7 @@ import type { AttendanceDay, AttendanceReviewPayload } from "@/types/domain";
 
 type AttendanceField = "check_in_time" | "break_start_time" | "break_end_time" | "check_out_time";
 type CorrectionMode = "manual" | "smart";
+type CalendarBulkStatus = (typeof calendarBulkCorrectionStatuses)[number];
 
 const correctionFields: AttendanceField[] = ["check_in_time", "break_start_time", "break_end_time", "check_out_time"];
 
@@ -123,6 +126,9 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [editingAttendance, setEditingAttendance] = useState<AttendanceDay | null>(null);
   const [correctionMode, setCorrectionMode] = useState<CorrectionMode>("manual");
+  const [calendarBulkMode, setCalendarBulkMode] = useState(false);
+  const [selectedCalendarDates, setSelectedCalendarDates] = useState<string[]>([]);
+  const [calendarBulkStatus, setCalendarBulkStatus] = useState<CalendarBulkStatus>("present");
   const [correctionForm, setCorrectionForm] = useState({
     employee_id: "",
     work_date: "",
@@ -278,6 +284,12 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     }
   }, [availableEmployeesPage, totalAvailableEmployeePages]);
 
+  useEffect(() => {
+    setCalendarBulkMode(false);
+    setSelectedCalendarDates([]);
+    setCalendarBulkStatus("present");
+  }, [selectedHistoryEmployeeId, historyMonth]);
+
   const refreshManageAttendance = async () => {
     await queryClient.invalidateQueries({ queryKey: ["attendance", "manage"] });
   };
@@ -315,6 +327,8 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     [correctionForm, editingAttendance],
   );
 
+  const selectedCalendarDateSet = useMemo(() => new Set(selectedCalendarDates), [selectedCalendarDates]);
+
   const openAttendanceEditor = (row: AttendanceDay | null, employeeId: number, workDate: string) => {
     setEditingAttendance(row);
     setCorrectionMode("manual");
@@ -330,6 +344,12 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       reason: "",
     });
     setCorrectionOpen(true);
+  };
+
+  const resetCalendarBulkSelection = () => {
+    setCalendarBulkMode(false);
+    setSelectedCalendarDates([]);
+    setCalendarBulkStatus("present");
   };
 
   const markAllPresent = useMutation({
@@ -365,7 +385,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       if (correctionMode === "smart") {
         return attendanceApi.smartCorrection(Number(correctionForm.employee_id), correctionForm.work_date, {
           target_status: correctionForm.target_status,
-          reason: correctionForm.reason,
+          reason: correctionForm.reason.trim(),
           options: {
             ...(correctionForm.late_minutes ? { late_minutes: Number(correctionForm.late_minutes) } : {}),
             ...(correctionForm.check_in_time ? { check_in_time: correctionForm.check_in_time } : {}),
@@ -379,7 +399,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
         work_date: correctionForm.work_date,
         correction_type: "field",
         new_values_json: pendingManualCorrectionValues,
-        reason: correctionForm.reason,
+        reason: correctionForm.reason.trim(),
       });
     },
     onSuccess: async () => {
@@ -516,6 +536,68 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     },
   });
 
+  const saveCalendarBulkCorrection = useMutation({
+    mutationFn: async () => {
+      const employeeId = Number(selectedHistoryEmployeeId);
+      const results = await Promise.all(
+        selectedCalendarDates.map(async (workDate) => {
+          try {
+            await attendanceApi.smartCorrection(employeeId, workDate, {
+              target_status: calendarBulkStatus,
+              reason: "",
+            });
+            return { workDate, success: true as const };
+          } catch (error) {
+            return { workDate, success: false as const, error };
+          }
+        }),
+      );
+
+      const succeeded = results.filter((result) => result.success);
+      const failed = results.filter((result) => !result.success);
+
+      if (succeeded.length === 0 && failed.length > 0) {
+        throw failed[0].error;
+      }
+
+      return { succeeded, failed };
+    },
+    onSuccess: async ({ succeeded, failed }) => {
+      if (failed.length > 0) {
+        setSelectedCalendarDates(failed.map((item) => item.workDate));
+        toast({
+          title: t("attendancePage.multiSelectPartialTitle"),
+          description: t("attendancePage.multiSelectPartialDescription", {
+            applied: succeeded.length,
+            failed: failed.length,
+            status: formatLabel(calendarBulkStatus),
+          }),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: t("attendancePage.multiSelectSavedTitle"),
+          description: t("attendancePage.multiSelectSavedDescription", {
+            count: succeeded.length,
+            status: formatLabel(calendarBulkStatus),
+          }),
+        });
+        resetCalendarBulkSelection();
+      }
+
+      await refreshManageAttendance();
+      await queryClient.invalidateQueries({ queryKey: ["attendance", "manage", "employee-history"] });
+      await queryClient.invalidateQueries({ queryKey: ["payroll"] });
+    },
+    onError: (error) => {
+      toast({
+        title: t("attendancePage.multiSelectErrorTitle"),
+        description: getErrorMessage(error, t("attendancePage.multiSelectErrorDescription")),
+        variant: "destructive",
+      });
+    },
+  });
+
   const toggleRowSelection = (row: AttendanceDay, checked: boolean) => {
     const key = rowKey(row);
     setSelectedRowKeys((current) => (checked ? [...new Set([...current, key])] : current.filter((item) => item !== key)));
@@ -523,6 +605,16 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
 
   const toggleAllSelection = (checked: boolean) => {
     setSelectedRowKeys(checked ? filteredDailyRows.map(rowKey) : []);
+  };
+
+  const toggleCalendarDateSelection = (workDate: string, locked: boolean) => {
+    if (!calendarBulkMode || locked) {
+      return;
+    }
+
+    setSelectedCalendarDates((current) =>
+      current.includes(workDate) ? current.filter((item) => item !== workDate) : [...current, workDate],
+    );
   };
 
   const goToPreviousAvailableEmployeesPage = () => {
@@ -829,8 +921,64 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
 
           <Card className="filter-card">
             <CardHeader>
-              <CardTitle>{t("attendancePage.monthlyTitle")}</CardTitle>
-              <CardDescription>{t("attendancePage.monthlyDescription")}</CardDescription>
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <CardTitle>{t("attendancePage.monthlyTitle")}</CardTitle>
+                  <CardDescription>{t("attendancePage.monthlyDescription")}</CardDescription>
+                </div>
+                {canCorrect ? (
+                  calendarBulkMode ? (
+                    <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/80 p-3 xl:min-w-[340px]">
+                      <p className="text-sm font-medium">{t("attendancePage.multiSelectTitle")}</p>
+                      <p className="text-xs text-muted-foreground">{t("attendancePage.multiSelectDescription")}</p>
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+                        <div className="space-y-2">
+                          <Label htmlFor="calendarBulkStatus">{t("attendancePage.multiSelectLabel")}</Label>
+                          <Select
+                            value={calendarBulkStatus}
+                            onValueChange={(value) => setCalendarBulkStatus(value as CalendarBulkStatus)}
+                          >
+                            <SelectTrigger id="calendarBulkStatus">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {calendarBulkCorrectionStatuses.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  {formatLabel(status)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={() => saveCalendarBulkCorrection.mutate()}
+                          disabled={selectedCalendarDates.length === 0 || saveCalendarBulkCorrection.isPending}
+                        >
+                          {saveCalendarBulkCorrection.isPending ? t("common.saving") : t("common.save")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={resetCalendarBulkSelection}
+                          disabled={saveCalendarBulkCorrection.isPending}
+                        >
+                          {t("common.cancel")}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {t("attendancePage.multiSelectSelectedCount", { count: selectedCalendarDates.length })}
+                      </p>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => setCalendarBulkMode(true)}
+                      disabled={!selectedHistoryEmployeeId || employeeHistoryQuery.isLoading}
+                    >
+                      {t("attendancePage.multiSelectButton")}
+                    </Button>
+                  )
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
@@ -868,15 +1016,27 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   const isoDate = toIsoDate(day);
                   const row = historyRowsByDate[isoDate];
                   const locked = isAttendanceLocked(row);
+                  const selected = selectedCalendarDateSet.has(isoDate);
                   return (
                     <button
                       key={isoDate}
                       type="button"
-                      disabled={!selectedHistoryEmployeeId || locked}
-                      className="min-h-28 rounded border bg-background p-2 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => openAttendanceEditor(row || null, Number(selectedHistoryEmployeeId), isoDate)}
+                      disabled={!selectedHistoryEmployeeId || locked || saveCalendarBulkCorrection.isPending}
+                      className={cn(
+                        "min-h-28 rounded border bg-background p-2 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60",
+                        calendarBulkMode && "cursor-pointer",
+                        selected && "border-primary bg-primary/5 ring-2 ring-primary/20",
+                      )}
+                      onClick={() =>
+                        calendarBulkMode
+                          ? toggleCalendarDateSelection(isoDate, locked)
+                          : openAttendanceEditor(row || null, Number(selectedHistoryEmployeeId), isoDate)
+                      }
                     >
-                      <span className="text-sm font-semibold">{format(day, "d")}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-sm font-semibold">{format(day, "d")}</span>
+                        {selected ? <Badge variant="outline">{t("attendancePage.multiSelectPicked")}</Badge> : null}
+                      </div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">{t("common.noRecord")}</span>}
                         {row ? <StatusBadge status={getAttendanceReviewStatus(row)} className="text-[10px]" /> : null}
@@ -1110,7 +1270,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
           </Tabs>
           <div className="space-y-2">
             <Label htmlFor="correctionReason">{t("attendancePage.reason")}</Label>
-            <Textarea id="correctionReason" value={correctionForm.reason} onChange={(event) => setCorrectionForm((value) => ({ ...value, reason: event.target.value }))} />
+            <Textarea
+              id="correctionReason"
+              value={correctionForm.reason}
+              onChange={(event) => setCorrectionForm((value) => ({ ...value, reason: event.target.value }))}
+            />
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
             {editingAttendance ? (
@@ -1131,7 +1295,6 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                   !canCorrect ||
                   correctionLocked ||
                   submitCorrection.isPending ||
-                  !correctionForm.reason.trim() ||
                   (correctionMode === "manual" && Object.keys(pendingManualCorrectionValues).length === 0) ||
                   (correctionMode === "smart" && !correctionForm.target_status)
                 }

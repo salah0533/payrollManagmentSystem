@@ -24,6 +24,16 @@ export const smartAttendanceStatuses = [
   "weekly_off",
 ] as const;
 
+export const calendarBulkCorrectionStatuses = [
+  "present",
+  "absent",
+  "unpaid",
+  "unpaid_vacation",
+  "paid_vacation",
+  "weekly_off",
+  "sick_leave",
+] as const;
+
 export const attendanceReviewStatuses = ["draft", "needs_review", "approved", "locked"] as const;
 
 export const payrollFinalStatuses = ["approved", "partially_paid", "paid", "locked"] as const;
