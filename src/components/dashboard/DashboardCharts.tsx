@@ -192,9 +192,15 @@ export function PayrollStatusChart({ data }: { data: PayrollStatusDatum[] }) {
   );
 }
 
-export function SimpleBarChart({ data }: { data: SimpleBarDatum[] }) {
+export function SimpleBarChart({
+  data,
+  heightClassName = "h-64",
+}: {
+  data: SimpleBarDatum[];
+  heightClassName?: string;
+}) {
   return (
-    <div className="h-64">
+    <div className={heightClassName}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: -18, right: 12, top: 8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
