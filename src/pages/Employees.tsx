@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
@@ -88,6 +88,69 @@ const compensationFormFields: Array<{
   { key: "dues", label: "Dues", type: "number" },
 ];
 
+const fallbackSalaryTypeCodeById: Record<string, string> = {
+  "0": "monthly",
+  "1": "daily",
+  "2": "hourly",
+};
+
+type EmployeeForm = typeof defaultForm;
+type CompensationFieldKey = (typeof compensationFormFields)[number]["key"];
+
+export function resolveSalaryTypeCode(
+  salaryTypeId: string,
+  salaryTypeCodeMap?: Record<number, string>,
+) {
+  return salaryTypeCodeMap?.[Number(salaryTypeId)] || fallbackSalaryTypeCodeById[salaryTypeId] || "";
+}
+
+export function normalizeCompensationFormBySalaryType(
+  form: EmployeeForm,
+  salaryTypeCode: string,
+): EmployeeForm {
+  if (salaryTypeCode === "monthly") {
+    return {
+      ...form,
+      day_price: "0",
+      hour_price: "0",
+    };
+  }
+  if (salaryTypeCode === "hourly") {
+    return {
+      ...form,
+      monthly_price: "0",
+      day_price: "0",
+    };
+  }
+  if (salaryTypeCode === "daily") {
+    return {
+      ...form,
+      monthly_price: "0",
+      hour_price: "0",
+    };
+  }
+  return form;
+}
+
+export function shouldShowCompensationField(
+  fieldKey: CompensationFieldKey,
+  salaryTypeCode: string,
+) {
+  if (fieldKey === "extra_hours_price" || fieldKey === "dues") {
+    return true;
+  }
+  if (salaryTypeCode === "monthly") {
+    return fieldKey === "monthly_price";
+  }
+  if (salaryTypeCode === "daily") {
+    return fieldKey === "day_price";
+  }
+  if (salaryTypeCode === "hourly") {
+    return fieldKey === "hour_price";
+  }
+  return true;
+}
+
 export function normalizeNumericInputValue(value?: number | string | null) {
   if (value == null || value === "") {
     return "0";
@@ -119,26 +182,34 @@ export function isEmployeeCreateFormComplete(form: typeof defaultForm) {
   ].every((value) => value.trim().length > 0);
 }
 
-export function toEmployeePayload(form: typeof defaultForm) {
+export function toEmployeePayload(
+  form: typeof defaultForm,
+  salaryTypeCodeOrMap?: string | Record<number, string>,
+) {
+  const salaryTypeCode =
+    typeof salaryTypeCodeOrMap === "string"
+      ? salaryTypeCodeOrMap
+      : resolveSalaryTypeCode(form.salary_type, salaryTypeCodeOrMap);
+  const normalizedForm = normalizeCompensationFormBySalaryType(form, salaryTypeCode);
   return {
-    first_name: form.first_name,
-    last_name: form.last_name,
-    email: form.email || null,
-    phone: composePhoneNumber(form.phone_country_iso, form.phone_number),
-    department_id: form.department_id ? Number(form.department_id) : null,
-    position_id: form.position_id ? Number(form.position_id) : null,
-    position: form.position || null,
-    status: form.status,
-    hire_date: form.hire_date || null,
-    joined: form.hire_date || null,
-    salary_type: Number(form.salary_type || 0),
-    month_price: Number(form.monthly_price || 0),
-    day_price: Number(form.day_price || 0),
-    hour_price: Number(form.hour_price || 0),
-    extra_hours_price: Number(form.extra_hours_price || 0),
-    vacation_days: Number(form.vacation_days || 0),
-    dues: Number(form.dues || 0),
-    auto_attendance_enabled: form.auto_attendance_enabled,
+    first_name: normalizedForm.first_name,
+    last_name: normalizedForm.last_name,
+    email: normalizedForm.email || null,
+    phone: composePhoneNumber(normalizedForm.phone_country_iso, normalizedForm.phone_number),
+    department_id: normalizedForm.department_id ? Number(normalizedForm.department_id) : null,
+    position_id: normalizedForm.position_id ? Number(normalizedForm.position_id) : null,
+    position: normalizedForm.position || null,
+    status: normalizedForm.status,
+    hire_date: normalizedForm.hire_date || null,
+    joined: normalizedForm.hire_date || null,
+    salary_type: Number(normalizedForm.salary_type || 0),
+    month_price: Number(normalizedForm.monthly_price || 0),
+    day_price: Number(normalizedForm.day_price || 0),
+    hour_price: Number(normalizedForm.hour_price || 0),
+    extra_hours_price: Number(normalizedForm.extra_hours_price || 0),
+    vacation_days: Number(normalizedForm.vacation_days || 0),
+    dues: Number(normalizedForm.dues || 0),
+    auto_attendance_enabled: normalizedForm.auto_attendance_enabled,
   };
 }
 
@@ -189,6 +260,13 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       Object.fromEntries((salaryTypesQuery.data || []).map((item) => [item.id, item.salary_type])),
     [salaryTypesQuery.data],
   );
+  const salaryTypeCodeMap = useMemo(
+    () =>
+      Object.fromEntries(
+        (salaryTypesQuery.data || []).map((item) => [item.id, (item.code || item.salary_type || "").toLowerCase()]),
+      ),
+    [salaryTypesQuery.data],
+  );
 
   const departmentMap = useMemo(
     () => Object.fromEntries((departmentsQuery.data || []).map((item) => [item.id, item.name])),
@@ -205,6 +283,21 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       return matchesSearch && matchesStatus;
     });
   }, [employeesQuery.data, search, statusFilter]);
+  const selectedSalaryTypeCode = resolveSalaryTypeCode(form.salary_type, salaryTypeCodeMap);
+
+  useEffect(() => {
+    setForm((current) => {
+      const normalized = normalizeCompensationFormBySalaryType(current, selectedSalaryTypeCode);
+      if (
+        normalized.monthly_price === current.monthly_price &&
+        normalized.day_price === current.day_price &&
+        normalized.hour_price === current.hour_price
+      ) {
+        return current;
+      }
+      return normalized;
+    });
+  }, [selectedSalaryTypeCode]);
 
   const refreshEmployees = async () => {
     await queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -263,7 +356,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   });
 
   const createEmployee = useMutation({
-    mutationFn: () => employeeApi.create(toEmployeePayload(form)),
+    mutationFn: () => employeeApi.create(toEmployeePayload(form, selectedSalaryTypeCode)),
     onSuccess: async (employee) => {
       toast({
         title: t("employeesPage.createEmployeeSuccess"),
@@ -284,7 +377,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   });
 
   const updateEmployee = useMutation({
-    mutationFn: () => employeeApi.update(editingId as number, toEmployeePayload(form)),
+    mutationFn: () => employeeApi.update(editingId as number, toEmployeePayload(form, selectedSalaryTypeCode)),
     onSuccess: async () => {
       toast({
         title: t("employeesPage.updateEmployeeSuccess"),
@@ -634,7 +727,17 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
             <TabsContent value="compensation" className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="salaryType">{t("employeesPage.salaryType")}</Label>
-                <Select value={form.salary_type} onValueChange={(value) => setForm((current) => ({ ...current, salary_type: value }))}>
+                <Select
+                  value={form.salary_type}
+                  onValueChange={(value) =>
+                    setForm((current) =>
+                      normalizeCompensationFormBySalaryType(
+                        { ...current, salary_type: value },
+                        resolveSalaryTypeCode(value, salaryTypeCodeMap),
+                      ),
+                    )
+                  }
+                >
                   <SelectTrigger id="salaryType">
                     <SelectValue placeholder={t("employeesPage.selectSalaryType")} />
                   </SelectTrigger>
@@ -647,7 +750,9 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   </SelectContent>
                 </Select>
               </div>
-              {compensationFormFields.map((field) => (
+              {compensationFormFields
+                .filter((field) => shouldShowCompensationField(field.key, selectedSalaryTypeCode))
+                .map((field) => (
                 <div key={field.key} className="space-y-2">
                   <Label htmlFor={field.key}>
                     {field.key === "monthly_price"

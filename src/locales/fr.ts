@@ -521,7 +521,7 @@ const fr = {
     autoAttendanceFutureNotice: "Les jours déjà générés restent audités. Les futures journées démarrent automatiquement depuis la date effective du backend.",
     attendancePolicyNotice: "Les horaires, jours de repos, minutes de retard et seuils d'heures sup sont gérés centralement.",
     bootstrapVacationDays: "Jours de congé initiaux",
-    bootstrapVacationDaysDescription: "Cette valeur n'est utilisée que si aucun droit annuel n'existe encore.",
+    bootstrapVacationDaysDescription: "Cette valeur par défaut est utilisée chaque fois qu'une année n'a pas sa propre ligne de droit.",
     createFirstForLeave: "Créez d'abord l'employé, puis ajoutez ici les droits annuels par année.",
     linkedUser: "Utilisateur lié",
     createdAfterLinking: "Créé après liaison utilisateur",
@@ -555,7 +555,7 @@ const fr = {
   annualEntitlements: {
     ...en.annualEntitlements,
     title: "Droits annuels de congé",
-    description: "Ces lignes font foi pour l'allocation annuelle de cet employé. S'il n'existe encore aucune ligne, la valeur initiale ci-dessus est utilisée.",
+    description: "Ces lignes remplacent la valeur initiale pour leur année correspondante. Si une année n'a pas de ligne, la valeur ci-dessus est utilisée.",
     balanceDescription: "Solde en direct renvoyé par le backend après application des droits et reports propres à l'employé.",
     balanceEmptyDescription: "Enregistrez un employé et ajoutez des lignes annuelles pour voir le solde.",
     addYear: "Ajouter une année",

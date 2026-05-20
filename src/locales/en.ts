@@ -545,7 +545,7 @@ const en = {
     autoAttendanceFutureNotice: "Existing generated days stay audited through Attendance Review. Future workdays start automatically from the backend effective date.",
     attendancePolicyNotice: "Work hours, weekly off days, allowed late minutes, and overtime thresholds are managed centrally from Settings and Payroll Policy.",
     bootstrapVacationDays: "Bootstrap vacation days",
-    bootstrapVacationDaysDescription: "This default is only used if the employee does not have any yearly entitlement rows yet.",
+    bootstrapVacationDaysDescription: "This default is used whenever a year does not have its own entitlement row.",
     createFirstForLeave: "Create the employee first, then add year-by-year annual vacation entitlements here.",
     linkedUser: "Linked user",
     createdAfterLinking: "Created after user linking",
@@ -578,7 +578,7 @@ const en = {
   },
   annualEntitlements: {
     title: "Yearly annual vacation entitlements",
-    description: "These rows are the source of truth for this employee's yearly allowance. If no rows exist yet, the bootstrap default above is used.",
+    description: "These rows override the bootstrap default for their matching year. If a year has no row, the bootstrap value above is used.",
     balanceDescription: "Live balance from the backend after employee-specific entitlement and carryover rules are applied.",
     balanceEmptyDescription: "Save an employee and add yearly entitlement rows to see the balance ledger.",
     addYear: "Add year",

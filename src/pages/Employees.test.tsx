@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isEmployeeCreateFormComplete, normalizeNumericInputValue, toEmployeePayload } from "@/pages/Employees";
+import {
+  isEmployeeCreateFormComplete,
+  normalizeCompensationFormBySalaryType,
+  normalizeNumericInputValue,
+  shouldShowCompensationField,
+  toEmployeePayload,
+} from "@/pages/Employees";
 
 describe("Employees auto attendance form", () => {
   it("includes auto_attendance_enabled in the create payload", async () => {
@@ -82,5 +88,117 @@ describe("Employees auto attendance form", () => {
         auto_attendance_enabled: true,
       }),
     ).toBe(false);
+  });
+
+  it("zeros hidden compensation values for monthly salary type", () => {
+    const payload = toEmployeePayload({
+      first_name: "Jane",
+      last_name: "Auto",
+      email: "jane@example.com",
+      phone_country_iso: "dz",
+      phone_number: "5551234",
+      department_id: "",
+      position_id: "",
+      position: "",
+      status: "active",
+      hire_date: "2026-05-01",
+      salary_type: "0",
+      monthly_price: "1000",
+      day_price: "100",
+      hour_price: "10",
+      extra_hours_price: "15",
+      vacation_days: "30",
+      dues: "0",
+      auto_attendance_enabled: true,
+    });
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        month_price: 1000,
+        day_price: 0,
+        hour_price: 0,
+      }),
+    );
+  });
+
+  it("zeros hidden compensation values for hourly salary type", () => {
+    const payload = toEmployeePayload(
+      {
+        first_name: "Jane",
+        last_name: "Auto",
+        email: "jane@example.com",
+        phone_country_iso: "dz",
+        phone_number: "5551234",
+        department_id: "",
+        position_id: "",
+        position: "",
+        status: "active",
+        hire_date: "2026-05-01",
+        salary_type: "2",
+        monthly_price: "1000",
+        day_price: "100",
+        hour_price: "10",
+        extra_hours_price: "15",
+        vacation_days: "30",
+        dues: "0",
+        auto_attendance_enabled: true,
+      },
+      "hourly",
+    );
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        month_price: 0,
+        day_price: 0,
+        hour_price: 10,
+      }),
+    );
+  });
+
+  it("zeros hidden compensation values for daily salary type", () => {
+    const normalizedForm = normalizeCompensationFormBySalaryType(
+      {
+        first_name: "Jane",
+        last_name: "Auto",
+        email: "jane@example.com",
+        phone_country_iso: "dz",
+        phone_number: "5551234",
+        department_id: "",
+        position_id: "",
+        position: "",
+        status: "active",
+        hire_date: "2026-05-01",
+        salary_type: "1",
+        monthly_price: "1000",
+        day_price: "100",
+        hour_price: "10",
+        extra_hours_price: "15",
+        vacation_days: "30",
+        dues: "0",
+        auto_attendance_enabled: true,
+      },
+      "daily",
+    );
+
+    expect(normalizedForm.monthly_price).toBe("0");
+    expect(normalizedForm.day_price).toBe("100");
+    expect(normalizedForm.hour_price).toBe("0");
+  });
+
+  it("shows only the relevant compensation fields for each salary type", () => {
+    expect(shouldShowCompensationField("monthly_price", "monthly")).toBe(true);
+    expect(shouldShowCompensationField("day_price", "monthly")).toBe(false);
+    expect(shouldShowCompensationField("hour_price", "monthly")).toBe(false);
+
+    expect(shouldShowCompensationField("monthly_price", "daily")).toBe(false);
+    expect(shouldShowCompensationField("day_price", "daily")).toBe(true);
+    expect(shouldShowCompensationField("hour_price", "daily")).toBe(false);
+
+    expect(shouldShowCompensationField("monthly_price", "hourly")).toBe(false);
+    expect(shouldShowCompensationField("day_price", "hourly")).toBe(false);
+    expect(shouldShowCompensationField("hour_price", "hourly")).toBe(true);
+
+    expect(shouldShowCompensationField("extra_hours_price", "hourly")).toBe(true);
+    expect(shouldShowCompensationField("dues", "daily")).toBe(true);
   });
 });
