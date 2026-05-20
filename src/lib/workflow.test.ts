@@ -77,6 +77,7 @@ describe("attendance workflow guards", () => {
       "paid_vacation",
       "weekly_off",
       "sick_leave",
+      "delete",
     ]);
   });
 });

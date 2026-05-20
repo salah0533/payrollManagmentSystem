@@ -722,6 +722,7 @@ const ar = {
     multiSelectTitle: "تطبيق تصنيف جماعي على التقويم",
     multiSelectDescription: "حدد عدة أيام من التقويم وطبّق نفس الحالة بدون فتح كل يوم على حدة.",
     multiSelectLabel: "التصنيف",
+    multiSelectDeleteLabel: "حذف الحضور",
     multiSelectSelectedCount: "تم تحديد {{count}} يوم",
     multiSelectPicked: "محدد",
     multiSelectSavedTitle: "تم حفظ تصنيفات التقويم",

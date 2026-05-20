@@ -32,6 +32,7 @@ export const calendarBulkCorrectionStatuses = [
   "paid_vacation",
   "weekly_off",
   "sick_leave",
+  "delete",
 ] as const;
 
 export const attendanceReviewStatuses = ["draft", "needs_review", "approved", "locked"] as const;

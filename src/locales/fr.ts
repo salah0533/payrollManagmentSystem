@@ -722,6 +722,7 @@ const fr = {
     multiSelectTitle: "Libellés groupés du calendrier",
     multiSelectDescription: "Sélectionnez plusieurs jours du calendrier et appliquez un seul statut sans ouvrir chaque jour.",
     multiSelectLabel: "Libellé",
+    multiSelectDeleteLabel: "Supprimer la présence",
     multiSelectSelectedCount: "{{count}} jour(s) sélectionné(s)",
     multiSelectPicked: "Sélectionné",
     multiSelectSavedTitle: "Libellés du calendrier enregistrés",

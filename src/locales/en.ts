@@ -758,6 +758,7 @@ const en = {
     multiSelectTitle: "Bulk calendar labels",
     multiSelectDescription: "Select several calendar days and apply one status without opening each day.",
     multiSelectLabel: "Label",
+    multiSelectDeleteLabel: "Delete attendance",
     multiSelectSelectedCount: "{{count}} day(s) selected",
     multiSelectPicked: "Selected",
     multiSelectSavedTitle: "Calendar labels saved",

@@ -328,6 +328,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   );
 
   const selectedCalendarDateSet = useMemo(() => new Set(selectedCalendarDates), [selectedCalendarDates]);
+  const calendarBulkActionLabel = calendarBulkStatus === "delete" ? t("attendancePage.multiSelectDeleteLabel") : formatLabel(calendarBulkStatus);
 
   const openAttendanceEditor = (row: AttendanceDay | null, employeeId: number, workDate: string) => {
     setEditingAttendance(row);
@@ -542,10 +543,16 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       const results = await Promise.all(
         selectedCalendarDates.map(async (workDate) => {
           try {
-            await attendanceApi.smartCorrection(employeeId, workDate, {
-              target_status: calendarBulkStatus,
-              reason: "",
-            });
+            if (calendarBulkStatus === "delete") {
+              if (historyRowsByDate[workDate]) {
+                await attendanceApi.deleteDay(employeeId, workDate);
+              }
+            } else {
+              await attendanceApi.smartCorrection(employeeId, workDate, {
+                target_status: calendarBulkStatus,
+                reason: "",
+              });
+            }
             return { workDate, success: true as const };
           } catch (error) {
             return { workDate, success: false as const, error };
@@ -570,7 +577,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
           description: t("attendancePage.multiSelectPartialDescription", {
             applied: succeeded.length,
             failed: failed.length,
-            status: formatLabel(calendarBulkStatus),
+            status: calendarBulkActionLabel,
           }),
           variant: "destructive",
         });
@@ -579,7 +586,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
           title: t("attendancePage.multiSelectSavedTitle"),
           description: t("attendancePage.multiSelectSavedDescription", {
             count: succeeded.length,
-            status: formatLabel(calendarBulkStatus),
+            status: calendarBulkActionLabel,
           }),
         });
         resetCalendarBulkSelection();
@@ -944,13 +951,14 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                             <SelectContent>
                               {calendarBulkCorrectionStatuses.map((status) => (
                                 <SelectItem key={status} value={status}>
-                                  {formatLabel(status)}
+                                  {status === "delete" ? t("attendancePage.multiSelectDeleteLabel") : formatLabel(status)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                         <Button
+                          variant={calendarBulkStatus === "delete" ? "destructive" : "default"}
                           onClick={() => saveCalendarBulkCorrection.mutate()}
                           disabled={selectedCalendarDates.length === 0 || saveCalendarBulkCorrection.isPending}
                         >
