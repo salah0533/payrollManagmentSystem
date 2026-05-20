@@ -25,6 +25,7 @@ export const adminNavigation: NavigationItem[] = [
   { to: "/admin/employees", labelKey: "nav.employees", icon: Users },
   { to: "/admin/attendance", labelKey: "nav.attendance", icon: Clock3 },
   { to: "/admin/payroll", labelKey: "nav.payroll", icon: WalletCards },
+  { to: "/admin/pyment-hist", labelKey: "nav.paymentHistory", icon: FileClock },
   { to: "/admin/vacations", labelKey: "nav.vacations", icon: Landmark },
   { to: "/admin/settings", labelKey: "nav.settings", icon: Settings },
   { to: "/admin/notifications", labelKey: "nav.notifications", icon: Bell },
@@ -36,6 +37,7 @@ export const hrNavigation: NavigationItem[] = [
   { to: "/hr/employees", labelKey: "nav.employees", icon: Users },
   { to: "/hr/attendance", labelKey: "nav.attendance", icon: Clock3 },
   { to: "/hr/payroll", labelKey: "nav.payroll", icon: WalletCards },
+  { to: "/hr/pyment-hist", labelKey: "nav.paymentHistory", icon: FileClock },
   { to: "/hr/vacations", labelKey: "nav.vacations", icon: Landmark },
   { to: "/hr/notifications", labelKey: "nav.notifications", icon: Bell },
 ];

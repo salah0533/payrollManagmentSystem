@@ -5,6 +5,7 @@ import {
   canAdjustPayroll,
   canApprovePayroll,
   canRecalculatePayroll,
+  canReopenLockedPayroll,
   canRecordPayrollPayment,
   getSmartCorrectionStatuses,
   getPayrollDiscrepancySummary,
@@ -109,5 +110,11 @@ describe("payroll workflow guards", () => {
     expect(canRecalculatePayroll(payroll("draft"))).toBe(true);
     expect(canRecalculatePayroll(payroll("paid"))).toBe(false);
     expect(canAdjustPayroll(payroll("locked"))).toBe(false);
+  });
+
+  it("allows reopening only for locked payroll rows that have paid amounts", () => {
+    expect(canReopenLockedPayroll(payroll("approved"))).toBe(false);
+    expect(canReopenLockedPayroll(payroll("locked"))).toBe(false);
+    expect(canReopenLockedPayroll({ ...payroll("locked"), paid_amount: 1000 })).toBe(true);
   });
 });

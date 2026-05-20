@@ -428,6 +428,32 @@ export interface PayrollBalanceReport {
   employees: PayrollEmployeeBalance[];
 }
 
+export interface PayrollEmployeeHistorySummary {
+  net_salary_total: number | string;
+  payable_total: number | string;
+  paid_amount_total: number | string;
+  remaining_amount_total: number | string;
+  payroll_count: number;
+}
+
+export interface PayrollEmployeeHistoryItem extends EmployeePayroll {
+  period_name: string;
+  period_start_date: string;
+  period_end_date: string;
+}
+
+export interface PayrollEmployeeHistoryResponse {
+  employee_id: number;
+  employee_name: string;
+  employee_status: string;
+  page: number;
+  page_size: number;
+  total_records: number;
+  total_pages: number;
+  summary: PayrollEmployeeHistorySummary;
+  items: PayrollEmployeeHistoryItem[];
+}
+
 export interface PayrollDiscrepancy {
   id: number;
   employee_payroll_id?: number | null;

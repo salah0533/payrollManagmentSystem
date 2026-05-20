@@ -55,7 +55,9 @@ import {
   canAdjustPayroll,
   canApprovePayroll,
   canRecalculatePayroll,
+  canReopenLockedPayroll,
   canRecordPayrollPayment,
+  canUnapprovePayroll,
   getPayrollDiscrepancySummary,
   hasOpenDiscrepancyForPayroll,
 } from "@/lib/workflow";
@@ -268,7 +270,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
   const [detailsPayrollId, setDetailsPayrollId] = useState<number | null>(null);
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null);
   const [deletingAdjustment, setDeletingAdjustment] = useState<PayrollAdjustment | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "paid" | null; payrollId: number | null; amount: string; note: string }>({
+  const [confirmAction, setConfirmAction] = useState<{ type: "approve" | "unapprove" | "reopen" | "paid" | null; payrollId: number | null; amount: string; note: string }>({
     type: null,
     payrollId: null,
     amount: "",
@@ -388,6 +390,46 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
       await refreshPayroll();
     },
+    onError: (error) => {
+      toast({
+        title: t("payrollPage.approveError"),
+        description: getErrorMessage(error, t("payrollPage.approveErrorDescription")),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const unapprovePayroll = useMutation({
+    mutationFn: (employeePayrollId: number) => payrollApi.unapprove(employeePayrollId),
+    onSuccess: async () => {
+      toast({ title: t("payrollPage.unapprovedSuccess"), description: t("payrollPage.unapprovedSuccessDescription") });
+      setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
+      await refreshPayroll();
+    },
+    onError: (error) => {
+      toast({
+        title: t("payrollPage.unapproveError"),
+        description: getErrorMessage(error, t("payrollPage.unapproveErrorDescription")),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const reopenLockedPayroll = useMutation({
+    mutationFn: ({ employeePayrollId, reason }: { employeePayrollId: number; reason: string }) =>
+      payrollApi.reopen(employeePayrollId, { reason }),
+    onSuccess: async () => {
+      toast({ title: t("payrollPage.reopenedSuccess"), description: t("payrollPage.reopenedSuccessDescription") });
+      setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
+      await refreshPayroll();
+    },
+    onError: (error) => {
+      toast({
+        title: t("payrollPage.reopenError"),
+        description: getErrorMessage(error, t("payrollPage.reopenErrorDescription")),
+        variant: "destructive",
+      });
+    },
   });
 
   const markPayrollPaid = useMutation({
@@ -397,6 +439,13 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       toast({ title: t("payrollPage.paymentRecorded"), description: t("payrollPage.paymentRecordedDescription") });
       setConfirmAction({ type: null, payrollId: null, amount: "", note: "" });
       await refreshPayroll();
+    },
+    onError: (error) => {
+      toast({
+        title: t("payrollPage.paymentRecordError"),
+        description: getErrorMessage(error, t("payrollPage.paymentRecordErrorDescription")),
+        variant: "destructive",
+      });
     },
   });
 
@@ -703,6 +752,19 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       return;
     }
 
+    if (confirmAction.type === "unapprove") {
+      unapprovePayroll.mutate(confirmAction.payrollId);
+      return;
+    }
+
+    if (confirmAction.type === "reopen") {
+      reopenLockedPayroll.mutate({
+        employeePayrollId: confirmAction.payrollId,
+        reason: confirmAction.note.trim(),
+      });
+      return;
+    }
+
     if (confirmDiscrepancySummary.hasBlocking) {
       toast({
         title: t("payrollPage.paymentBlockedHighSeverity"),
@@ -957,7 +1019,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                       const rowHasOpenDiscrepancy = hasOpenDiscrepancyForPayroll(row, allDiscrepancies);
                       const rowCanRecalculate = canCalculate && canRecalculatePayroll(row);
                       const rowCanApprove = canApprove && canApprovePayroll(row, allDiscrepancies);
+                      const rowCanUnapprove = canApprove && canUnapprovePayroll(row);
+                      const rowCanReopenLocked = canMarkPaid && canReopenLockedPayroll(row);
                       const rowCanRecordPayment = canMarkPaid && canRecordPayrollPayment(row, allDiscrepancies);
+                      const rowCanOpenPaymentDialog = canMarkPaid && row.status === "approved" && Number(row.balance_amount || 0) > 0;
                       const rowCanAdjust = canAdjust && canAdjustPayroll(row);
                       return (
                       <TableRow key={row.id}>
@@ -1048,8 +1113,14 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                               <DropdownMenuItem disabled={!rowCanApprove} onSelect={() => setConfirmAction({ type: "approve", payrollId: row.id, amount: "", note: "" })}>
                                 {t("payrollPage.approve")}
                               </DropdownMenuItem>
+                              <DropdownMenuItem disabled={!rowCanUnapprove} onSelect={() => setConfirmAction({ type: "unapprove", payrollId: row.id, amount: "", note: "" })}>
+                                {t("payrollPage.removeApproval")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem disabled={!rowCanReopenLocked} onSelect={() => setConfirmAction({ type: "reopen", payrollId: row.id, amount: "", note: "" })}>
+                                {t("payrollPage.reopenLockedPayroll")}
+                              </DropdownMenuItem>
                               <DropdownMenuItem
-                                disabled={!rowCanRecordPayment}
+                                disabled={!rowCanOpenPaymentDialog}
                                 onSelect={() =>
                                   setConfirmAction({
                                     type: "paid",
@@ -1492,6 +1563,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <AlertDialogTitle>
               {confirmAction.type === "approve"
                 ? t("payrollPage.approvePayroll")
+                : confirmAction.type === "unapprove"
+                  ? t("payrollPage.unapprovePayroll")
+                : confirmAction.type === "reopen"
+                  ? t("payrollPage.reopenLockedPayroll")
                 : t("payrollPage.recordPayrollPayment")}
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -1501,6 +1576,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   : confirmDiscrepancySummary.hasWarning
                     ? t("payrollPage.approvePayrollWarningDescription")
                     : t("payrollPage.approvePayrollDescription")
+                : confirmAction.type === "unapprove"
+                  ? t("payrollPage.unapprovePayrollDescription")
+                : confirmAction.type === "reopen"
+                  ? t("payrollPage.reopenLockedPayrollDescription")
                 : confirmDiscrepancySummary.hasBlocking
                   ? t("payrollPage.recordPayrollPaymentBlockedDescription")
                   : confirmDiscrepancySummary.hasWarning
@@ -1531,6 +1610,19 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
               </AlertDescription>
             </Alert>
           ) : null}
+          {confirmAction.type === "reopen" ? (
+            <div className="grid gap-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="reopenReason">{t("payrollPage.reopenReason")}</Label>
+                <Textarea
+                  id="reopenReason"
+                  value={confirmAction.note}
+                  onChange={(event) => setConfirmAction((value) => ({ ...value, note: event.target.value }))}
+                  placeholder={t("payrollPage.reopenReasonPlaceholder")}
+                />
+              </div>
+            </div>
+          ) : null}
           {confirmAction.type === "paid" ? (
             <div className="grid gap-4 py-2">
               <div className="space-y-2">
@@ -1560,8 +1652,13 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
             <AlertDialogAction
               disabled={
                 approvePayroll.isPending ||
+                unapprovePayroll.isPending ||
+                reopenLockedPayroll.isPending ||
                 markPayrollPaid.isPending ||
                 (confirmAction.type === "approve" && !canApprovePayroll(confirmPayroll, allDiscrepancies)) ||
+                (confirmAction.type === "unapprove" && !canUnapprovePayroll(confirmPayroll)) ||
+                (confirmAction.type === "reopen" &&
+                  (!canReopenLockedPayroll(confirmPayroll) || !confirmAction.note.trim())) ||
                 (confirmAction.type === "paid" && !canRecordPayrollPayment(confirmPayroll, allDiscrepancies)) ||
                 (confirmAction.type === "paid" &&
                   (!confirmAction.amount ||

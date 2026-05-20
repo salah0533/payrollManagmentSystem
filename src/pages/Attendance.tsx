@@ -29,6 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatLabel, formatMinutes, formatTime, toIsoDate } from "@/lib/format";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { hasPermission } from "@/lib/roles";
 import {
   attendanceReviewStatuses,
@@ -104,6 +105,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const canCorrect = hasPermission(currentUser, "attendance.correct");
   const canReview = hasPermission(currentUser, "attendance.approve");
   const canRecalculate = hasPermission(currentUser, "attendance.recalculate");
@@ -313,6 +315,23 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     t("settings.days.saturday"),
     t("settings.days.sunday"),
   ];
+  const getCalendarDayNote = (row?: AttendanceDay | null) => {
+    if (!row) {
+      return "";
+    }
+
+    const notes: string[] = [];
+
+    if (row.overtime_minutes > 0) {
+      notes.push(t("attendancePage.overtimeLine", { overtime: formatMinutes(row.overtime_minutes) }));
+    }
+
+    if (row.is_manually_corrected) {
+      notes.push(t("attendancePage.corrected"));
+    }
+
+    return notes.join(" / ");
+  };
   const pendingManualCorrectionValues = useMemo(
     () =>
       buildManualCorrectionValues(
@@ -935,17 +954,17 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                 </div>
                 {canCorrect ? (
                   calendarBulkMode ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/80 p-3 xl:min-w-[340px]">
+                    <div className="flex w-full flex-col gap-3 rounded-lg border border-border/70 bg-background/80 p-3 xl:w-auto xl:min-w-[340px]">
                       <p className="text-sm font-medium">{t("attendancePage.multiSelectTitle")}</p>
                       <p className="text-xs text-muted-foreground">{t("attendancePage.multiSelectDescription")}</p>
-                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+                      <div className={cn("grid gap-3", !isMobile && "sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end")}>
                         <div className="space-y-2">
                           <Label htmlFor="calendarBulkStatus">{t("attendancePage.multiSelectLabel")}</Label>
                           <Select
                             value={calendarBulkStatus}
                             onValueChange={(value) => setCalendarBulkStatus(value as CalendarBulkStatus)}
                           >
-                            <SelectTrigger id="calendarBulkStatus">
+                            <SelectTrigger id="calendarBulkStatus" className={cn(isMobile && "w-full")}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -961,6 +980,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           variant={calendarBulkStatus === "delete" ? "destructive" : "default"}
                           onClick={() => saveCalendarBulkCorrection.mutate()}
                           disabled={selectedCalendarDates.length === 0 || saveCalendarBulkCorrection.isPending}
+                          className={cn(isMobile && "w-full")}
                         >
                           {saveCalendarBulkCorrection.isPending ? t("common.saving") : t("common.save")}
                         </Button>
@@ -968,6 +988,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           variant="outline"
                           onClick={resetCalendarBulkSelection}
                           disabled={saveCalendarBulkCorrection.isPending}
+                          className={cn(isMobile && "w-full")}
                         >
                           {t("common.cancel")}
                         </Button>
@@ -981,6 +1002,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                       variant="outline"
                       onClick={() => setCalendarBulkMode(true)}
                       disabled={!selectedHistoryEmployeeId || employeeHistoryQuery.isLoading}
+                      className={cn(isMobile && "w-full")}
                     >
                       {t("attendancePage.multiSelectButton")}
                     </Button>
@@ -989,11 +1011,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
+              <div className={cn("grid gap-4", !isMobile && "sm:grid-cols-[minmax(0,1fr)_180px]")}>
                 <div className="space-y-2">
                   <Label htmlFor="historyEmployee">{t("common.employee")}</Label>
                   <Select value={selectedHistoryEmployeeId} onValueChange={setHistoryEmployeeId}>
-                    <SelectTrigger id="historyEmployee">
+                    <SelectTrigger id="historyEmployee" className="w-full">
                       <SelectValue placeholder={t("vacationsPage.selectEmployee")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -1007,59 +1029,110 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="historyMonth">{t("attendancePage.month")}</Label>
-                  <Input id="historyMonth" type="month" value={historyMonth} onChange={(event) => setHistoryMonth(event.target.value)} />
+                  <Input id="historyMonth" type="month" className="w-full" value={historyMonth} onChange={(event) => setHistoryMonth(event.target.value)} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase text-muted-foreground">
-                {dayLabels.map((day) => (
-                  <div key={day}>{day}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-2">
-                {calendarLeadingBlanks.map((_, index) => (
-                  <div key={`blank-${index}`} className="min-h-28 rounded border border-dashed border-transparent" />
-                ))}
-                {calendarDays.map((day) => {
-                  const isoDate = toIsoDate(day);
-                  const row = historyRowsByDate[isoDate];
-                  const locked = isAttendanceLocked(row);
-                  const selected = selectedCalendarDateSet.has(isoDate);
-                  return (
-                    <button
-                      key={isoDate}
-                      type="button"
-                      disabled={!selectedHistoryEmployeeId || locked || saveCalendarBulkCorrection.isPending}
-                      className={cn(
-                        "min-h-28 rounded border bg-background p-2 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60",
-                        calendarBulkMode && "cursor-pointer",
-                        selected && "border-primary bg-primary/5 ring-2 ring-primary/20",
-                      )}
-                      onClick={() =>
-                        calendarBulkMode
-                          ? toggleCalendarDateSelection(isoDate, locked)
-                          : openAttendanceEditor(row || null, Number(selectedHistoryEmployeeId), isoDate)
-                      }
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-sm font-semibold">{format(day, "d")}</span>
-                        {selected ? <Badge variant="outline">{t("attendancePage.multiSelectPicked")}</Badge> : null}
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">{t("common.noRecord")}</span>}
-                        {row ? <StatusBadge status={getAttendanceReviewStatus(row)} className="text-[10px]" /> : null}
-                      </div>
-                      {row ? (
-                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                          <p>{formatTime(row.check_in_time)} - {formatTime(row.check_out_time)}</p>
-                          <p>{t("attendancePage.paidUnpaid", { paid: formatMinutes(row.normal_paid_minutes), unpaid: formatMinutes(row.unpaid_minutes) })}</p>
-                          <p>{t("attendancePage.overtimeLine", { overtime: formatMinutes(row.overtime_minutes) })}{row.is_manually_corrected ? ` / ${t("attendancePage.corrected").toLowerCase()}` : ""}</p>
+              {isMobile ? (
+                <div className="space-y-3" data-testid="attendance-monthly-mobile-list">
+                  {calendarDays.map((day) => {
+                    const isoDate = toIsoDate(day);
+                    const row = historyRowsByDate[isoDate];
+                    const locked = isAttendanceLocked(row);
+                    const selected = selectedCalendarDateSet.has(isoDate);
+                    const note = getCalendarDayNote(row);
+
+                    return (
+                      <button
+                        key={isoDate}
+                        type="button"
+                        data-testid={`attendance-mobile-day-${isoDate}`}
+                        data-selected={selected ? "true" : "false"}
+                        disabled={!selectedHistoryEmployeeId || locked || saveCalendarBulkCorrection.isPending}
+                        className={cn(
+                          "w-full rounded-xl border bg-background p-4 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60",
+                          calendarBulkMode && "cursor-pointer",
+                          selected && "border-primary bg-primary/5 ring-2 ring-primary/20",
+                        )}
+                        onClick={() =>
+                          calendarBulkMode
+                            ? toggleCalendarDateSelection(isoDate, locked)
+                            : openAttendanceEditor(row || null, Number(selectedHistoryEmployeeId), isoDate)
+                        }
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-sm font-semibold">{formatDate(isoDate)}</span>
+                          {selected ? <Badge variant="outline">{t("attendancePage.multiSelectPicked")}</Badge> : null}
                         </div>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
+                        {row ? (
+                          <div className="mt-3 flex flex-wrap gap-1">
+                            <StatusBadge status={row.status} className="text-[10px]" />
+                            {row.review_status ? <StatusBadge status={getAttendanceReviewStatus(row)} className="text-[10px]" /> : null}
+                          </div>
+                        ) : null}
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          {row ? `${formatTime(row.check_in_time)} - ${formatTime(row.check_out_time)}` : t("common.noRecord")}
+                        </p>
+                        {note ? <p className="mt-2 text-xs text-muted-foreground">{note}</p> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase text-muted-foreground">
+                    {dayLabels.map((day) => (
+                      <div key={day}>{day}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-2" data-testid="attendance-monthly-desktop-grid">
+                    {calendarLeadingBlanks.map((_, index) => (
+                      <div key={`blank-${index}`} className="min-h-28 rounded border border-dashed border-transparent" />
+                    ))}
+                    {calendarDays.map((day) => {
+                      const isoDate = toIsoDate(day);
+                      const row = historyRowsByDate[isoDate];
+                      const locked = isAttendanceLocked(row);
+                      const selected = selectedCalendarDateSet.has(isoDate);
+                      return (
+                        <button
+                          key={isoDate}
+                          type="button"
+                          data-testid={`attendance-desktop-day-${isoDate}`}
+                          data-selected={selected ? "true" : "false"}
+                          disabled={!selectedHistoryEmployeeId || locked || saveCalendarBulkCorrection.isPending}
+                          className={cn(
+                            "min-h-28 rounded border bg-background p-2 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60",
+                            calendarBulkMode && "cursor-pointer",
+                            selected && "border-primary bg-primary/5 ring-2 ring-primary/20",
+                          )}
+                          onClick={() =>
+                            calendarBulkMode
+                              ? toggleCalendarDateSelection(isoDate, locked)
+                              : openAttendanceEditor(row || null, Number(selectedHistoryEmployeeId), isoDate)
+                          }
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-semibold">{format(day, "d")}</span>
+                            {selected ? <Badge variant="outline">{t("attendancePage.multiSelectPicked")}</Badge> : null}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">{t("common.noRecord")}</span>}
+                            {row ? <StatusBadge status={getAttendanceReviewStatus(row)} className="text-[10px]" /> : null}
+                          </div>
+                          {row ? (
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              <p>{formatTime(row.check_in_time)} - {formatTime(row.check_out_time)}</p>
+                              <p>{t("attendancePage.paidUnpaid", { paid: formatMinutes(row.normal_paid_minutes), unpaid: formatMinutes(row.unpaid_minutes) })}</p>
+                              <p>{t("attendancePage.overtimeLine", { overtime: formatMinutes(row.overtime_minutes) })}{row.is_manually_corrected ? ` / ${t("attendancePage.corrected").toLowerCase()}` : ""}</p>
+                            </div>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
               {!selectedHistoryEmployeeId || employeeHistoryQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">
                   {employeeHistoryQuery.isLoading ? t("attendancePage.loadingMonthly") : t("attendancePage.selectEmployeeToLoad")}
