@@ -1118,6 +1118,7 @@ const en = {
     userId: "User #{{id}}",
     range: "{{start}} to {{end}}",
     code: {
+      paid: "Paid",
       active: "Active",
       inactive: "Inactive",
       suspended: "Suspended",
