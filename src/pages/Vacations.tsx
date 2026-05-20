@@ -143,6 +143,13 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     () => Object.fromEntries((vacationTypesQuery.data || []).map((item) => [item.id, item.vacation_type])),
     [vacationTypesQuery.data],
   );
+  const vacationTypeCodeMap = useMemo(
+    () =>
+      Object.fromEntries(
+        (vacationTypesQuery.data || []).map((item) => [item.id, (item.code || item.vacation_type || "").toLowerCase()]),
+      ),
+    [vacationTypesQuery.data],
+  );
 
   const vacationStatusMap = useMemo(
     () => Object.fromEntries((vacationStatusesQuery.data || []).map((item) => [item.id, item.vacation_status])),
@@ -248,6 +255,17 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       .sort((left, right) => right.start_date.localeCompare(left.start_date) || right.end_date.localeCompare(left.end_date));
   }, [employeeMap, holidayTypeId, statusFilter, vacationsQuery.data]);
   const isHolidayTypeSelected = scope === "manage" && !editingVacationId && holidayTypeId != null && Number(form.vacation_type) === holidayTypeId;
+  const selectedVacationTypeCode = form.vacation_type ? vacationTypeCodeMap[Number(form.vacation_type)] || "" : "";
+  const shouldHidePaidToggle =
+    selectedVacationTypeCode === "paid" ||
+    selectedVacationTypeCode === "unpaid" ||
+    selectedVacationTypeCode === "holiday";
+  const normalizedIsPaid =
+    selectedVacationTypeCode === "unpaid"
+      ? false
+      : selectedVacationTypeCode === "paid" || selectedVacationTypeCode === "holiday"
+        ? true
+        : form.is_paid;
 
   useEffect(() => {
     setExpandedHolidayGroups((current) => current.filter((key) => holidayGroups.some((group) => group.key === key)));
@@ -276,13 +294,13 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               end_date: form.end_date,
               vacation_type: Number(form.vacation_type),
               vacation_status: Number(form.vacation_status || pendingStatusId || 0),
-              is_paid: form.is_paid,
+              is_paid: normalizedIsPaid,
             })
         : vacationApi.requestSelf({
             start_date: form.start_date,
             end_date: form.end_date,
             vacation_type: Number(form.vacation_type),
-            is_paid: form.is_paid,
+            is_paid: normalizedIsPaid,
           }),
     onSuccess: async () => {
       toast({
@@ -782,16 +800,16 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 </Select>
               </div>
             ) : null}
-            {!isHolidayTypeSelected ? (
+            {!shouldHidePaidToggle ? (
               <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
                 {t("vacationsPage.paidVacation")}
                 <input type="checkbox" checked={form.is_paid} onChange={(event) => setForm((value) => ({ ...value, is_paid: event.target.checked }))} />
               </label>
-            ) : (
+            ) : selectedVacationTypeCode === "holiday" ? (
               <div className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
                 {t("vacationsPage.holidayVacationHint")}
               </div>
-            )}
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRequestOpen(false)}>
@@ -807,7 +825,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                       end_date: form.end_date,
                       vacation_type: Number(form.vacation_type),
                       vacation_status: Number(form.vacation_status || pendingStatusId || 0),
-                      is_paid: form.is_paid,
+                      is_paid: normalizedIsPaid,
                     })
                   : createVacation.mutate()
               }
