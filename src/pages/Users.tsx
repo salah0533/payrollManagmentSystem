@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, RotateCcw, ShieldOff } from "lucide-react";
+import { Pencil, Plus, RotateCcw, ShieldOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/app/EmptyState";
@@ -55,6 +55,7 @@ export default function Users() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [deactivateUserId, setDeactivateUserId] = useState<number | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
   const [resetPasswordUserId, setResetPasswordUserId] = useState<number | null>(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [form, setForm] = useState(defaultUserForm);
@@ -143,6 +144,20 @@ export default function Users() {
         return null;
       }
 
+      const currentRoleIds = existingUser.roles.map((role) => role.id);
+      const addedRoleIds = form.role_ids.filter((roleId) => !currentRoleIds.includes(roleId));
+      const removedRoleIds = currentRoleIds.filter((roleId) => !form.role_ids.includes(roleId));
+      const employeeRoleIdsToRemoveFirst =
+        !form.employee_id
+          ? existingUser.roles
+              .filter((role) => role.code === "employee" && removedRoleIds.includes(role.id))
+              .map((role) => role.id)
+          : [];
+
+      for (const roleId of employeeRoleIdsToRemoveFirst) {
+        await userApi.removeRole(editingUserId, roleId);
+      }
+
       await userApi.update(editingUserId, {
         username: form.username,
         email: form.email || null,
@@ -152,15 +167,11 @@ export default function Users() {
         must_change_password: form.must_change_password,
       });
 
-      const currentRoleIds = existingUser.roles.map((role) => role.id);
-      const addedRoleIds = form.role_ids.filter((roleId) => !currentRoleIds.includes(roleId));
-      const removedRoleIds = currentRoleIds.filter((roleId) => !form.role_ids.includes(roleId));
-
       if (addedRoleIds.length) {
         await userApi.assignRoles(editingUserId, addedRoleIds);
       }
 
-      for (const roleId of removedRoleIds) {
+      for (const roleId of removedRoleIds.filter((roleId) => !employeeRoleIdsToRemoveFirst.includes(roleId))) {
         await userApi.removeRole(editingUserId, roleId);
       }
     },
@@ -192,6 +203,22 @@ export default function Users() {
       toast({
         title: t("users.statusUpdateError"),
         description: getErrorMessage(error, t("users.statusUpdateErrorDescription")),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: (userId: number) => userApi.remove(userId),
+    onSuccess: async () => {
+      toast({ title: t("users.deleteSuccess"), description: t("users.deleteSuccessDescription") });
+      setDeleteUserId(null);
+      await refreshUsers();
+    },
+    onError: (error) => {
+      toast({
+        title: t("users.deleteError"),
+        description: getErrorMessage(error, t("users.deleteErrorDescription")),
         variant: "destructive",
       });
     },
@@ -331,6 +358,9 @@ export default function Users() {
                         </Button>
                         <Button size="icon" variant="outline" onClick={() => setDeactivateUserId(user.id)}>
                           {user.is_active ? <ShieldOff className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+                        </Button>
+                        <Button size="icon" variant="outline" onClick={() => setDeleteUserId(user.id)}>
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => setResetPasswordUserId(user.id)}>
                           {t("users.resetPassword")}
@@ -478,6 +508,29 @@ export default function Users() {
                 const user = (usersQuery.data || []).find((item) => item.id === deactivateUserId);
                 if (user) {
                   toggleActive.mutate({ userId: user.id, isActive: user.is_active });
+                }
+              }}
+            >
+              {t("users.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={Boolean(deleteUserId)} onOpenChange={(open) => !open && setDeleteUserId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("users.deleteUser")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("users.deleteUserDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteUserId) {
+                  deleteUser.mutate(deleteUserId);
                 }
               }}
             >

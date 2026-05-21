@@ -53,6 +53,11 @@ export const userApi = {
       method: "POST",
     });
   },
+  remove(userId: number) {
+    return apiRequest<null>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
   assignRoles(userId: number, roleIds: number[]) {
     return apiRequest<User>(`/users/${userId}/roles`, {
       method: "POST",
