@@ -56,6 +56,7 @@ export default function Users() {
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [deactivateUserId, setDeactivateUserId] = useState<number | null>(null);
   const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
+  const [deleteAdminPassword, setDeleteAdminPassword] = useState("");
   const [resetPasswordUserId, setResetPasswordUserId] = useState<number | null>(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [form, setForm] = useState(defaultUserForm);
@@ -209,10 +210,12 @@ export default function Users() {
   });
 
   const deleteUser = useMutation({
-    mutationFn: (userId: number) => userApi.remove(userId),
+    mutationFn: ({ userId, adminPassword }: { userId: number; adminPassword: string }) =>
+      userApi.remove(userId, { admin_password: adminPassword }),
     onSuccess: async () => {
       toast({ title: t("users.deleteSuccess"), description: t("users.deleteSuccessDescription") });
       setDeleteUserId(null);
+      setDeleteAdminPassword("");
       await refreshUsers();
     },
     onError: (error) => {
@@ -517,7 +520,15 @@ export default function Users() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={Boolean(deleteUserId)} onOpenChange={(open) => !open && setDeleteUserId(null)}>
+      <AlertDialog
+        open={Boolean(deleteUserId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteUserId(null);
+            setDeleteAdminPassword("");
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("users.deleteUser")}</AlertDialogTitle>
@@ -525,12 +536,23 @@ export default function Users() {
               {t("users.deleteUserDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="userDeleteAdminPassword">{t("users.adminPassword")}</Label>
+            <Input
+              id="userDeleteAdminPassword"
+              type="password"
+              value={deleteAdminPassword}
+              onChange={(event) => setDeleteAdminPassword(event.target.value)}
+              placeholder={t("users.adminPasswordPlaceholder")}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
+              disabled={!deleteAdminPassword.trim() || deleteUser.isPending}
               onClick={() => {
                 if (deleteUserId) {
-                  deleteUser.mutate(deleteUserId);
+                  deleteUser.mutate({ userId: deleteUserId, adminPassword: deleteAdminPassword });
                 }
               }}
             >

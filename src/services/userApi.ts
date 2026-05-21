@@ -53,9 +53,10 @@ export const userApi = {
       method: "POST",
     });
   },
-  remove(userId: number) {
+  remove(userId: number, payload: { admin_password: string }) {
     return apiRequest<null>(`/users/${userId}`, {
       method: "DELETE",
+      body: payload,
     });
   },
   assignRoles(userId: number, roleIds: number[]) {

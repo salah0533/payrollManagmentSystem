@@ -275,6 +275,8 @@ const fr = {
     updateErrorDescription: "Les changements de cet utilisateur n'ont pas pu être enregistrés.",
     deleteUser: "Supprimer l'utilisateur",
     deleteUserDescription: "Cette action désactive définitivement le compte, supprime son lien avec l'employé et le masque de la liste. Supprimez ou dissociez d'abord le compte avant de supprimer la fiche employé.",
+    adminPassword: "Mot de passe admin",
+    adminPasswordPlaceholder: "Saisissez votre mot de passe admin",
     deleteSuccess: "Utilisateur supprimé",
     deleteSuccessDescription: "Le compte utilisateur a été supprimé et dissocié de la fiche employé.",
     deleteError: "Impossible de supprimer l'utilisateur",
@@ -556,6 +558,8 @@ const fr = {
     createEmployeeAction: "Créer l'employé",
     deleteEmployee: "Supprimer l'employé",
     deleteEmployeeDescription: "Cette action retire l'employé de la liste active. Le backend bloquera la suppression tant qu'un compte utilisateur lié n'est pas supprimé ou dissocié.",
+    adminPassword: "Mot de passe admin",
+    adminPasswordPlaceholder: "Saisissez votre mot de passe admin",
     departmentId: "Département n°{{id}}",
   },
   annualEntitlements: {
@@ -1239,7 +1243,6 @@ const fr = {
     range: "{{start}} à {{end}}",
     code: {
       ...en.labels.code,
-      paid: "Payé",
       corrected: "Corrigé",
       no_record: "Aucun enregistrement",
       attendance_missing_checkin: "Entrée manquante",

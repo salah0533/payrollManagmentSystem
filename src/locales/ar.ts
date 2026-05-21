@@ -275,6 +275,8 @@ const ar = {
     updateErrorDescription: "تعذر حفظ التغييرات على هذا المستخدم.",
     deleteUser: "حذف المستخدم",
     deleteUserDescription: "يعطل هذا الإجراء الحساب نهائيًا، ويزيل ربطه بالموظف، ويخفيه من قائمة المستخدمين. احذف الحساب أو ألغِ ربطه أولاً قبل حذف سجل الموظف.",
+    adminPassword: "كلمة مرور المدير",
+    adminPasswordPlaceholder: "أدخل كلمة مرور المدير",
     deleteSuccess: "تم حذف المستخدم",
     deleteSuccessDescription: "تم حذف حساب المستخدم وإلغاء ربطه بالموظف.",
     deleteError: "تعذر حذف المستخدم",
@@ -556,6 +558,8 @@ const ar = {
     createEmployeeAction: "إنشاء الموظف",
     deleteEmployee: "حذف الموظف",
     deleteEmployeeDescription: "يزيل هذا الإجراء الموظف من القائمة النشطة. ستمنع الخلفية الحذف حتى يتم حذف أي حساب مستخدم مرتبط أو إلغاء ربطه.",
+    adminPassword: "كلمة مرور المدير",
+    adminPasswordPlaceholder: "أدخل كلمة مرور المدير",
     departmentId: "القسم رقم {{id}}",
   },
   annualEntitlements: {
@@ -1239,7 +1243,6 @@ const ar = {
     range: "{{start}} إلى {{end}}",
     code: {
       ...en.labels.code,
-      paid: "مدفوع",
       corrected: "تم التصحيح",
       no_record: "لا يوجد سجل",
       attendance_missing_checkin: "تسجيل الدخول مفقود",

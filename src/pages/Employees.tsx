@@ -36,11 +36,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, formatDate, formatLabel } from "@/lib/format";
 import { composePhoneNumber, defaultPhoneCountryIso, getPhoneCountryByIso, phoneCountries, splitPhoneNumber } from "@/lib/phone-countries";
-import { hasPermission } from "@/lib/roles";
+import { hasPermission, hasRole } from "@/lib/roles";
 import { employeeApi } from "@/services/employeeApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import type { CurrentUser } from "@/types/domain";
 
 const defaultForm = {
   first_name: "",
@@ -171,6 +172,14 @@ export function normalizeNumericInputValue(value?: number | string | null) {
   });
 }
 
+export function canShowEmployeeDeleteAction(scope: "admin" | "hr", user: CurrentUser | null) {
+  return scope === "admin" && hasRole(user, ["admin"]);
+}
+
+export function canSubmitGuardedDelete(adminPassword: string, isPending = false) {
+  return adminPassword.trim().length > 0 && !isPending;
+}
+
 export function isEmployeeCreateFormComplete(form: typeof defaultForm) {
   return [
     form.first_name,
@@ -219,12 +228,13 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   const { currentUser } = useAuth();
   const canCreateEmployee = hasPermission(currentUser, "employees.create");
   const canUpdateEmployee = hasPermission(currentUser, "employees.update");
-  const canDeleteEmployee = hasPermission(currentUser, "employees.delete");
+  const canDeleteEmployee = canShowEmployeeDeleteAction(scope, currentUser);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState<number | null>(null);
+  const [deleteAdminPassword, setDeleteAdminPassword] = useState("");
   const [form, setForm] = useState(defaultForm);
   const [newDepartmentName, setNewDepartmentName] = useState("");
   const [newPositionName, setNewPositionName] = useState("");
@@ -400,13 +410,15 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
   });
 
   const deleteEmployee = useMutation({
-    mutationFn: (employeeId: number) => employeeApi.remove(employeeId),
+    mutationFn: ({ employeeId, adminPassword }: { employeeId: number; adminPassword: string }) =>
+      employeeApi.remove(employeeId, { admin_password: adminPassword }),
     onSuccess: async () => {
       toast({
         title: t("employeesPage.deleteEmployeeSuccess"),
         description: t("employeesPage.deleteEmployeeSuccessDescription"),
       });
       setDeletingEmployee(null);
+      setDeleteAdminPassword("");
       await refreshEmployees();
     },
     onError: (error) => {
@@ -544,9 +556,11 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                         <Button size="icon" variant="outline" disabled={!canUpdateEmployee} onClick={() => openEdit(employee.id)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="outline" disabled={!canDeleteEmployee} onClick={() => setDeletingEmployee(employee.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {canDeleteEmployee ? (
+                          <Button size="icon" variant="outline" onClick={() => setDeletingEmployee(employee.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -908,7 +922,15 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(deletingEmployee)} onOpenChange={(open) => !open && setDeletingEmployee(null)}>
+      <AlertDialog
+        open={Boolean(deletingEmployee)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingEmployee(null);
+            setDeleteAdminPassword("");
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("employeesPage.deleteEmployee")}</AlertDialogTitle>
@@ -916,9 +938,28 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
               {t("employeesPage.deleteEmployeeDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="employeeDeleteAdminPassword">{t("employeesPage.adminPassword")}</Label>
+            <Input
+              id="employeeDeleteAdminPassword"
+              type="password"
+              value={deleteAdminPassword}
+              onChange={(event) => setDeleteAdminPassword(event.target.value)}
+              placeholder={t("employeesPage.adminPasswordPlaceholder")}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={!canDeleteEmployee || deleteEmployee.isPending} onClick={() => deletingEmployee && deleteEmployee.mutate(deletingEmployee)}>
+            <AlertDialogAction
+              disabled={!canDeleteEmployee || !canSubmitGuardedDelete(deleteAdminPassword, deleteEmployee.isPending)}
+              onClick={() =>
+                deletingEmployee &&
+                deleteEmployee.mutate({
+                  employeeId: deletingEmployee,
+                  adminPassword: deleteAdminPassword,
+                })
+              }
+            >
               {t("employeesPage.deleteEmployee")}
             </AlertDialogAction>
           </AlertDialogFooter>

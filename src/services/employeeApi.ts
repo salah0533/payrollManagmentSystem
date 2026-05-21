@@ -26,9 +26,10 @@ export const employeeApi = {
       body: payload,
     });
   },
-  remove(employeeId: number) {
+  remove(employeeId: number, payload: { admin_password: string }) {
     return apiRequest<null>(`/employee/${employeeId}`, {
       method: "DELETE",
+      body: payload,
     });
   },
   getSalaryTypes() {

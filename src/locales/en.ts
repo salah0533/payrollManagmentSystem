@@ -295,6 +295,8 @@ const en = {
     updateErrorDescription: "The backend rejected the user update or role change.",
     deleteUser: "Delete user",
     deleteUserDescription: "This permanently disables the account, removes its employee link, and hides it from the users list. Delete or unlink the account before deleting its employee record.",
+    adminPassword: "Admin password",
+    adminPasswordPlaceholder: "Enter your admin password",
     deleteSuccess: "User deleted",
     deleteSuccessDescription: "The user account was deleted and unlinked from the employee profile.",
     deleteError: "Unable to delete user",
@@ -580,6 +582,8 @@ const en = {
     createEmployeeAction: "Create employee",
     deleteEmployee: "Delete employee",
     deleteEmployeeDescription: "This removes the employee from the active list. The backend will block deletion until any linked user account is deleted or unlinked.",
+    adminPassword: "Admin password",
+    adminPasswordPlaceholder: "Enter your admin password",
     departmentId: "Department #{{id}}",
   },
   annualEntitlements: {
@@ -1305,7 +1309,6 @@ const en = {
     userId: "User #{{id}}",
     range: "{{start}} to {{end}}",
     code: {
-      paid: "Paid",
       active: "Active",
       inactive: "Inactive",
       suspended: "Suspended",

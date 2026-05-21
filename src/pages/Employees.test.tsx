@@ -1,14 +1,40 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canShowEmployeeDeleteAction,
+  canSubmitGuardedDelete,
   isEmployeeCreateFormComplete,
   normalizeCompensationFormBySalaryType,
   normalizeNumericInputValue,
   shouldShowCompensationField,
   toEmployeePayload,
 } from "@/pages/Employees";
+import type { CurrentUser } from "@/types/domain";
 
 describe("Employees auto attendance form", () => {
+  const adminUser = {
+    id: 1,
+    employee_id: null,
+    username: "admin",
+    language: "en",
+    is_active: true,
+    must_change_password: false,
+    roles: ["admin"],
+    permissions: ["employees.delete"],
+  } as CurrentUser;
+
+  it("does not expose employee deletion on the HR employees page", () => {
+    expect(canShowEmployeeDeleteAction("hr", adminUser)).toBe(false);
+    expect(canShowEmployeeDeleteAction("admin", adminUser)).toBe(true);
+  });
+
+  it("requires an admin password before guarded delete submit", () => {
+    expect(canSubmitGuardedDelete("")).toBe(false);
+    expect(canSubmitGuardedDelete("   ")).toBe(false);
+    expect(canSubmitGuardedDelete("AdminPass123!")).toBe(true);
+    expect(canSubmitGuardedDelete("AdminPass123!", true)).toBe(false);
+  });
+
   it("includes auto_attendance_enabled in the create payload", async () => {
     const payload = toEmployeePayload({
       first_name: "Jane",
