@@ -76,6 +76,7 @@ export const payrollAdjustmentTypes = [
   "bonus",
   "deduction",
   "correction",
+  "due_settlement",
 ] as const;
 
 export const attendanceCorrectionFields = [

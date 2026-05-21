@@ -94,6 +94,11 @@ const calculationFields = [
   { key: "manual_deduction_amount", labelKey: "payrollPage.calculationFields.manual_deduction_amount", format: "currency" },
   { key: "earned_deduction_amount", labelKey: "payrollPage.calculationFields.earned_deduction_amount", format: "currency" },
   { key: "late_penalty_amount", labelKey: "payrollPage.calculationFields.late_penalty_amount", format: "currency" },
+  { key: "due_settlement_amount", labelKey: "payrollPage.calculationFields.due_settlement_amount", format: "currency" },
+  { key: "employee_due_balance", labelKey: "payrollPage.calculationFields.employee_due_balance", format: "currency" },
+  { key: "settled_due_amount", labelKey: "payrollPage.calculationFields.settled_due_amount", format: "currency" },
+  { key: "remaining_due_settlement_amount", labelKey: "payrollPage.calculationFields.remaining_due_settlement_amount", format: "currency" },
+  { key: "remaining_due_balance_after_settlement", labelKey: "payrollPage.calculationFields.remaining_due_balance_after_settlement", format: "currency" },
   { key: "earned_net_salary", labelKey: "payrollPage.calculationFields.earned_net_salary", format: "currency" },
   { key: "held_for_review_amount", labelKey: "payrollPage.calculationFields.held_for_review_amount", format: "currency" },
   { key: "payable_amount", labelKey: "payrollPage.calculationFields.payable_amount", format: "currency" },
@@ -120,6 +125,32 @@ function getPayableAmount(payroll: EmployeePayroll) {
 function getHeldForReviewAmount(payroll: EmployeePayroll) {
   const fallback = Math.max(0, Number(payroll.net_salary || 0) - Number(payroll.total_amount || 0));
   return getSnapshotValue(payroll, "held_for_review_amount", fallback);
+}
+
+function getDueSettlementAmount(payroll: EmployeePayroll) {
+  return getSnapshotValue(payroll, "due_settlement_amount", payroll.due_settlement_amount ?? 0);
+}
+
+function getEmployeeDueBalance(payroll: EmployeePayroll) {
+  return getSnapshotValue(payroll, "employee_due_balance", payroll.employee_due_balance ?? 0);
+}
+
+function getSettledDueAmount(payroll: EmployeePayroll) {
+  return getSnapshotValue(payroll, "settled_due_amount", payroll.settled_due_amount ?? 0);
+}
+
+function getRemainingDueSettlementAmount(payroll: EmployeePayroll) {
+  const fallback = Math.max(0, Number(getDueSettlementAmount(payroll) || 0) - Number(getSettledDueAmount(payroll) || 0));
+  return getSnapshotValue(payroll, "remaining_due_settlement_amount", payroll.remaining_due_settlement_amount ?? fallback);
+}
+
+function getRemainingDueBalanceAfterSettlement(payroll: EmployeePayroll) {
+  const fallback = Math.max(0, Number(getEmployeeDueBalance(payroll) || 0) - Number(getRemainingDueSettlementAmount(payroll) || 0));
+  return getSnapshotValue(
+    payroll,
+    "remaining_due_balance_after_settlement",
+    payroll.remaining_due_balance_after_settlement ?? fallback,
+  );
 }
 
 function getPayrollRowStatusPreview(
@@ -149,6 +180,7 @@ function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
     { label: t("payrollPage.breakdown.normal_pay"), value: payroll.normal_amount },
     { label: t("payrollPage.breakdown.overtime"), value: payroll.overtime_amount },
     { label: t("payrollPage.breakdown.bonus"), value: payroll.bonus_amount },
+    { label: t("payrollPage.breakdown.due_settlement"), value: getDueSettlementAmount(payroll) },
     { label: t("payrollPage.breakdown.attendance_deduction"), value: payroll.attendance_deduction_amount ?? payroll.deduction_amount ?? 0 },
     { label: t("payrollPage.breakdown.manual_deductions"), value: payroll.manual_deduction_amount ?? 0 },
     { label: t("payrollPage.breakdown.late_penalty"), value: payroll.late_penalty_amount ?? payroll.late_deduction_amount ?? 0 },
@@ -167,6 +199,40 @@ function PayrollBreakdownGrid({ payroll }: { payroll: EmployeePayroll }) {
         <div key={field.label} className="rounded-lg border border-border p-3">
           <p className="text-xs text-muted-foreground">{field.label}</p>
           <p className="font-medium">{formatCurrency(field.value)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DueStateGrid({
+  payroll,
+  projectedSettlementAmount,
+}: {
+  payroll: EmployeePayroll;
+  projectedSettlementAmount?: number;
+}) {
+  const { t } = useTranslation();
+  const currentDueBalance = getEmployeeDueBalance(payroll);
+  const displayedDueSettlement = projectedSettlementAmount ?? Number(getDueSettlementAmount(payroll) || 0);
+  const remainingAfterSettlement =
+    projectedSettlementAmount == null
+      ? getRemainingDueBalanceAfterSettlement(payroll)
+      : Math.max(0, Number(currentDueBalance || 0) - displayedDueSettlement);
+
+  const cards = [
+    { label: t("payrollPage.currentDueBalance"), value: currentDueBalance },
+    { label: t("payrollPage.dueSettlementAmount"), value: displayedDueSettlement },
+    { label: t("payrollPage.remainingDueAfterSettlement"), value: remainingAfterSettlement },
+    { label: t("payrollPage.settledDueAmount"), value: getSettledDueAmount(payroll) },
+  ];
+
+  return (
+    <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+      {cards.map((card) => (
+        <div key={card.label} className="min-w-0 rounded-lg border border-border p-3">
+          <p className="text-xs text-muted-foreground">{card.label}</p>
+          <p className="break-all text-sm font-medium sm:text-base">{formatCurrency(card.value)}</p>
         </div>
       ))}
     </div>
@@ -671,6 +737,10 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       });
   }, [employeeNameMap, filteredDiscrepancies, t]);
   const adjustmentAmount = Number(adjustmentForm.amount);
+  const projectedDueSettlementAmount =
+    adjustmentForm.adjustment_type === "due_settlement" && Number.isFinite(adjustmentAmount) && adjustmentAmount > 0
+      ? adjustmentAmount
+      : undefined;
   const canSubmitAdjustment = Boolean(
     canAdjust &&
       selectedPayroll &&
@@ -679,8 +749,7 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
       adjustmentForm.employee_id &&
       payrollAdjustmentTypes.includes(adjustmentForm.adjustment_type) &&
       Number.isFinite(adjustmentAmount) &&
-      adjustmentAmount > 0 &&
-      adjustmentForm.reason.trim(),
+      adjustmentAmount > 0,
   );
   const periodCanRecalculate = Boolean(
     canCalculate && periodQuery.data && !["approved", "paid", "locked", "cancelled"].includes(periodQuery.data.status),
@@ -1415,6 +1484,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <Button variant="outline" disabled>{t("payrollPage.export")}</Button>
                 </div>
               </div>
+              {(Number(getEmployeeDueBalance(detailsPayroll) || 0) > 0 || Number(getDueSettlementAmount(detailsPayroll) || 0) > 0) ? (
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="font-medium">{t("payrollPage.dueSettlementTitle")}</h3>
+                    <p className="text-sm text-muted-foreground">{t("payrollPage.dueSettlementDescription")}</p>
+                  </div>
+                  <DueStateGrid payroll={detailsPayroll} />
+                </div>
+              ) : null}
               <div className="space-y-3">
                 <div>
                   <h3 className="font-medium">{t("payrollPage.calculationTitle")}</h3>
@@ -1485,6 +1563,15 @@ export default function Payments({ scope }: { scope: "manage" | "self" }) {
                   <p className="text-xs text-muted-foreground">{t("payrollPage.currentEarnedNet")}</p>
                   <p className="font-medium">{formatCurrency(getEarnedNetSalary(selectedPayroll))}</p>
                 </div>
+              </div>
+            ) : null}
+            {selectedPayroll && (adjustmentForm.adjustment_type === "due_settlement" || Number(getEmployeeDueBalance(selectedPayroll) || 0) > 0 || Number(getDueSettlementAmount(selectedPayroll) || 0) > 0) ? (
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-medium">{t("payrollPage.dueSettlementTitle")}</h3>
+                  <p className="text-sm text-muted-foreground">{t("payrollPage.dueSettlementDialogDescription")}</p>
+                </div>
+                <DueStateGrid payroll={selectedPayroll} projectedSettlementAmount={projectedDueSettlementAmount} />
               </div>
             ) : null}
             <div className="space-y-2">

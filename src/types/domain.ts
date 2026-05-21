@@ -355,6 +355,11 @@ export interface PayrollCalculationData extends Record<string, unknown> {
   manual_deduction_amount?: number | string;
   earned_deduction_amount?: number | string;
   late_penalty_amount?: number | string;
+  due_settlement_amount?: number | string;
+  employee_due_balance?: number | string;
+  settled_due_amount?: number | string;
+  remaining_due_settlement_amount?: number | string;
+  remaining_due_balance_after_settlement?: number | string;
   earned_net_salary?: number | string;
   payable_amount?: number | string;
   approved_payable_amount?: number | string;
@@ -390,6 +395,11 @@ export interface EmployeePayroll {
   attendance_deduction_amount?: number | string;
   manual_deduction_amount?: number | string;
   late_penalty_amount?: number | string;
+  due_settlement_amount?: number | string;
+  employee_due_balance?: number | string;
+  settled_due_amount?: number | string;
+  remaining_due_settlement_amount?: number | string;
+  remaining_due_balance_after_settlement?: number | string;
   calculation_data_json?: PayrollCalculationData;
   needs_review_reason?: string | null;
 }

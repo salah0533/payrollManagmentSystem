@@ -54,6 +54,11 @@ const calculationFields = [
   { key: "manual_deduction_amount", labelKey: "payrollPage.calculationFields.manual_deduction_amount", format: "currency" },
   { key: "earned_deduction_amount", labelKey: "payrollPage.calculationFields.earned_deduction_amount", format: "currency" },
   { key: "late_penalty_amount", labelKey: "payrollPage.calculationFields.late_penalty_amount", format: "currency" },
+  { key: "due_settlement_amount", labelKey: "payrollPage.calculationFields.due_settlement_amount", format: "currency" },
+  { key: "employee_due_balance", labelKey: "payrollPage.calculationFields.employee_due_balance", format: "currency" },
+  { key: "settled_due_amount", labelKey: "payrollPage.calculationFields.settled_due_amount", format: "currency" },
+  { key: "remaining_due_settlement_amount", labelKey: "payrollPage.calculationFields.remaining_due_settlement_amount", format: "currency" },
+  { key: "remaining_due_balance_after_settlement", labelKey: "payrollPage.calculationFields.remaining_due_balance_after_settlement", format: "currency" },
   { key: "earned_net_salary", labelKey: "payrollPage.calculationFields.earned_net_salary", format: "currency" },
   { key: "held_for_review_amount", labelKey: "payrollPage.calculationFields.held_for_review_amount", format: "currency" },
   { key: "payable_amount", labelKey: "payrollPage.calculationFields.payable_amount", format: "currency" },
@@ -259,6 +264,11 @@ export default function PaymentHist() {
         key: "attendance-deduction",
         label: t("payrollPage.breakdown.attendance_deduction"),
         amount: row.attendance_deduction_amount ?? row.deduction_amount ?? 0,
+      },
+      {
+        key: "due-settlement",
+        label: t("payrollPage.breakdown.due_settlement"),
+        amount: row.due_settlement_amount ?? 0,
       },
       {
         key: "manual-deductions",
