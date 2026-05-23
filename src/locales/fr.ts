@@ -478,6 +478,7 @@ const fr = {
     contact: "Contact",
     hireDate: "Date d'embauche",
     salaryType: "Type de salaire",
+    salary: "Salaire",
     monthly: "Mensuel",
     userLink: "Lien utilisateur",
     autoAttendance: "Présence auto",

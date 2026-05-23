@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canShowEmployeeDeleteAction,
   canSubmitGuardedDelete,
+  getEmployeeSalaryAmount,
   isEmployeeCreateFormComplete,
   normalizeCompensationFormBySalaryType,
   normalizeNumericInputValue,
@@ -262,5 +263,32 @@ describe("Employees auto attendance form", () => {
     expect(shouldShowCompensationField("dues", "daily")).toBe(true);
     expect(shouldShowCompensationField("day_price", "day")).toBe(true);
     expect(shouldShowCompensationField("hour_price", "hour")).toBe(true);
+  });
+
+  it("shows the salary amount that matches the employee salary type", () => {
+    const salaryTypeCodeMap = {
+      0: "monthly",
+      1: "daily",
+      2: "hourly",
+    };
+
+    expect(
+      getEmployeeSalaryAmount(
+        { salary_type: 0, monthly_price: 1000, day_price: 100, hour_price: 10 },
+        salaryTypeCodeMap,
+      ),
+    ).toBe(1000);
+    expect(
+      getEmployeeSalaryAmount(
+        { salary_type: 1, monthly_price: 1000, day_price: 100, hour_price: 10 },
+        salaryTypeCodeMap,
+      ),
+    ).toBe(100);
+    expect(
+      getEmployeeSalaryAmount(
+        { salary_type: 2, monthly_price: 1000, day_price: 100, hour_price: 10 },
+        salaryTypeCodeMap,
+      ),
+    ).toBe(10);
   });
 });

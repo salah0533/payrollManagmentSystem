@@ -502,6 +502,7 @@ const en = {
     contact: "Contact",
     hireDate: "Hire date",
     salaryType: "Salary type",
+    salary: "Salary",
     monthly: "Monthly",
     userLink: "User link",
     autoAttendance: "Auto attendance",

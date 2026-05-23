@@ -41,7 +41,7 @@ import { employeeApi } from "@/services/employeeApi";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import type { CurrentUser } from "@/types/domain";
+import type { CurrentUser, Employee } from "@/types/domain";
 
 const defaultForm = {
   first_name: "",
@@ -188,6 +188,20 @@ export function normalizeNumericInputValue(value?: number | string | null) {
     useGrouping: false,
     maximumFractionDigits: 20,
   });
+}
+
+export function getEmployeeSalaryAmount(
+  employee: Pick<Employee, "salary_type" | "monthly_price" | "day_price" | "hour_price">,
+  salaryTypeCodeMap?: Record<number, string>,
+) {
+  const salaryTypeCode = resolveSalaryTypeCode(String(employee.salary_type), salaryTypeCodeMap);
+  if (salaryTypeCode === "daily") {
+    return employee.day_price;
+  }
+  if (salaryTypeCode === "hourly") {
+    return employee.hour_price;
+  }
+  return employee.monthly_price;
 }
 
 export function canShowEmployeeDeleteAction(scope: "admin" | "hr", user: CurrentUser | null) {
@@ -535,7 +549,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                   <TableHead>{t("common.status")}</TableHead>
                   <TableHead>{t("employeesPage.hireDate")}</TableHead>
                   <TableHead>{t("employeesPage.salaryType")}</TableHead>
-                  <TableHead>{t("employeesPage.monthly")}</TableHead>
+                  <TableHead>{t("employeesPage.salary")}</TableHead>
                   <TableHead className="text-right">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -568,7 +582,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                     <TableCell><StatusBadge status={employee.status} /></TableCell>
                     <TableCell>{formatDate(employee.hire_date)}</TableCell>
                     <TableCell>{salaryTypeMap[employee.salary_type] || employee.salary_type}</TableCell>
-                    <TableCell>{formatCurrency(employee.monthly_price)}</TableCell>
+                    <TableCell>{formatCurrency(getEmployeeSalaryAmount(employee, salaryTypeCodeMap))}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button size="icon" variant="outline" disabled={!canUpdateEmployee} onClick={() => openEdit(employee.id)}>

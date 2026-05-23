@@ -478,6 +478,7 @@ const ar = {
     contact: "التواصل",
     hireDate: "تاريخ التوظيف",
     salaryType: "نوع الراتب",
+    salary: "الراتب",
     monthly: "شهري",
     userLink: "ربط المستخدم",
     autoAttendance: "حضور تلقائي",
