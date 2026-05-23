@@ -98,32 +98,49 @@ const fallbackSalaryTypeCodeById: Record<string, string> = {
 type EmployeeForm = typeof defaultForm;
 type CompensationFieldKey = (typeof compensationFormFields)[number]["key"];
 
+export function normalizeSalaryTypeCode(salaryTypeCode: string) {
+  const normalizedCode = salaryTypeCode.trim().toLowerCase();
+  if (normalizedCode === "month") {
+    return "monthly";
+  }
+  if (normalizedCode === "day") {
+    return "daily";
+  }
+  if (normalizedCode === "hour") {
+    return "hourly";
+  }
+  return normalizedCode;
+}
+
 export function resolveSalaryTypeCode(
   salaryTypeId: string,
   salaryTypeCodeMap?: Record<number, string>,
 ) {
-  return salaryTypeCodeMap?.[Number(salaryTypeId)] || fallbackSalaryTypeCodeById[salaryTypeId] || "";
+  return normalizeSalaryTypeCode(
+    salaryTypeCodeMap?.[Number(salaryTypeId)] || fallbackSalaryTypeCodeById[salaryTypeId] || "",
+  );
 }
 
 export function normalizeCompensationFormBySalaryType(
   form: EmployeeForm,
   salaryTypeCode: string,
 ): EmployeeForm {
-  if (salaryTypeCode === "monthly") {
+  const normalizedSalaryTypeCode = normalizeSalaryTypeCode(salaryTypeCode);
+  if (normalizedSalaryTypeCode === "monthly") {
     return {
       ...form,
       day_price: "0",
       hour_price: "0",
     };
   }
-  if (salaryTypeCode === "hourly") {
+  if (normalizedSalaryTypeCode === "hourly") {
     return {
       ...form,
       monthly_price: "0",
       day_price: "0",
     };
   }
-  if (salaryTypeCode === "daily") {
+  if (normalizedSalaryTypeCode === "daily") {
     return {
       ...form,
       monthly_price: "0",
@@ -137,16 +154,17 @@ export function shouldShowCompensationField(
   fieldKey: CompensationFieldKey,
   salaryTypeCode: string,
 ) {
+  const normalizedSalaryTypeCode = normalizeSalaryTypeCode(salaryTypeCode);
   if (fieldKey === "extra_hours_price" || fieldKey === "dues") {
     return true;
   }
-  if (salaryTypeCode === "monthly") {
+  if (normalizedSalaryTypeCode === "monthly") {
     return fieldKey === "monthly_price";
   }
-  if (salaryTypeCode === "daily") {
+  if (normalizedSalaryTypeCode === "daily") {
     return fieldKey === "day_price";
   }
-  if (salaryTypeCode === "hourly") {
+  if (normalizedSalaryTypeCode === "hourly") {
     return fieldKey === "hour_price";
   }
   return true;

@@ -211,6 +211,40 @@ describe("Employees auto attendance form", () => {
     expect(normalizedForm.hour_price).toBe("0");
   });
 
+  it("accepts short salary type names when zeroing hidden compensation values", () => {
+    const payload = toEmployeePayload(
+      {
+        first_name: "Jane",
+        last_name: "Auto",
+        email: "jane@example.com",
+        phone_country_iso: "dz",
+        phone_number: "5551234",
+        department_id: "",
+        position_id: "",
+        position: "",
+        status: "active",
+        hire_date: "2026-05-01",
+        salary_type: "2",
+        monthly_price: "1000",
+        day_price: "100",
+        hour_price: "10",
+        extra_hours_price: "15",
+        vacation_days: "30",
+        dues: "0",
+        auto_attendance_enabled: true,
+      },
+      "hour",
+    );
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        month_price: 0,
+        day_price: 0,
+        hour_price: 10,
+      }),
+    );
+  });
+
   it("shows only the relevant compensation fields for each salary type", () => {
     expect(shouldShowCompensationField("monthly_price", "monthly")).toBe(true);
     expect(shouldShowCompensationField("day_price", "monthly")).toBe(false);
@@ -226,5 +260,7 @@ describe("Employees auto attendance form", () => {
 
     expect(shouldShowCompensationField("extra_hours_price", "hourly")).toBe(true);
     expect(shouldShowCompensationField("dues", "daily")).toBe(true);
+    expect(shouldShowCompensationField("day_price", "day")).toBe(true);
+    expect(shouldShowCompensationField("hour_price", "hour")).toBe(true);
   });
 });
