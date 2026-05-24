@@ -697,19 +697,11 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                       {scope === "manage" && isExpanded ? (
                         <TableRow>
                           <TableCell colSpan={9} className="bg-muted/20">
-                            <div className="space-y-3 p-3">
-                              <div className="grid gap-3 md:grid-cols-2">
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">{t("vacationsPage.reason")}</p>
-                                  <p className="mt-1 whitespace-normal break-words text-sm">
-                                    {vacation.reason || t("common.notAvailable")}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground">{t("vacationsPage.days")}</p>
-                                  <p className="mt-1 text-sm">{daysBetween(vacation.start_date, vacation.end_date)}</p>
-                                </div>
-                              </div>
+                            <div className="p-3">
+                              <p className="text-xs font-medium text-muted-foreground">{t("vacationsPage.reason")}</p>
+                              <p className="mt-1 whitespace-normal break-words text-sm">
+                                {vacation.reason || t("common.notAvailable")}
+                              </p>
                             </div>
                           </TableCell>
                         </TableRow>
