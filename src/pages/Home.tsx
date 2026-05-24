@@ -600,7 +600,7 @@ export default function Home() {
                   <StatusBadge status={selectedPayroll.status} />
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">
-                  {t("homePage.payrollBalanceDescription", { balance: formatCurrency(selectedPayroll.balance_amount) })}
+                  {t("homePage.payrollNetDescription", { status: formatLabel(selectedPayroll.status) })}
                 </p>
               </div>
             ) : (

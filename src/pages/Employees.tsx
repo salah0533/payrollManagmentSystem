@@ -60,7 +60,6 @@ const defaultForm = {
   hour_price: "0",
   extra_hours_price: "0",
   vacation_days: "30",
-  dues: "0",
   auto_attendance_enabled: false,
 };
 
@@ -78,7 +77,7 @@ const basicFormFields: Array<{
 ];
 
 const compensationFormFields: Array<{
-  key: "monthly_price" | "day_price" | "hour_price" | "extra_hours_price" | "dues";
+  key: "monthly_price" | "day_price" | "hour_price" | "extra_hours_price";
   label: string;
   type: "number";
 }> = [
@@ -86,7 +85,6 @@ const compensationFormFields: Array<{
   { key: "day_price", label: "Day price", type: "number" },
   { key: "hour_price", label: "Hour price", type: "number" },
   { key: "extra_hours_price", label: "Extra hours price", type: "number" },
-  { key: "dues", label: "Dues", type: "number" },
 ];
 
 const fallbackSalaryTypeCodeById: Record<string, string> = {
@@ -155,7 +153,7 @@ export function shouldShowCompensationField(
   salaryTypeCode: string,
 ) {
   const normalizedSalaryTypeCode = normalizeSalaryTypeCode(salaryTypeCode);
-  if (fieldKey === "extra_hours_price" || fieldKey === "dues") {
+  if (fieldKey === "extra_hours_price") {
     return true;
   }
   if (normalizedSalaryTypeCode === "monthly") {
@@ -249,7 +247,6 @@ export function toEmployeePayload(
     hour_price: Number(normalizedForm.hour_price || 0),
     extra_hours_price: Number(normalizedForm.extra_hours_price || 0),
     vacation_days: Number(normalizedForm.vacation_days || 0),
-    dues: Number(normalizedForm.dues || 0),
     auto_attendance_enabled: normalizedForm.auto_attendance_enabled,
   };
 }
@@ -494,7 +491,6 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
       hour_price: normalizeNumericInputValue(employee.hour_price),
       extra_hours_price: normalizeNumericInputValue(employee.extra_hours_price),
       vacation_days: String(employee.vacation_days || 0),
-      dues: normalizeNumericInputValue(employee.dues),
       auto_attendance_enabled: Boolean(employee.auto_attendance_enabled),
     });
     setIsDialogOpen(true);
@@ -807,9 +803,7 @@ export default function Employees({ scope }: { scope: "admin" | "hr" }) {
                         ? t("employeesPage.dayPrice")
                         : field.key === "hour_price"
                           ? t("employeesPage.hourPrice")
-                          : field.key === "extra_hours_price"
-                            ? t("employeesPage.extraHoursPrice")
-                            : t("employeesPage.dues")}
+                          : t("employeesPage.extraHoursPrice")}
                   </Label>
                   <Input
                     id={field.key}

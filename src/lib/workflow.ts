@@ -37,8 +37,8 @@ export const calendarBulkCorrectionStatuses = [
 
 export const attendanceReviewStatuses = ["draft", "needs_review", "approved", "locked"] as const;
 
-export const payrollFinalStatuses = ["approved", "partially_paid", "paid", "locked"] as const;
-export const payrollPaidStatuses = ["partially_paid", "paid", "locked"] as const;
+export const payrollFinalStatuses = ["locked"] as const;
+export const payrollPaidStatuses = ["locked"] as const;
 export const notificationTypes = ["general", "attendance", "payroll", "vacation", "employee", "system"] as const;
 export const notificationPriorities = ["low", "normal", "high"] as const;
 export const roleCodes = ["admin", "hr", "employee"] as const;
@@ -112,15 +112,15 @@ export function canApprovePayroll(payroll?: EmployeePayroll | null, discrepancie
   return Boolean(payroll && payroll.status !== "locked" && !payrollPaidStatuses.includes(payroll.status as never) && !summary.hasBlocking);
 }
 
-export function canUnapprovePayroll(payroll?: Pick<EmployeePayroll, "status" | "paid_amount"> | null) {
-  return Boolean(payroll && payroll.status === "approved" && Number(payroll.paid_amount || 0) <= 0);
+export function canUnapprovePayroll() {
+  return false;
 }
 
-export function canReopenLockedPayroll(payroll?: Pick<EmployeePayroll, "status" | "paid_amount"> | null) {
-  return Boolean(payroll && ["locked", "paid"].includes(payroll.status) && Number(payroll.paid_amount || 0) > 0);
+export function canReopenLockedPayroll() {
+  return false;
 }
 
 export function canRecordPayrollPayment(payroll?: EmployeePayroll | null, discrepancies: PayrollDiscrepancy[] = []) {
   const summary = getPayrollDiscrepancySummary(payroll, discrepancies);
-  return payroll?.status === "approved" && !summary.hasBlocking;
+  return Boolean(payroll && payroll.status !== "locked" && !summary.hasBlocking);
 }

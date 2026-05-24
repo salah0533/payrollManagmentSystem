@@ -1,11 +1,13 @@
 import { apiRequest, buildQueryString } from "@/lib/api-client";
 import type {
   EmployeePayroll,
+  EmployeeFinancialTotal,
+  EmployeeLedgerResponse,
+  LedgerTransaction,
+  LedgerTransactionPayload,
+  LedgerTransactionUpdatePayload,
   PayrollEmployeeHistoryResponse,
   PayrollBalanceReport,
-  PayrollAdjustment,
-  PayrollAdjustmentPayload,
-  PayrollAdjustmentUpdatePayload,
   PayrollDiscrepancy,
   PayrollHistory,
   PayrollPeriod,
@@ -49,27 +51,27 @@ export const payrollApi = {
       method: "POST",
     });
   },
-  approve(employeePayrollId: number) {
-    return apiRequest<EmployeePayroll>(`/payroll/approve/${employeePayrollId}`, {
+  lockPeriod(periodId: number) {
+    return apiRequest<PayrollPeriod>(`/payroll/period/${periodId}/lock`, {
       method: "POST",
     });
   },
-  unapprove(employeePayrollId: number) {
-    return apiRequest<EmployeePayroll>(`/payroll/unapprove/${employeePayrollId}`, {
+  unlockPeriod(periodId: number) {
+    return apiRequest<PayrollPeriod>(`/payroll/period/${periodId}/unlock`, {
       method: "POST",
     });
   },
-  reopen(employeePayrollId: number, payload: { reason: string }) {
-    return apiRequest<EmployeePayroll>(`/payroll/reopen/${employeePayrollId}`, {
-      method: "POST",
-      body: payload,
+  getLedger(employeeId: number, params: { page?: number; pageSize?: number; startDate?: string; endDate?: string } = {}) {
+    const query = buildQueryString({
+      page: params.page,
+      page_size: params.pageSize,
+      start_date: params.startDate,
+      end_date: params.endDate,
     });
+    return apiRequest<EmployeeLedgerResponse>(`/payroll/ledger/${employeeId}${query}`);
   },
-  markPaid(employeePayrollId: number, payload?: { amount?: number; note?: string }) {
-    return apiRequest<EmployeePayroll>(`/payroll/mark-paid/${employeePayrollId}`, {
-      method: "POST",
-      body: payload,
-    });
+  getTotal(employeeId: number) {
+    return apiRequest<EmployeeFinancialTotal>(`/payroll/total/${employeeId}`);
   },
   getHistory(employeePayrollId: number) {
     return apiRequest<PayrollHistory[]>(`/payroll/history/${employeePayrollId}`);
@@ -83,23 +85,20 @@ export const payrollApi = {
       body: { resolution_note: resolutionNote },
     });
   },
-  addAdjustment(payload: PayrollAdjustmentPayload) {
-    return apiRequest<unknown>("/payroll/adjustment", {
+  addTransaction(payload: LedgerTransactionPayload) {
+    return apiRequest<LedgerTransaction>("/payroll/transaction", {
       method: "POST",
       body: payload,
     });
   },
-  listAdjustments(employeePayrollId: number) {
-    return apiRequest<PayrollAdjustment[]>(`/payroll/adjustments/${employeePayrollId}`);
-  },
-  updateAdjustment(adjustmentId: number, payload: PayrollAdjustmentUpdatePayload) {
-    return apiRequest<PayrollAdjustment>(`/payroll/adjustment/${adjustmentId}`, {
+  updateTransaction(transactionId: number, payload: LedgerTransactionUpdatePayload) {
+    return apiRequest<LedgerTransaction>(`/payroll/transaction/${transactionId}`, {
       method: "PUT",
       body: payload,
     });
   },
-  deleteAdjustment(adjustmentId: number) {
-    return apiRequest<{ deleted: boolean; id: number }>(`/payroll/adjustment/${adjustmentId}`, {
+  deleteTransaction(transactionId: number) {
+    return apiRequest<{ deleted: boolean; id: number }>(`/payroll/transaction/${transactionId}`, {
       method: "DELETE",
     });
   },

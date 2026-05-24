@@ -77,7 +77,6 @@ export interface Employee {
   position?: string | null;
   status: string;
   hire_date?: string | null;
-  dues: number | string;
   salary_type: number;
   monthly_price: number | string;
   day_price: number | string;
@@ -352,14 +351,7 @@ export interface PayrollCalculationData extends Record<string, unknown> {
   auto_minute_rate?: number | string;
   attendance_deduction?: number | string;
   earned_attendance_deduction?: number | string;
-  manual_deduction_amount?: number | string;
-  earned_deduction_amount?: number | string;
   late_penalty_amount?: number | string;
-  due_settlement_amount?: number | string;
-  employee_due_balance?: number | string;
-  settled_due_amount?: number | string;
-  remaining_due_settlement_amount?: number | string;
-  remaining_due_balance_after_settlement?: number | string;
   earned_net_salary?: number | string;
   payable_amount?: number | string;
   approved_payable_amount?: number | string;
@@ -376,30 +368,14 @@ export interface EmployeePayroll {
   base_salary: number | string;
   normal_amount: number | string;
   overtime_amount: number | string;
-  bonus_amount: number | string;
-  deduction_amount: number | string;
-  late_deduction_amount: number | string;
+  attendance_deduction_amount: number | string;
   unpaid_vacation_deduction: number | string;
-  adjustment_amount: number | string;
   gross_salary: number | string;
   net_salary: number | string;
   total_amount: number | string;
-  paid_amount: number | string;
-  balance_amount: number | string;
   status: string;
   calculated_at: string;
-  reviewed_at?: string | null;
-  approved_at?: string | null;
-  paid_at?: string | null;
   notes?: string | null;
-  attendance_deduction_amount?: number | string;
-  manual_deduction_amount?: number | string;
-  late_penalty_amount?: number | string;
-  due_settlement_amount?: number | string;
-  employee_due_balance?: number | string;
-  settled_due_amount?: number | string;
-  remaining_due_settlement_amount?: number | string;
-  remaining_due_balance_after_settlement?: number | string;
   calculation_data_json?: PayrollCalculationData;
   needs_review_reason?: string | null;
 }
@@ -411,11 +387,8 @@ export interface PayrollPeriod {
   end_date: string;
   status: string;
   generated_at: string;
-  reviewed_at?: string | null;
-  approved_at?: string | null;
-  approved_by?: number | null;
-  paid_at?: string | null;
   locked_at?: string | null;
+  locked_by?: number | null;
   payrolls: EmployeePayroll[];
 }
 
@@ -423,16 +396,13 @@ export interface PayrollEmployeeBalance {
   employee_id: number;
   employee_name: string;
   total_amount: number | string;
-  paid_amount: number | string;
-  balance_amount: number | string;
   payroll_count: number;
+  ledger_balance: number | string;
 }
 
 export interface PayrollBalanceReport {
   period_id?: number | null;
   total_amount: number | string;
-  paid_amount: number | string;
-  balance_amount: number | string;
   company_owes_employees: number | string;
   employees_owe_company: number | string;
   employees: PayrollEmployeeBalance[];
@@ -441,8 +411,7 @@ export interface PayrollBalanceReport {
 export interface PayrollEmployeeHistorySummary {
   net_salary_total: number | string;
   payable_total: number | string;
-  paid_amount_total: number | string;
-  remaining_amount_total: number | string;
+  ledger_total: number | string;
   payroll_count: number;
 }
 
@@ -494,31 +463,64 @@ export interface PayrollHistory {
   created_by?: number | null;
 }
 
-export interface PayrollAdjustmentPayload {
-  employee_payroll_id: number;
-  payroll_period_id: number;
+export interface LedgerTransactionPayload {
   employee_id: number;
-  adjustment_type: string;
+  type: "payment" | "bonus" | "deduction";
+  transaction_date: string;
   amount: number;
-  reason: string;
+  description?: string | null;
 }
 
-export interface PayrollAdjustment {
+export interface LedgerTransaction {
   id: number;
-  employee_payroll_id: number;
-  payroll_period_id: number;
   employee_id: number;
-  adjustment_type: string;
+  type: "payment" | "bonus" | "deduction";
+  transaction_date: string;
   amount: number | string;
-  reason: string;
+  description?: string | null;
+  status?: string | null;
   created_by?: number | null;
+  updated_by?: number | null;
   created_at: string;
+  updated_at: string;
 }
 
-export interface PayrollAdjustmentUpdatePayload {
-  adjustment_type?: string;
+export interface LedgerTransactionUpdatePayload {
+  type?: "payment" | "bonus" | "deduction";
+  transaction_date?: string;
   amount?: number;
-  reason?: string;
+  description?: string | null;
+}
+
+export interface EmployeeFinancialTotal {
+  employee_id: number;
+  total_balance: number | string;
+  recalculated_at: string;
+}
+
+export interface EmployeeLedgerRow {
+  id: string;
+  source_id: number;
+  employee_id: number;
+  type: "period" | "payment" | "bonus" | "deduction";
+  date: string;
+  status?: string | null;
+  description?: string | null;
+  balance: number | string;
+  running_total: number | string;
+  period_id?: number | null;
+  details?: Record<string, unknown>;
+}
+
+export interface EmployeeLedgerResponse {
+  employee_id: number;
+  employee_name: string;
+  total: EmployeeFinancialTotal;
+  page: number;
+  page_size: number;
+  total_records: number;
+  total_pages: number;
+  items: EmployeeLedgerRow[];
 }
 
 export interface UserNotification {

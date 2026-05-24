@@ -328,13 +328,9 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
     toNumber(payrollReportQuery.data?.total_amount) ||
     currentPayrollPeriod?.payrolls?.reduce((sum, row) => sum + toNumber(row.total_amount), 0) ||
     0;
-  const payrollPaid =
-    toNumber(payrollReportQuery.data?.paid_amount) ||
-    currentPayrollPeriod?.payrolls?.reduce((sum, row) => sum + toNumber(row.paid_amount), 0) ||
-    0;
   const activeUsers = users.filter((user) => user.is_active).length;
   const payrollRows = currentPayrollPeriod?.payrolls || [];
-  const finalizedPayrollRows = payrollRows.filter((row) => ["approved", "paid", "locked"].includes(row.status)).length;
+  const finalizedPayrollRows = currentPayrollPeriod?.status === "locked" ? payrollRows.length : 0;
   const payrollReadinessPercent = toPercent(finalizedPayrollRows, payrollRows.length);
   const attendanceIssueCount =
     (stats?.needs_review_days || 0) +
@@ -502,7 +498,7 @@ export default function Dashboard({ role }: { role: "admin" | "hr" }) {
             <DashboardStatCard
               label={t("dashboard.currentPayroll")}
               value={formatCurrency(payrollTotal)}
-              description={t("dashboard.currentPayrollDescription", { paid: formatCurrency(payrollPaid) })}
+              description={currentPayrollPeriod?.status ? formatLabel(currentPayrollPeriod.status) : t("dashboard.currentPayrollDescription", { paid: formatCurrency(0) })}
               icon={ReceiptText}
               tone="info"
               isLoading={payrollPeriodsQuery.isLoading || currentPayrollPeriodQuery.isLoading || payrollReportQuery.isLoading}
