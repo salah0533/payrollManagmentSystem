@@ -58,7 +58,7 @@ export default function Payments({ scope = "manage" }: PaymentsProps) {
     () => (periodsQuery.data || []).find((period) => period.id === selectedPeriodId) || (periodsQuery.data || [])[0],
     [periodsQuery.data, selectedPeriodId],
   );
-  const periodPageSize = 8;
+  const periodPageSize = 5;
   const periodRows = periodsQuery.data || [];
   const periodTotalPages = Math.max(1, Math.ceil(periodRows.length / periodPageSize));
   const visiblePeriods = periodRows.slice((periodPage - 1) * periodPageSize, periodPage * periodPageSize);
