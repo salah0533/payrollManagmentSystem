@@ -117,7 +117,7 @@ export function canUnapprovePayroll(payroll?: Pick<EmployeePayroll, "status" | "
 }
 
 export function canReopenLockedPayroll(payroll?: Pick<EmployeePayroll, "status" | "paid_amount"> | null) {
-  return Boolean(payroll && payroll.status === "locked" && Number(payroll.paid_amount || 0) > 0);
+  return Boolean(payroll && ["locked", "paid"].includes(payroll.status) && Number(payroll.paid_amount || 0) > 0);
 }
 
 export function canRecordPayrollPayment(payroll?: EmployeePayroll | null, discrepancies: PayrollDiscrepancy[] = []) {

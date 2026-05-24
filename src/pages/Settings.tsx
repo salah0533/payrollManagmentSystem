@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarDays } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { payrollCycles, workWeekOptions } from "@/components/layout/navigation";
+import { workWeekOptions } from "@/components/layout/navigation";
 import { currencyOptions, isAllowedCurrency } from "@/lib/currencies";
 import { getErrorMessage } from "@/lib/errors";
 import { formatCurrency, setDefaultCurrency } from "@/lib/format";
@@ -40,6 +43,24 @@ function getBreakMinutesFromWindow(breakStartTime?: string | null, breakEndTime?
   const startTotal = startHours * 60 + startMinutes;
   const endTotal = endHours * 60 + endMinutes;
   return Math.max(0, endTotal - startTotal);
+}
+
+const CARRYOVER_EXPIRY_YEAR = 2024;
+
+function getCarryoverExpiryDate(month?: number | null, day?: number | null) {
+  if (!month || !day) {
+    return undefined;
+  }
+
+  const date = new Date(CARRYOVER_EXPIRY_YEAR, month - 1, day);
+  if (date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return undefined;
+  }
+  return date;
+}
+
+function formatCarryoverExpiryDate(date?: Date) {
+  return date?.toLocaleDateString(undefined, { month: "long", day: "numeric" }) ?? "";
 }
 
 type WorkScheduleFormState = {
@@ -149,7 +170,7 @@ export default function Settings() {
     if (payrollPolicyQuery.data) {
       setPayrollPolicy({
         name: payrollPolicyQuery.data.name,
-        payroll_cycle: payrollPolicyQuery.data.payroll_cycle,
+        payroll_cycle: "monthly",
         minimum_overtime_minutes: payrollPolicyQuery.data.minimum_overtime_minutes,
         minimum_auto_pay_minutes: payrollPolicyQuery.data.minimum_auto_pay_minutes,
         allowed_late_minutes: payrollPolicyQuery.data.allowed_late_minutes,
@@ -159,7 +180,7 @@ export default function Settings() {
         overtime_enabled: payrollPolicyQuery.data.overtime_enabled,
         monthly_payroll_calculation_mode: payrollPolicyQuery.data.monthly_payroll_calculation_mode,
         auto_recalculate_draft_payroll: payrollPolicyQuery.data.auto_recalculate_draft_payroll,
-        lock_payroll_after_payment: payrollPolicyQuery.data.lock_payroll_after_payment,
+        lock_payroll_after_payment: true,
         allow_vacation_carryover: payrollPolicyQuery.data.allow_vacation_carryover,
         max_vacation_carryover_days: payrollPolicyQuery.data.max_vacation_carryover_days ?? null,
         carryover_expiry_month: payrollPolicyQuery.data.carryover_expiry_month ?? null,
@@ -239,6 +260,10 @@ export default function Settings() {
     workSchedule.break_start_time,
     workSchedule.break_end_time,
     workSchedule.break_minutes,
+  );
+  const carryoverExpiryDate = getCarryoverExpiryDate(
+    payrollPolicy.carryover_expiry_month,
+    payrollPolicy.carryover_expiry_day,
   );
   const schedules = workSchedulesQuery.data || [];
   const scheduleSelectValue = isCreatingSchedule
@@ -414,27 +439,14 @@ export default function Settings() {
         <Card className="filter-card">
           <CardHeader>
             <CardTitle>{t("settings.payrollPolicy")}</CardTitle>
-            <CardDescription>{t("settings.payrollPolicyDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="policyName">{t("settings.policyName")}</Label>
-                <Input id="policyName" value={payrollPolicy.name} onChange={(event) => setPayrollPolicy((value) => ({ ...value, name: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="policyCycle">{t("settings.payrollCycle")}</Label>
-                <Input
-                  id="policyCycle"
-                  value={payrollPolicy.payroll_cycle}
-                  onChange={(event) => setPayrollPolicy((value) => ({ ...value, payroll_cycle: event.target.value }))}
-                  list="payroll-cycles"
-                />
-                <datalist id="payroll-cycles">
-                  {payrollCycles.map((cycle) => (
-                    <option key={cycle} value={cycle} />
-                  ))}
-                </datalist>
+                <Label>{t("settings.payrollCycle")}</Label>
+                <div className="flex h-10 items-center rounded-md border border-input bg-muted px-3 text-sm font-medium text-foreground">
+                  Monthly
+                </div>
               </div>
             </div>
 
@@ -515,7 +527,6 @@ export default function Settings() {
                 ["paid_vacation_counts_for_daily", t("settings.toggles.paidVacationCountsForDaily")],
                 ["overtime_enabled", t("settings.toggles.overtimeEnabled")],
                 ["auto_recalculate_draft_payroll", t("settings.toggles.autoRecalculateDraftPayroll")],
-                ["lock_payroll_after_payment", t("settings.toggles.lockPayrollAfterPayment")],
                 ["allow_vacation_carryover", t("settings.toggles.allowVacationCarryover")],
                 ["reserve_vacation_days_on_pending", t("settings.toggles.reserveVacationDaysOnPending")],
               ].map(([field, label]) => (
@@ -547,39 +558,55 @@ export default function Settings() {
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="carryoverExpiryMonth">{t("settings.carryoverExpiryMonth")}</Label>
-                  <Input
-                    id="carryoverExpiryMonth"
-                    type="number"
-                    min={1}
-                    max={12}
-                    disabled={!payrollPolicy.allow_vacation_carryover}
-                    value={payrollPolicy.carryover_expiry_month ?? ""}
-                    onChange={(event) =>
-                      setPayrollPolicy((value) => ({
-                        ...value,
-                        carryover_expiry_month: event.target.value === "" ? null : Number(event.target.value),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="carryoverExpiryDay">{t("settings.carryoverExpiryDay")}</Label>
-                  <Input
-                    id="carryoverExpiryDay"
-                    type="number"
-                    min={1}
-                    max={31}
-                    disabled={!payrollPolicy.allow_vacation_carryover}
-                    value={payrollPolicy.carryover_expiry_day ?? ""}
-                    onChange={(event) =>
-                      setPayrollPolicy((value) => ({
-                        ...value,
-                        carryover_expiry_day: event.target.value === "" ? null : Number(event.target.value),
-                      }))
-                    }
-                  />
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>{t("settings.carryoverExpiryDate")}</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!payrollPolicy.allow_vacation_carryover}
+                          className="w-full justify-start text-left font-normal sm:w-[240px]"
+                        >
+                          <CalendarDays className="mr-2 h-4 w-4" />
+                          {carryoverExpiryDate ? formatCarryoverExpiryDate(carryoverExpiryDate) : t("settings.selectCarryoverExpiryDate")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={carryoverExpiryDate}
+                          defaultMonth={carryoverExpiryDate ?? new Date(CARRYOVER_EXPIRY_YEAR, 0, 1)}
+                          onSelect={(selectedDate) => {
+                            if (!selectedDate) {
+                              return;
+                            }
+                            setPayrollPolicy((value) => ({
+                              ...value,
+                              carryover_expiry_month: selectedDate.getMonth() + 1,
+                              carryover_expiry_day: selectedDate.getDate(),
+                            }));
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!payrollPolicy.allow_vacation_carryover || !carryoverExpiryDate}
+                      onClick={() =>
+                        setPayrollPolicy((value) => ({
+                          ...value,
+                          carryover_expiry_month: null,
+                          carryover_expiry_day: null,
+                        }))
+                      }
+                    >
+                      {t("common.clear")}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
