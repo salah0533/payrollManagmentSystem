@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatLabel } from "@/lib/format";
 import { useAuth } from "@/providers/AuthProvider";
@@ -69,6 +70,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedBalanceEmployeeId, setSelectedBalanceEmployeeId] = useState("");
   const [expandedHolidayGroups, setExpandedHolidayGroups] = useState<string[]>([]);
+  const [expandedVacationIds, setExpandedVacationIds] = useState<number[]>([]);
   const [requestOpen, setRequestOpen] = useState(false);
   const [editingVacationId, setEditingVacationId] = useState<number | null>(null);
   const [actionState, setActionState] = useState<{ vacationId: number | null; statusId: number | null; label: "approve" | "reject" | "cancel" | "" }>({
@@ -84,6 +86,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     vacation_type: "",
     vacation_status: "",
     is_paid: true,
+    reason: "",
   });
   const resetForm = () => {
     setEditingVacationId(null);
@@ -95,6 +98,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       vacation_type: "",
       vacation_status: "",
       is_paid: true,
+      reason: "",
     });
   };
 
@@ -287,6 +291,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               vacation_type: Number(form.vacation_type),
               vacation_status: Number(approvedStatusId || 0),
               is_paid: true,
+              reason: form.reason.trim() || undefined,
             })
           : vacationApi.create({
               employee_id: Number(form.employee_id),
@@ -295,12 +300,14 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
               vacation_type: Number(form.vacation_type),
               vacation_status: Number(form.vacation_status || pendingStatusId || 0),
               is_paid: normalizedIsPaid,
+              reason: form.reason.trim() || undefined,
             })
         : vacationApi.requestSelf({
             start_date: form.start_date,
             end_date: form.end_date,
             vacation_type: Number(form.vacation_type),
             is_paid: normalizedIsPaid,
+            reason: form.reason.trim() || undefined,
           }),
     onSuccess: async () => {
       toast({
@@ -357,6 +364,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
       vacation_type: String(vacation.vacation_type),
       vacation_status: String(vacation.vacation_status),
       is_paid: vacation.is_paid,
+      reason: vacation.reason || "",
     });
     setRequestOpen(true);
   };
@@ -365,6 +373,23 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
     setExpandedHolidayGroups((current) =>
       current.includes(groupKey) ? current.filter((key) => key !== groupKey) : [...current, groupKey],
     );
+  };
+
+  const toggleVacationDetails = (vacationId: number) => {
+    setExpandedVacationIds((current) =>
+      current.includes(vacationId) ? current.filter((id) => id !== vacationId) : [...current, vacationId],
+    );
+  };
+
+  const truncateReason = (reason?: string | null) => {
+    const normalized = reason?.trim();
+    if (!normalized) {
+      return t("common.notAvailable");
+    }
+    if (normalized.length <= 36) {
+      return normalized;
+    }
+    return `${normalized.slice(0, 33).trimEnd()}...`;
   };
 
   const renderManageActions = (vacation: Vacation) => (
@@ -576,6 +601,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                                     <TableHeader>
                                       <TableRow>
                                         <TableHead>{t("common.employee")}</TableHead>
+                                        <TableHead>{t("vacationsPage.reason")}</TableHead>
                                         <TableHead>{t("vacationsPage.paid")}</TableHead>
                                         <TableHead>{t("common.status")}</TableHead>
                                         <TableHead className="text-right">{t("common.actions")}</TableHead>
@@ -585,6 +611,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                                       {group.vacations.map((vacation) => (
                                         <TableRow key={vacation.id}>
                                           <TableCell>{employeeMap[vacation.employee_id] || t("labels.employeeId", { id: vacation.employee_id })}</TableCell>
+                                          <TableCell className="max-w-xs whitespace-normal break-words text-sm text-muted-foreground">{vacation.reason || t("common.notAvailable")}</TableCell>
                                           <TableCell>{vacation.is_paid ? t("common.yes") : t("common.no")}</TableCell>
                                           <TableCell>
                                             <StatusBadge status={vacationStatusMap[Number(vacation.vacation_status)] || String(vacation.vacation_status)} />
@@ -634,25 +661,62 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                   <TableHead>{t("vacationsPage.days")}</TableHead>
                   <TableHead>{t("common.type")}</TableHead>
                   <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("vacationsPage.reason")}</TableHead>
                   <TableHead>{t("vacationsPage.paid")}</TableHead>
                   {scope === "manage" ? <TableHead className="text-right">{t("common.actions")}</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {regularVacations.map((vacation) => (
-                  <TableRow key={vacation.id}>
-                    {scope === "manage" ? <TableCell>{employeeMap[vacation.employee_id] || t("labels.employeeId", { id: vacation.employee_id })}</TableCell> : null}
-                    <TableCell>{formatDate(vacation.start_date)}</TableCell>
-                    <TableCell>{formatDate(vacation.end_date)}</TableCell>
-                    <TableCell>{daysBetween(vacation.start_date, vacation.end_date)}</TableCell>
-                    <TableCell>{formatLabel(vacationTypeMap[Number(vacation.vacation_type)] || String(vacation.vacation_type))}</TableCell>
-                    <TableCell><StatusBadge status={vacationStatusMap[Number(vacation.vacation_status)] || String(vacation.vacation_status)} /></TableCell>
-                    <TableCell>{vacation.is_paid ? t("common.yes") : t("common.no")}</TableCell>
-                    {scope === "manage" ? (
-                      <TableCell className="text-right">{renderManageActions(vacation)}</TableCell>
-                    ) : null}
-                  </TableRow>
-                ))}
+                {regularVacations.map((vacation) => {
+                  const isExpanded = expandedVacationIds.includes(vacation.id);
+                  return (
+                    <Fragment key={vacation.id}>
+                      <TableRow
+                        className={scope === "manage" ? "cursor-pointer" : undefined}
+                        onClick={scope === "manage" ? () => toggleVacationDetails(vacation.id) : undefined}
+                      >
+                        {scope === "manage" ? <TableCell>{employeeMap[vacation.employee_id] || t("labels.employeeId", { id: vacation.employee_id })}</TableCell> : null}
+                        <TableCell>{formatDate(vacation.start_date)}</TableCell>
+                        <TableCell>{formatDate(vacation.end_date)}</TableCell>
+                        <TableCell>{daysBetween(vacation.start_date, vacation.end_date)}</TableCell>
+                        <TableCell>{formatLabel(vacationTypeMap[Number(vacation.vacation_type)] || String(vacation.vacation_type))}</TableCell>
+                        <TableCell><StatusBadge status={vacationStatusMap[Number(vacation.vacation_status)] || String(vacation.vacation_status)} /></TableCell>
+                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">{truncateReason(vacation.reason)}</TableCell>
+                        <TableCell>{vacation.is_paid ? t("common.yes") : t("common.no")}</TableCell>
+                        {scope === "manage" ? (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              <span className="text-muted-foreground">
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </span>
+                              {renderManageActions(vacation)}
+                            </div>
+                          </TableCell>
+                        ) : null}
+                      </TableRow>
+                      {scope === "manage" && isExpanded ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="bg-muted/20">
+                            <div className="space-y-3 p-3">
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">{t("vacationsPage.reason")}</p>
+                                  <p className="mt-1 whitespace-normal break-words text-sm">
+                                    {vacation.reason || t("common.notAvailable")}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground">{t("vacationsPage.days")}</p>
+                                  <p className="mt-1 text-sm">{daysBetween(vacation.start_date, vacation.end_date)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
               </TableBody>
             </Table>
           ) : (
@@ -810,6 +874,16 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                 {t("vacationsPage.holidayVacationHint")}
               </div>
             ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="vacationReason">{t("vacationsPage.reasonOptional")}</Label>
+              <Textarea
+                id="vacationReason"
+                value={form.reason}
+                onChange={(event) => setForm((value) => ({ ...value, reason: event.target.value }))}
+                placeholder={t("vacationsPage.reasonPlaceholder")}
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRequestOpen(false)}>
@@ -826,6 +900,7 @@ export default function Vacations({ scope }: { scope: "manage" | "self" }) {
                       vacation_type: Number(form.vacation_type),
                       vacation_status: Number(form.vacation_status || pendingStatusId || 0),
                       is_paid: normalizedIsPaid,
+                      reason: form.reason.trim(),
                     })
                   : createVacation.mutate()
               }

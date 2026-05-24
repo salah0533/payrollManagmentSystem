@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, Eye, FileText } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas";
 import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/app/EmptyState";
@@ -16,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate, formatDateTime, formatLabel, toIsoDate } from "@/lib/format";
+import i18n, { getCurrentLanguage } from "@/lib/i18n";
 import { attendanceApi } from "@/services/attendanceApi";
 import { employeeApi } from "@/services/employeeApi";
 import { payrollApi } from "@/services/payrollApi";
@@ -114,6 +116,30 @@ function normalizeVacationStatus(value: string | number) {
   return normalized;
 }
 
+function translateLedgerType(value: string, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (value === "period") {
+    return t("payrollHistoryPage.period");
+  }
+  if (value === "payment") {
+    return t("payrollHistoryPage.recordPayment");
+  }
+  return formatLabel(value);
+}
+
+function translateReviewStatus(value: string, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (value === "changed") {
+    const language = getCurrentLanguage();
+    if (language === "ar") {
+      return "تم تعديله";
+    }
+    if (language === "fr") {
+      return "Modifié";
+    }
+    return "Changed";
+  }
+  return formatLabel(value);
+}
+
 async function fetchEmployeeLedgerRows(employeeId: number, startDate: string, endDate: string) {
   const firstPage = await payrollApi.getLedger(employeeId, {
     page: 1,
@@ -143,7 +169,7 @@ function summarizeAttendance(days: AttendanceDay[], employeesById: Map<number, s
       grouped.get(day.employee_id) ||
       {
         employee_id: day.employee_id,
-        employee_name: employeesById.get(day.employee_id) || `Employee #${day.employee_id}`,
+        employee_name: employeesById.get(day.employee_id) || i18n.t("labels.employeeId", { id: day.employee_id }),
         present: 0,
         late: 0,
         absent: 0,
@@ -230,6 +256,264 @@ function addReportHeader(
   doc.text(subtitle, 14, 45);
 }
 
+async function downloadArabicPreviewPdf(container: HTMLElement, filename: string) {
+  const canvas = await html2canvas(container, {
+    scale: 2,
+    backgroundColor: "#ffffff",
+    useCORS: true,
+  });
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imageWidth = pageWidth;
+  const imageHeight = (canvas.height * imageWidth) / canvas.width;
+  const imageData = canvas.toDataURL("image/png");
+
+  let remainingHeight = imageHeight;
+  let position = 0;
+  pdf.addImage(imageData, "PNG", 0, position, imageWidth, imageHeight);
+  remainingHeight -= pageHeight;
+
+  while (remainingHeight > 0) {
+    position = remainingHeight - imageHeight;
+    pdf.addPage();
+    pdf.addImage(imageData, "PNG", 0, position, imageWidth, imageHeight);
+    remainingHeight -= pageHeight;
+  }
+
+  pdf.save(filename);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildArabicExportHtml(
+  kind: ReportKind,
+  startDate: string,
+  endDate: string,
+  payrollRows: EmployeeLedgerRow[],
+  attendanceRows: AttendanceReportRow[],
+  vacationRows: VacationReportRow[],
+  companySummary: CompanyReportSummary | null,
+  employeeLabel: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+) {
+  const title =
+    kind === "payroll"
+      ? t("reportsPage.types.payroll")
+      : kind === "attendance"
+        ? t("reportsPage.types.attendance")
+        : kind === "vacation"
+          ? t("reportsPage.types.vacation")
+          : t("reportsPage.types.company");
+
+  const infoBlock = `
+    <div style="margin-bottom:16px;padding:16px;border:1px solid #d7e0dc;border-radius:12px;background:#f8fbfa;">
+      <div style="font-size:26px;font-weight:700;color:#103d3a;margin-bottom:8px;">${escapeHtml(title)}</div>
+      <div style="font-size:14px;color:#334155;line-height:1.7;">${escapeHtml(t("reportsPage.pdf.interval", { start: formatDate(startDate), end: formatDate(endDate) }))}</div>
+      <div style="font-size:14px;color:#334155;line-height:1.7;">${escapeHtml(t("reportsPage.pdf.generated", { value: formatDateTime(new Date().toISOString()) }))}</div>
+      <div style="font-size:14px;color:#334155;line-height:1.7;">${escapeHtml(kind === "company" ? t("reportsPage.companyScope") : employeeLabel)}</div>
+    </div>
+  `;
+
+  const renderTable = (headers: string[], rows: string[][]) => `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr>
+          ${headers
+            .map(
+              (header) =>
+                `<th style="border:1px solid #d7e0dc;background:#103d3a;color:#ffffff;padding:10px;text-align:right;">${escapeHtml(header)}</th>`,
+            )
+            .join("")}
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (row, index) => `
+              <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fbfa"};">
+                ${row
+                  .map(
+                    (cell) =>
+                      `<td style="border:1px solid #d7e0dc;padding:10px;vertical-align:top;text-align:right;line-height:1.6;">${escapeHtml(cell)}</td>`,
+                  )
+                  .join("")}
+              </tr>
+            `,
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+
+  if (kind === "payroll") {
+    return `
+      ${infoBlock}
+      ${renderTable(
+        [
+          t("reportsPage.columns.employee"),
+          t("reportsPage.columns.type"),
+          t("reportsPage.columns.date"),
+          t("reportsPage.columns.status"),
+          t("reportsPage.columns.description"),
+          t("reportsPage.columns.balance"),
+          t("reportsPage.columns.runningTotal"),
+        ],
+        payrollRows.map((row) => [
+          String((row.details as Record<string, unknown> | undefined)?.employee_name || t("labels.employeeId", { id: row.employee_id })),
+          translateLedgerType(row.type, t),
+          formatDateTime(row.date),
+          row.status ? translateReviewStatus(row.status, t) : "-",
+          row.description || "-",
+          formatCurrency(row.balance),
+          formatCurrency(row.running_total),
+        ]),
+      )}
+    `;
+  }
+
+  if (kind === "attendance") {
+    return `
+      ${infoBlock}
+      ${renderTable(
+        [
+          t("reportsPage.columns.employee"),
+          t("reportsPage.columns.present"),
+          t("reportsPage.columns.late"),
+          t("reportsPage.columns.absent"),
+          t("reportsPage.columns.vacation"),
+          t("reportsPage.columns.sick"),
+          t("reportsPage.columns.weeklyOff"),
+          t("reportsPage.columns.holiday"),
+          t("reportsPage.columns.incomplete"),
+          t("reportsPage.columns.total"),
+        ],
+        attendanceRows.map((row) => [
+          row.employee_name,
+          String(row.present),
+          String(row.late),
+          String(row.absent),
+          String(row.vacation),
+          String(row.sick_leave),
+          String(row.weekly_off),
+          String(row.holiday),
+          String(row.incomplete),
+          String(row.total_days),
+        ]),
+      )}
+    `;
+  }
+
+  if (kind === "vacation") {
+    return `
+      ${infoBlock}
+      ${renderTable(
+        [
+          t("reportsPage.columns.employee"),
+          t("reportsPage.columns.start"),
+          t("reportsPage.columns.end"),
+          t("reportsPage.columns.type"),
+          t("reportsPage.columns.status"),
+          t("reportsPage.columns.paid"),
+        ],
+        vacationRows.map((row) => [
+          row.employee_name,
+          formatDate(row.start_date),
+          formatDate(row.end_date),
+          formatLabel(String(row.vacation_type)),
+          formatLabel(normalizeVacationStatus(row.vacation_status)),
+          row.is_paid ? t("common.yes") : t("common.no"),
+        ]),
+      )}
+    `;
+  }
+
+  const companyRows = companySummary
+    ? [
+        [t("reportsPage.companyMetrics.employeeCount"), String(companySummary.employee_count)],
+        [t("reportsPage.companyMetrics.payrollRows"), String(companySummary.payroll_rows)],
+        [t("reportsPage.companyMetrics.payrollNetMovement"), formatCurrency(companySummary.payroll_net_movement)],
+        [t("reportsPage.companyMetrics.periodRows"), String(companySummary.period_rows)],
+        [t("reportsPage.companyMetrics.paymentRows"), String(companySummary.payment_rows)],
+        [t("reportsPage.companyMetrics.bonusRows"), String(companySummary.bonus_rows)],
+        [t("reportsPage.companyMetrics.deductionRows"), String(companySummary.deduction_rows)],
+        [t("reportsPage.companyMetrics.attendanceDays"), String(companySummary.attendance_days)],
+        [t("reportsPage.companyMetrics.presentDays"), String(companySummary.present_days)],
+        [t("reportsPage.companyMetrics.lateDays"), String(companySummary.late_days)],
+        [t("reportsPage.companyMetrics.absentDays"), String(companySummary.absent_days)],
+        [t("reportsPage.companyMetrics.vacationDays"), String(companySummary.vacation_days)],
+        [t("reportsPage.companyMetrics.sickDays"), String(companySummary.sick_days)],
+        [t("reportsPage.companyMetrics.incompleteDays"), String(companySummary.incomplete_days)],
+        [t("reportsPage.companyMetrics.paidTime"), formatMinutesTotal(companySummary.paid_minutes)],
+        [t("reportsPage.companyMetrics.unpaidTime"), formatMinutesTotal(companySummary.unpaid_minutes)],
+        [t("reportsPage.companyMetrics.overtime"), formatMinutesTotal(companySummary.overtime_minutes)],
+        [t("reportsPage.companyMetrics.vacationRequests"), String(companySummary.vacation_requests)],
+        [t("reportsPage.companyMetrics.approvedVacations"), String(companySummary.approved_vacations)],
+        [t("reportsPage.companyMetrics.pendingVacations"), String(companySummary.pending_vacations)],
+        [t("reportsPage.companyMetrics.rejectedVacations"), String(companySummary.rejected_vacations)],
+        [t("reportsPage.companyMetrics.cancelledVacations"), String(companySummary.cancelled_vacations)],
+      ]
+    : [];
+
+  return `
+    ${infoBlock}
+    ${renderTable([t("reportsPage.columns.metric"), t("reportsPage.columns.value")], companyRows)}
+  `;
+}
+
+async function downloadArabicReportPdf(
+  kind: ReportKind,
+  startDate: string,
+  endDate: string,
+  payrollRows: EmployeeLedgerRow[],
+  attendanceRows: AttendanceReportRow[],
+  vacationRows: VacationReportRow[],
+  companySummary: CompanyReportSummary | null,
+  employeeLabel: string,
+  filename: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+) {
+  const container = document.createElement("div");
+  container.dir = "rtl";
+  container.lang = "ar";
+  container.style.position = "fixed";
+  container.style.left = "-10000px";
+  container.style.top = "0";
+  container.style.width = "1120px";
+  container.style.padding = "24px";
+  container.style.background = "#ffffff";
+  container.style.color = "#0f172a";
+  container.style.fontFamily = "Tahoma, Arial, sans-serif";
+  container.innerHTML = buildArabicExportHtml(
+    kind,
+    startDate,
+    endDate,
+    payrollRows,
+    attendanceRows,
+    vacationRows,
+    companySummary,
+    employeeLabel,
+    t,
+  );
+  document.body.appendChild(container);
+
+  try {
+    if ("fonts" in document && "ready" in document.fonts) {
+      await document.fonts.ready;
+    }
+    await downloadArabicPreviewPdf(container, filename);
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
 function downloadPdf(
   kind: ReportKind,
   startDate: string,
@@ -276,10 +560,10 @@ function downloadPdf(
         t("reportsPage.columns.runningTotal"),
       ]],
       body: payrollRows.map((row) => [
-        String((row.details as Record<string, unknown> | undefined)?.employee_name || `Employee #${row.employee_id}`),
-        formatLabel(row.type),
+        String((row.details as Record<string, unknown> | undefined)?.employee_name || i18n.t("labels.employeeId", { id: row.employee_id })),
+        translateLedgerType(row.type, t),
         formatDateTime(row.date),
-        row.status || "-",
+        row.status ? translateReviewStatus(row.status, t) : "-",
         row.description || "-",
         formatCurrency(row.balance),
         formatCurrency(row.running_total),
@@ -346,7 +630,7 @@ function downloadPdf(
         formatDate(row.start_date),
         formatDate(row.end_date),
         formatLabel(String(row.vacation_type)),
-        formatLabel(String(row.vacation_status)),
+        formatLabel(normalizeVacationStatus(row.vacation_status)),
         row.is_paid ? t("common.yes") : t("common.no"),
       ]),
       styles: { fontSize: 8, cellPadding: 2.5 },
@@ -393,7 +677,7 @@ function downloadPdf(
     doc.setPage(page);
     doc.setFontSize(9);
     doc.setTextColor(110, 118, 125);
-    doc.text(`Page ${page} of ${pageCount}`, doc.internal.pageSize.getWidth() - 28, doc.internal.pageSize.getHeight() - 8);
+    doc.text(t("reportsPage.pdf.page", { page, count: pageCount }), doc.internal.pageSize.getWidth() - 40, doc.internal.pageSize.getHeight() - 8);
   }
 
   doc.save(`${t("reportsPage.filePrefix")}-${kind}-${startDate}-to-${endDate}.pdf`);
@@ -401,6 +685,7 @@ function downloadPdf(
 
 export default function Reports() {
   const { t } = useTranslation();
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const [kind, setKind] = useState<ReportKind>("payroll");
   const [startDate, setStartDate] = useState(defaultStartDate());
   const [endDate, setEndDate] = useState(defaultEndDate());
@@ -431,8 +716,8 @@ export default function Reports() {
 
   const employeeLabel =
     employeeFilter === "all"
-      ? "All employees"
-      : filteredEmployees[0]?.full_name || `Employee #${employeeFilter}`;
+      ? t("reportsPage.allEmployees")
+      : filteredEmployees[0]?.full_name || t("labels.employeeId", { id: employeeFilter });
 
   const generateReport = useMutation({
     mutationFn: async () => {
@@ -449,7 +734,7 @@ export default function Reports() {
             description: row.description || filteredEmployees[index]?.full_name,
             details: {
               ...(row.details || {}),
-              employee_name: filteredEmployees[index]?.full_name || `Employee #${row.employee_id}`,
+              employee_name: filteredEmployees[index]?.full_name || t("labels.employeeId", { id: row.employee_id }),
             },
           })),
         );
@@ -474,7 +759,7 @@ export default function Reports() {
         .filter((row: Vacation) => employeeFilter === "all" || row.employee_id === Number(employeeFilter))
         .map((row) => ({
           employee_id: row.employee_id,
-          employee_name: employeesById.get(row.employee_id) || `Employee #${row.employee_id}`,
+          employee_name: employeesById.get(row.employee_id) || t("labels.employeeId", { id: row.employee_id }),
           start_date: row.start_date,
           end_date: row.end_date,
           vacation_type: row.vacation_type,
@@ -502,7 +787,7 @@ export default function Reports() {
           description: row.description || filteredEmployees[index]?.full_name,
           details: {
             ...(row.details || {}),
-            employee_name: filteredEmployees[index]?.full_name || `Employee #${row.employee_id}`,
+            employee_name: filteredEmployees[index]?.full_name || t("labels.employeeId", { id: row.employee_id }),
           },
         })),
       );
@@ -576,7 +861,25 @@ export default function Reports() {
             <Button
               variant="outline"
               disabled={!activeRows.length}
-              onClick={() => downloadPdf(kind, startDate, endDate, payrollRows, attendanceRows, vacationRows, companySummary, employeeLabel, t)}
+              onClick={async () => {
+                const filename = `${t("reportsPage.filePrefix")}-${kind}-${startDate}-to-${endDate}.pdf`;
+                if (getCurrentLanguage() === "ar" && exportRef.current) {
+                  await downloadArabicReportPdf(
+                    kind,
+                    startDate,
+                    endDate,
+                    payrollRows,
+                    attendanceRows,
+                    vacationRows,
+                    companySummary,
+                    employeeLabel,
+                    filename,
+                    t,
+                  );
+                  return;
+                }
+                downloadPdf(kind, startDate, endDate, payrollRows, attendanceRows, vacationRows, companySummary, employeeLabel, t);
+              }}
             >
               <Download className="h-4 w-4" /> {t("reportsPage.downloadPdf")}
             </Button>
@@ -584,6 +887,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
+      <div ref={exportRef} className="space-y-6 rounded-lg bg-background">
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label={t("reportsPage.rows")} value={activeRows.length} icon={FileText} />
         <MetricCard label={t("reportsPage.from")} value={formatDate(startDate)} icon={FileText} />
@@ -618,10 +922,10 @@ export default function Reports() {
                   <TableBody>
                     {payrollRows.map((row) => (
                       <TableRow key={`${row.employee_id}-${row.id}`}>
-                        <TableCell>{String((row.details as Record<string, unknown> | undefined)?.employee_name || `Employee #${row.employee_id}`)}</TableCell>
-                        <TableCell>{formatLabel(row.type)}</TableCell>
+                        <TableCell>{String((row.details as Record<string, unknown> | undefined)?.employee_name || t("labels.employeeId", { id: row.employee_id }))}</TableCell>
+                        <TableCell>{translateLedgerType(row.type, t)}</TableCell>
                         <TableCell>{formatDateTime(row.date)}</TableCell>
-                        <TableCell>{row.status || "-"}</TableCell>
+                        <TableCell>{row.status ? translateReviewStatus(row.status, t) : "-"}</TableCell>
                         <TableCell>{row.description || "-"}</TableCell>
                         <TableCell>{formatCurrency(row.balance)}</TableCell>
                         <TableCell>{formatCurrency(row.running_total)}</TableCell>
@@ -703,7 +1007,7 @@ export default function Reports() {
                         <TableCell>{formatDate(row.start_date)}</TableCell>
                         <TableCell>{formatDate(row.end_date)}</TableCell>
                         <TableCell>{formatLabel(String(row.vacation_type))}</TableCell>
-                        <TableCell>{formatLabel(String(row.vacation_status))}</TableCell>
+                        <TableCell>{formatLabel(normalizeVacationStatus(row.vacation_status))}</TableCell>
                         <TableCell>{row.is_paid ? t("common.yes") : t("common.no")}</TableCell>
                       </TableRow>
                     ))}
@@ -738,6 +1042,7 @@ export default function Reports() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

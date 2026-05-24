@@ -259,6 +259,7 @@ export interface SelfVacationRequestPayload {
   end_date: string;
   vacation_type: number;
   is_paid: boolean;
+  reason?: string | null;
 }
 
 export interface VacationPayload extends SelfVacationRequestPayload {
@@ -279,6 +280,7 @@ export interface VacationUpdatePayload {
   vacation_type?: number;
   vacation_status?: number;
   is_paid?: boolean;
+  reason?: string | null;
 }
 
 export interface AnnualVacationEntitlement {
