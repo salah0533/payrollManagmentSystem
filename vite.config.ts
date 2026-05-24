@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
       hmr: {
         overlay: false,
       },
+      
     },
     plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {
