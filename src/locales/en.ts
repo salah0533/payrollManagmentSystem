@@ -84,6 +84,7 @@ const en = {
     attendance: "Attendance",
     payroll: "Payroll",
     paymentHistory: "Pyment Hist",
+    reports: "Reports",
     vacations: "Vacations",
     settings: "Settings",
     notifications: "Notifications",

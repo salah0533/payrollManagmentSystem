@@ -39,6 +39,7 @@ export default function Payments({ scope = "manage" }: PaymentsProps) {
   const queryClient = useQueryClient();
   const [employeeId, setEmployeeId] = useState("");
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+  const [periodPage, setPeriodPage] = useState(1);
   const [ledgerPage, setLedgerPage] = useState(1);
   const [form, setForm] = useState(emptyForm);
 
@@ -57,6 +58,10 @@ export default function Payments({ scope = "manage" }: PaymentsProps) {
     () => (periodsQuery.data || []).find((period) => period.id === selectedPeriodId) || (periodsQuery.data || [])[0],
     [periodsQuery.data, selectedPeriodId],
   );
+  const periodPageSize = 8;
+  const periodRows = periodsQuery.data || [];
+  const periodTotalPages = Math.max(1, Math.ceil(periodRows.length / periodPageSize));
+  const visiblePeriods = periodRows.slice((periodPage - 1) * periodPageSize, periodPage * periodPageSize);
 
   const selectedEmployeeId = scope === "self" ? undefined : Number(employeeId || 0);
   const ledgerQuery = useQuery({
@@ -169,7 +174,7 @@ export default function Payments({ scope = "manage" }: PaymentsProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(periodsQuery.data || []).map((period) => (
+                  {visiblePeriods.map((period) => (
                     <TableRow key={period.id} className={selectedPeriod?.id === period.id ? "bg-muted/30" : ""}>
                       <TableCell>
                         <button className="text-left font-medium" onClick={() => { setSelectedPeriodId(period.id); setLedgerPage(1); }}>
@@ -198,6 +203,17 @@ export default function Payments({ scope = "manage" }: PaymentsProps) {
             ) : (
               <EmptyState title="No payroll periods" description="Attendance changes will create monthly periods automatically." />
             )}
+            {periodRows.length > periodPageSize ? (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Page {periodPage} of {periodTotalPages} ({periodRows.length} periods)
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" disabled={periodPage <= 1} onClick={() => setPeriodPage((page) => Math.max(1, page - 1))}>Previous</Button>
+                  <Button size="sm" variant="outline" disabled={periodPage >= periodTotalPages} onClick={() => setPeriodPage((page) => page + 1)}>Next</Button>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

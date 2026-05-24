@@ -83,6 +83,7 @@ const ar = {
     attendance: "الحضور",
     payroll: "الرواتب",
     paymentHistory: "سجل الرواتب",
+    reports: "التقارير",
     vacations: "الإجازات",
     settings: "الإعدادات",
     notifications: "الإشعارات",

@@ -61,12 +61,13 @@ export const payrollApi = {
       method: "POST",
     });
   },
-  getLedger(employeeId: number, params: { page?: number; pageSize?: number; startDate?: string; endDate?: string } = {}) {
+  getLedger(employeeId: number, params: { page?: number; pageSize?: number; startDate?: string; endDate?: string; sort?: "asc" | "desc" } = {}) {
     const query = buildQueryString({
       page: params.page,
       page_size: params.pageSize,
       start_date: params.startDate,
       end_date: params.endDate,
+      sort: params.sort,
     });
     return apiRequest<EmployeeLedgerResponse>(`/payroll/ledger/${employeeId}${query}`);
   },

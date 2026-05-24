@@ -168,6 +168,11 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
 
   const firstEmployeeId = employeesQuery.data?.[0]?.id ? String(employeesQuery.data[0].id) : "";
   const selectedHistoryEmployeeId = historyEmployeeId || firstEmployeeId;
+  const selectedHistoryEmployee = employeeMap[Number(selectedHistoryEmployeeId)];
+  const isBeforeJoinDate = (employeeId: number, isoDate: string) => {
+    const employee = employeeMap[employeeId];
+    return Boolean(employee?.hire_date && isoDate < employee.hire_date);
+  };
 
   const historyRange = useMemo(() => {
     const monthValue = historyMonth || format(new Date(), "yyyy-MM");
@@ -219,6 +224,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
     const normalizedSearch = search.trim().toLowerCase();
     return (employeesQuery.data || [])
       .filter((employee) => employee.is_active && !["inactive", "suspended"].includes(employee.status))
+      .filter((employee) => !employee.hire_date || dateFilter >= employee.hire_date)
       .filter((employee) => {
         if (!normalizedSearch) return true;
         const haystack = [employee.full_name, employee.position, employee.email].filter(Boolean).join(" ").toLowerCase();
@@ -226,7 +232,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
       })
       .filter((employee) => !dailyRowsByEmployee[employee.id])
       .sort((left, right) => left.full_name.localeCompare(right.full_name));
-  }, [dailyRowsByEmployee, employeesQuery.data, search]);
+  }, [dailyRowsByEmployee, employeesQuery.data, search, dateFilter]);
 
   const selectedRows = useMemo(() => {
     const selected = new Set(selectedRowKeys);
@@ -350,6 +356,14 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   const calendarBulkActionLabel = calendarBulkStatus === "delete" ? t("attendancePage.multiSelectDeleteLabel") : formatLabel(calendarBulkStatus);
 
   const openAttendanceEditor = (row: AttendanceDay | null, employeeId: number, workDate: string) => {
+    if (isBeforeJoinDate(employeeId, workDate)) {
+      toast({
+        title: t("attendancePage.correctionError"),
+        description: `Attendance is disabled before ${formatDate(employeeMap[employeeId]?.hire_date)}.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setEditingAttendance(row);
     setCorrectionMode("manual");
     setCorrectionForm({
@@ -634,7 +648,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
   };
 
   const toggleCalendarDateSelection = (workDate: string, locked: boolean) => {
-    if (!calendarBulkMode || locked) {
+    if (!calendarBulkMode || locked || isBeforeJoinDate(Number(selectedHistoryEmployeeId), workDate)) {
       return;
     }
 
@@ -1039,6 +1053,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                     const isoDate = toIsoDate(day);
                     const row = historyRowsByDate[isoDate];
                     const locked = isAttendanceLocked(row);
+                    const beforeJoinDate = isBeforeJoinDate(Number(selectedHistoryEmployeeId), isoDate);
                     const selected = selectedCalendarDateSet.has(isoDate);
                     const note = getCalendarDayNote(row);
 
@@ -1048,7 +1063,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                         type="button"
                         data-testid={`attendance-mobile-day-${isoDate}`}
                         data-selected={selected ? "true" : "false"}
-                        disabled={!selectedHistoryEmployeeId || locked || saveCalendarBulkCorrection.isPending}
+                        disabled={!selectedHistoryEmployeeId || locked || beforeJoinDate || saveCalendarBulkCorrection.isPending}
                         className={cn(
                           "w-full rounded-xl border bg-background p-4 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60",
                           calendarBulkMode && "cursor-pointer",
@@ -1064,6 +1079,9 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           <span className="text-sm font-semibold">{formatDate(isoDate)}</span>
                           {selected ? <Badge variant="outline">{t("attendancePage.multiSelectPicked")}</Badge> : null}
                         </div>
+                        {beforeJoinDate ? (
+                          <p className="mt-3 text-sm text-muted-foreground">Before join date {formatDate(selectedHistoryEmployee?.hire_date)}</p>
+                        ) : null}
                         {row ? (
                           <div className="mt-3 flex flex-wrap gap-1">
                             <StatusBadge status={row.status} className="text-[10px]" />
@@ -1093,6 +1111,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                       const isoDate = toIsoDate(day);
                       const row = historyRowsByDate[isoDate];
                       const locked = isAttendanceLocked(row);
+                      const beforeJoinDate = isBeforeJoinDate(Number(selectedHistoryEmployeeId), isoDate);
                       const selected = selectedCalendarDateSet.has(isoDate);
                       return (
                         <button
@@ -1100,7 +1119,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           type="button"
                           data-testid={`attendance-desktop-day-${isoDate}`}
                           data-selected={selected ? "true" : "false"}
-                          disabled={!selectedHistoryEmployeeId || locked || saveCalendarBulkCorrection.isPending}
+                          disabled={!selectedHistoryEmployeeId || locked || beforeJoinDate || saveCalendarBulkCorrection.isPending}
                           className={cn(
                             "min-h-28 rounded border bg-background p-2 text-left transition-colors hover:border-primary/60 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60",
                             calendarBulkMode && "cursor-pointer",
@@ -1117,7 +1136,9 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                             {selected ? <Badge variant="outline">{t("attendancePage.multiSelectPicked")}</Badge> : null}
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">{t("common.noRecord")}</span>}
+                            {beforeJoinDate ? (
+                              <span className="text-xs text-muted-foreground">Before join date</span>
+                            ) : row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">{t("common.noRecord")}</span>}
                             {row ? <StatusBadge status={getAttendanceReviewStatus(row)} className="text-[10px]" /> : null}
                           </div>
                           {row ? (

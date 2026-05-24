@@ -40,7 +40,7 @@ export default function PaymentHist() {
   const parsedEmployeeId = Number(employeeId);
   const ledgerQuery = useQuery({
     queryKey: ["payroll", "ledger", parsedEmployeeId, page],
-    queryFn: () => payrollApi.getLedger(parsedEmployeeId, { page, pageSize: 20 }),
+    queryFn: () => payrollApi.getLedger(parsedEmployeeId, { page, pageSize: 20, sort: "desc" }),
     enabled: Number.isFinite(parsedEmployeeId) && parsedEmployeeId > 0,
   });
 

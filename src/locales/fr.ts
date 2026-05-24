@@ -83,6 +83,7 @@ const fr = {
     attendance: "Présence",
     payroll: "Paie",
     paymentHistory: "Historique de paie",
+    reports: "Rapports",
     vacations: "Congés",
     settings: "Paramètres",
     notifications: "Notifications",
