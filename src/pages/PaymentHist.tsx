@@ -49,21 +49,37 @@ export default function PaymentHist() {
       locked ? payrollApi.unlockPeriod(periodId) : payrollApi.lockPeriod(periodId),
     onSuccess: async (_, variables) => {
       toast({
-        title: variables.locked ? "Period unlocked" : "Period locked",
-        description: variables.locked ? "Attendance can be edited again." : "Attendance days in this period are now locked.",
+        title: variables.locked ? t("paymentsPage.periodUnlocked") : t("paymentsPage.periodLocked"),
+        description:
+          variables.locked
+            ? t("paymentsPage.periodUnlockedDescription")
+            : t("paymentsPage.periodLockedDescription"),
       });
       await queryClient.invalidateQueries({ queryKey: ["payroll"] });
     },
-    onError: (error) => toast({ title: "Unable to update period", description: getErrorMessage(error), variant: "destructive" }),
+    onError: (error) =>
+      toast({
+        title: t("paymentsPage.updatePeriodError"),
+        description: getErrorMessage(error),
+        variant: "destructive",
+      }),
   });
 
   const recalculatePeriod = useMutation({
     mutationFn: (periodId: number) => payrollApi.recalculatePeriod(periodId),
     onSuccess: async () => {
-      toast({ title: "Payroll recalculated", description: "Attendance payroll was refreshed for this period." });
+      toast({
+        title: t("paymentsPage.payrollRecalculated"),
+        description: t("paymentsPage.payrollRecalculatedDescription"),
+      });
       await queryClient.invalidateQueries({ queryKey: ["payroll"] });
     },
-    onError: (error) => toast({ title: "Unable to recalculate", description: getErrorMessage(error), variant: "destructive" }),
+    onError: (error) =>
+      toast({
+        title: t("paymentsPage.recalculateError"),
+        description: getErrorMessage(error),
+        variant: "destructive",
+      }),
   });
 
   const selectedEmployee = useMemo(
@@ -75,7 +91,7 @@ export default function PaymentHist() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title={t("payrollHistoryPage.title")} description="Chronological employee ledger for periods, payments, bonuses, and deductions." />
+      <PageHeader title={t("payrollHistoryPage.title")} description={t("payrollHistoryPage.description")} />
 
       <Card>
         <CardHeader>
@@ -98,7 +114,7 @@ export default function PaymentHist() {
             </Select>
           </div>
           <MetricCard
-            label="Stored total"
+            label={t("paymentsPage.storedTotal")}
             value={formatCurrency(ledgerQuery.data?.total?.total_balance || 0)}
             icon={WalletCards}
             hint={selectedEmployee?.full_name || ""}
@@ -109,19 +125,19 @@ export default function PaymentHist() {
       <Card>
         <CardHeader>
           <CardTitle>{t("payrollHistoryPage.historyTitle")}</CardTitle>
-          <CardDescription>Rows are ordered by date; period rows use the first day of the month at 23:59:59.</CardDescription>
+          <CardDescription>{t("payrollHistoryPage.rowsDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           {rows.length ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Balance</TableHead>
-                  <TableHead>Running total</TableHead>
+                  <TableHead>{t("paymentsPage.columns.type")}</TableHead>
+                  <TableHead>{t("paymentsPage.columns.date")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("paymentsPage.columns.description")}</TableHead>
+                  <TableHead>{t("paymentsPage.columns.balance")}</TableHead>
+                  <TableHead>{t("paymentsPage.columns.runningTotal")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -144,8 +160,8 @@ export default function PaymentHist() {
                           </div>
                         </TableCell>
                         <TableCell>{formatDateTime(row.date)}</TableCell>
-                        <TableCell>{row.status ? <StatusBadge status={row.status} /> : "-"}</TableCell>
-                        <TableCell>{row.description || "-"}</TableCell>
+                        <TableCell>{row.status ? <StatusBadge status={row.status} /> : t("common.notAvailable")}</TableCell>
+                        <TableCell>{row.description || t("common.notAvailable")}</TableCell>
                         <TableCell>{formatCurrency(row.balance)}</TableCell>
                         <TableCell>{formatCurrency(row.running_total)}</TableCell>
                       </TableRow>
@@ -155,24 +171,24 @@ export default function PaymentHist() {
                             <div className="grid gap-4 rounded-md border bg-muted/20 p-4 md:grid-cols-[1fr_auto]">
                               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Gross salary</p>
+                                  <p className="text-xs text-muted-foreground">{t("payrollHistoryPage.grossSalary")}</p>
                                   <p className="font-medium">{formatCurrency(row.details?.gross_salary as string | number | undefined)}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Net salary</p>
+                                  <p className="text-xs text-muted-foreground">{t("payrollHistoryPage.netSalary")}</p>
                                   <p className="font-medium">{formatCurrency(row.details?.net_salary as string | number | undefined)}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Attendance deduction</p>
+                                  <p className="text-xs text-muted-foreground">{t("payrollHistoryPage.attendanceDeduction")}</p>
                                   <p className="font-medium">{formatCurrency(row.details?.attendance_deduction_amount as string | number | undefined)}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Calculated</p>
-                                  <p className="font-medium">{row.details?.calculated_at ? formatDateTime(String(row.details.calculated_at)) : "-"}</p>
+                                  <p className="text-xs text-muted-foreground">{t("payrollHistoryPage.calculated")}</p>
+                                  <p className="font-medium">{row.details?.calculated_at ? formatDateTime(String(row.details.calculated_at)) : t("common.notAvailable")}</p>
                                 </div>
                                 <div className="sm:col-span-2 lg:col-span-4">
-                                  <p className="text-xs text-muted-foreground">Issues</p>
-                                  <p className="font-medium">{String(row.details?.needs_review_reason || "No attendance issues recorded")}</p>
+                                  <p className="text-xs text-muted-foreground">{t("payrollHistoryPage.issues")}</p>
+                                  <p className="font-medium">{String(row.details?.needs_review_reason || t("payrollHistoryPage.noAttendanceIssues"))}</p>
                                 </div>
                               </div>
                               {periodId ? (
@@ -186,7 +202,7 @@ export default function PaymentHist() {
                                       recalculatePeriod.mutate(periodId);
                                     }}
                                   >
-                                    <RefreshCw className="mr-2 h-4 w-4" /> Recalculate
+                                    <RefreshCw className="mr-2 h-4 w-4" /> {t("paymentsPage.recalculate")}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -198,7 +214,7 @@ export default function PaymentHist() {
                                     }}
                                   >
                                     {locked ? <Unlock className="mr-2 h-4 w-4" /> : <Lock className="mr-2 h-4 w-4" />}
-                                    {locked ? "Unlock" : "Lock"}
+                                    {locked ? t("paymentsPage.unlock") : t("paymentsPage.lock")}
                                   </Button>
                                 </div>
                               ) : null}
@@ -220,11 +236,15 @@ export default function PaymentHist() {
           {ledgerQuery.data?.total_pages ? (
             <div className="mt-4 flex items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
-                Page {ledgerQuery.data.page} of {ledgerQuery.data.total_pages} ({ledgerQuery.data.total_records} rows)
+                {t("payrollHistoryPage.pagination", {
+                  page: ledgerQuery.data.page,
+                  total: ledgerQuery.data.total_pages,
+                  count: ledgerQuery.data.total_records,
+                })}
               </p>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</Button>
-                <Button size="sm" variant="outline" disabled={page >= ledgerQuery.data.total_pages} onClick={() => setPage((current) => current + 1)}>Next</Button>
+                <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>{t("common.previous")}</Button>
+                <Button size="sm" variant="outline" disabled={page >= ledgerQuery.data.total_pages} onClick={() => setPage((current) => current + 1)}>{t("common.next")}</Button>
               </div>
             </div>
           ) : null}

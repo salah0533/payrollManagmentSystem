@@ -445,7 +445,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>{t("settings.payrollCycle")}</Label>
                 <div className="flex h-10 items-center rounded-md border border-input bg-muted px-3 text-sm font-medium text-foreground">
-                  Monthly
+                  {t("labels.code.monthly")}
                 </div>
               </div>
             </div>

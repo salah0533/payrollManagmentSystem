@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatLabel } from "@/lib/format";
 import { auditApi } from "@/services/auditApi";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +20,22 @@ export default function AuditLogs() {
     queryKey: ["audit-logs", parsedLimit],
     queryFn: () => auditApi.list(parsedLimit),
   });
+
+  const formatAuditCode = (value?: string | null) => {
+    if (!value) {
+      return t("common.notAvailable");
+    }
+
+    const normalized = String(value)
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .replace(/[\s-]+/g, "_")
+      .toLowerCase();
+
+    return t(`auditPage.codes.${normalized}`, {
+      defaultValue: formatLabel(normalized),
+    });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -63,10 +79,10 @@ export default function AuditLogs() {
                 {auditQuery.data.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>{formatDateTime(row.created_at)}</TableCell>
-                    <TableCell>{row.action}</TableCell>
-                    <TableCell>{row.entity_type}</TableCell>
-                    <TableCell>{row.user_id ?? "-"}</TableCell>
-                    <TableCell>{row.entity_id ?? "-"}</TableCell>
+                    <TableCell>{formatAuditCode(row.action)}</TableCell>
+                    <TableCell>{formatAuditCode(row.entity_type)}</TableCell>
+                    <TableCell>{row.user_id != null ? t("labels.userId", { id: row.user_id }) : t("common.notAvailable")}</TableCell>
+                    <TableCell>{row.entity_id != null ? row.entity_id : t("common.notAvailable")}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -1080,7 +1080,9 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           {selected ? <Badge variant="outline">{t("attendancePage.multiSelectPicked")}</Badge> : null}
                         </div>
                         {beforeJoinDate ? (
-                          <p className="mt-3 text-sm text-muted-foreground">Before join date {formatDate(selectedHistoryEmployee?.hire_date)}</p>
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            {t("attendancePage.beforeJoinDate", { date: formatDate(selectedHistoryEmployee?.hire_date) })}
+                          </p>
                         ) : null}
                         {row ? (
                           <div className="mt-3 flex flex-wrap gap-1">
@@ -1137,7 +1139,7 @@ export default function Attendance({ scope }: { scope: "manage" | "self" }) {
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1">
                             {beforeJoinDate ? (
-                              <span className="text-xs text-muted-foreground">Before join date</span>
+                              <span className="text-xs text-muted-foreground">{t("attendancePage.beforeJoinDateShort")}</span>
                             ) : row ? <StatusBadge status={row.status} className="text-[10px]" /> : <span className="text-xs text-muted-foreground">{t("common.noRecord")}</span>}
                             {row ? <StatusBadge status={getAttendanceReviewStatus(row)} className="text-[10px]" /> : null}
                           </div>
