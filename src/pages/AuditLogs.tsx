@@ -98,27 +98,30 @@ function normalizeAuditCode(value?: string | null) {
 
 export default function AuditLogs() {
   const { t } = useTranslation();
-  const [limit, setLimit] = useState("150");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState("150");
   const [preset, setPreset] = useState<AuditPreset>("hr_employee_additions");
   const [actorRole, setActorRole] = useState("all");
   const [actorUserId, setActorUserId] = useState("all");
   const [search, setSearch] = useState("");
 
-  const parsedLimit = Number(limit) || 150;
+  const parsedPageSize = Number(pageSize) || 150;
   const presetConfig = AUDIT_PRESET_CONFIG[preset];
   const effectiveActorRole =
-    actorRole === "all" ? (presetConfig.actorRole ?? null) : actorRole === "system" ? null : actorRole;
+    actorRole === "all" ? (presetConfig.actorRole ?? null) : actorRole;
   const effectiveActorUserId = actorUserId === "all" ? null : Number(actorUserId);
 
   const auditQuery = useQuery({
-    queryKey: ["audit-logs", parsedLimit, preset, effectiveActorRole, effectiveActorUserId],
+    queryKey: ["audit-logs", page, parsedPageSize, preset, effectiveActorRole, effectiveActorUserId, search],
     queryFn: () =>
       auditApi.list({
-        limit: parsedLimit,
+        page,
+        pageSize: parsedPageSize,
         actions: presetConfig.actions,
         entityTypes: presetConfig.entityTypes,
         actorRole: effectiveActorRole,
         actorUserId: Number.isFinite(effectiveActorUserId) ? effectiveActorUserId : null,
+        search: search.trim() || undefined,
       }),
   });
 
@@ -202,7 +205,7 @@ export default function AuditLogs() {
 
   const actorOptions = useMemo(() => {
     const actorMap = new Map<number, { value: string; label: string }>();
-    for (const row of auditQuery.data || []) {
+    for (const row of auditQuery.data?.items || []) {
       if (!row.actor) {
         continue;
       }
@@ -223,55 +226,7 @@ export default function AuditLogs() {
     return [...actorMap.values()].sort((left, right) => left.label.localeCompare(right.label));
   }, [auditQuery.data]);
 
-  const filteredRows = useMemo(() => {
-    let rows = auditQuery.data || [];
-
-    if (actorRole === "system") {
-      rows = rows.filter((row) => !row.actor);
-    }
-
-    const searchTerm = search.trim().toLowerCase();
-    if (!searchTerm) {
-      return rows;
-    }
-
-    return rows.filter((row) => {
-      const haystack = [
-        row.id,
-        row.user_id,
-        row.entity_id,
-        row.action,
-        row.entity_type,
-        row.entity_label,
-        row.actor?.id,
-        row.actor?.username,
-        row.actor?.employee_id,
-        row.actor?.employee_name,
-        row.actor?.email,
-        ...(row.actor?.roles || []),
-        row.entity_employee?.id,
-        row.entity_employee?.full_name,
-        row.entity_employee?.email,
-        row.entity_employee?.phone,
-        row.entity_employee?.position,
-        row.entity_employee?.user_id,
-        row.entity_user?.id,
-        row.entity_user?.username,
-        row.entity_user?.employee_id,
-        row.entity_user?.employee_name,
-        row.entity_user?.email,
-        row.ip_address,
-      ]
-        .filter(Boolean)
-        .map((value) => String(value).toLowerCase());
-
-      const snapshot = [row.old_data_json, row.new_data_json]
-        .filter((value) => value && typeof value === "object")
-        .map((value) => JSON.stringify(value).toLowerCase());
-
-      return [...haystack, ...snapshot].some((value) => value.includes(searchTerm));
-    });
-  }, [actorRole, auditQuery.data, search]);
+  const filteredRows = auditQuery.data?.items || [];
 
   const renderActor = (row: AuditLog) => {
     if (!row.actor) {
@@ -341,7 +296,7 @@ export default function AuditLogs() {
     );
   };
 
-  const hasServerRows = Boolean((auditQuery.data || []).length);
+  const hasServerRows = Boolean((auditQuery.data?.total_records || 0) > 0);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -352,8 +307,11 @@ export default function AuditLogs() {
           <>
             <Input
               className="w-28"
-              value={limit}
-              onChange={(event) => setLimit(event.target.value)}
+              value={pageSize}
+              onChange={(event) => {
+                setPage(1);
+                setPageSize(event.target.value);
+              }}
               type="number"
               min="1"
               max="500"
@@ -373,7 +331,13 @@ export default function AuditLogs() {
         <CardContent className="grid gap-4 lg:grid-cols-4">
           <div className="space-y-2">
             <p className="text-sm font-medium">{t("auditPage.preset")}</p>
-            <Select value={preset} onValueChange={(value) => setPreset(value as AuditPreset)}>
+            <Select
+              value={preset}
+              onValueChange={(value) => {
+                setPage(1);
+                setPreset(value as AuditPreset);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -393,6 +357,7 @@ export default function AuditLogs() {
             <Select
               value={actorRole}
               onValueChange={(value) => {
+                setPage(1);
                 setActorRole(value);
                 if (value === "system") {
                   setActorUserId("all");
@@ -414,7 +379,14 @@ export default function AuditLogs() {
 
           <div className="space-y-2">
             <p className="text-sm font-medium">{t("auditPage.actor")}</p>
-            <Select value={actorUserId} onValueChange={setActorUserId} disabled={actorRole === "system"}>
+            <Select
+              value={actorUserId}
+              onValueChange={(value) => {
+                setPage(1);
+                setActorUserId(value);
+              }}
+              disabled={actorRole === "system"}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -433,7 +405,10 @@ export default function AuditLogs() {
             <p className="text-sm font-medium">{t("common.search")}</p>
             <Input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setPage(1);
+                setSearch(event.target.value);
+              }}
               placeholder={t("auditPage.searchPlaceholder")}
             />
           </div>
@@ -446,60 +421,89 @@ export default function AuditLogs() {
           <CardDescription>
             {t("auditPage.showingCount", {
               visible: filteredRows.length,
-              total: auditQuery.data?.length || 0,
+              total: auditQuery.data?.total_records || 0,
             })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {filteredRows.length ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("auditPage.when")}</TableHead>
-                  <TableHead>{t("auditPage.action")}</TableHead>
-                  <TableHead>{t("auditPage.actor")}</TableHead>
-                  <TableHead>{t("auditPage.target")}</TableHead>
-                  <TableHead>{t("auditPage.details")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRows.map((row) => {
-                  const detailItems = buildDetailItems(row);
-                  return (
-                    <TableRow key={row.id} className="align-top">
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="font-medium">{formatDateTime(row.created_at)}</p>
-                          <p className="text-xs text-muted-foreground">#{row.id}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-2">
-                          <p className="font-medium">{formatAuditCode(row.action)}</p>
-                          <Badge variant="outline">{formatAuditCode(row.entity_type)}</Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>{renderActor(row)}</TableCell>
-                      <TableCell>{renderTarget(row)}</TableCell>
-                      <TableCell>
-                        {detailItems.length ? (
-                          <div className="space-y-2">
-                            {detailItems.map((item, index) => (
-                              <div key={`${row.id}-detail-${index}`} className="space-y-1">
-                                <p className="text-xs font-medium text-foreground">{item.label}</p>
-                                <p className="text-xs text-muted-foreground">{item.value}</p>
-                              </div>
-                            ))}
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("auditPage.when")}</TableHead>
+                    <TableHead>{t("auditPage.action")}</TableHead>
+                    <TableHead>{t("auditPage.actor")}</TableHead>
+                    <TableHead>{t("auditPage.target")}</TableHead>
+                    <TableHead>{t("auditPage.details")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRows.map((row) => {
+                    const detailItems = buildDetailItems(row);
+                    return (
+                      <TableRow key={row.id} className="align-top">
+                        <TableCell>
+                          <div className="space-y-1">
+                            <p className="font-medium">{formatDateTime(row.created_at)}</p>
+                            <p className="text-xs text-muted-foreground">#{row.id}</p>
                           </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">{t("common.notAvailable")}</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-2">
+                            <p className="font-medium">{formatAuditCode(row.action)}</p>
+                            <Badge variant="outline">{formatAuditCode(row.entity_type)}</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>{renderActor(row)}</TableCell>
+                        <TableCell>{renderTarget(row)}</TableCell>
+                        <TableCell>
+                          {detailItems.length ? (
+                            <div className="space-y-2">
+                              {detailItems.map((item, index) => (
+                                <div key={`${row.id}-detail-${index}`} className="space-y-1">
+                                  <p className="text-xs font-medium text-foreground">{item.label}</p>
+                                  <p className="text-xs text-muted-foreground">{item.value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">{t("common.notAvailable")}</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
+                <p className="text-sm text-muted-foreground">
+                  {t("auditPage.pagination", {
+                    page: auditQuery.data?.page || page,
+                    total: auditQuery.data?.total_pages || 1,
+                    count: auditQuery.data?.total_records || 0,
+                  })}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    disabled={(auditQuery.data?.page || page) <= 1 || auditQuery.isLoading}
+                  >
+                    {t("common.previous")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((value) => value + 1)}
+                    disabled={(auditQuery.data?.page || page) >= (auditQuery.data?.total_pages || 1) || auditQuery.isLoading}
+                  >
+                    {t("common.next")}
+                  </Button>
+                </div>
+              </div>
+            </>
           ) : (
             <EmptyState
               title={

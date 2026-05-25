@@ -674,6 +674,14 @@ export interface AuditLog {
   entity_user?: AuditUserSummary | null;
 }
 
+export interface AuditLogPage {
+  page: number;
+  page_size: number;
+  total_records: number;
+  total_pages: number;
+  items: AuditLog[];
+}
+
 export interface AuditUserSummary {
   id: number;
   username: string;
