@@ -668,6 +668,31 @@ export interface AuditLog {
   ip_address?: string | null;
   user_agent?: string | null;
   created_at: string;
+  actor?: AuditUserSummary | null;
+  entity_label?: string | null;
+  entity_employee?: AuditEmployeeSummary | null;
+  entity_user?: AuditUserSummary | null;
+}
+
+export interface AuditUserSummary {
+  id: number;
+  username: string;
+  email?: string | null;
+  employee_id?: number | null;
+  employee_name?: string | null;
+  roles: string[];
+}
+
+export interface AuditEmployeeSummary {
+  id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  position?: string | null;
+  status?: string | null;
+  user_id?: number | null;
 }
 
 export interface DashboardStats {
