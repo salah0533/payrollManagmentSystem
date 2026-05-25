@@ -1,6 +1,11 @@
 import type { CurrentUser, RoleCode } from "@/types/domain";
 
 const ROLE_PRIORITY: RoleCode[] = ["admin", "hr", "employee"];
+const ROLE_ROUTE_PREFIX: Record<string, string> = {
+  admin: "/admin/",
+  hr: "/hr/",
+  employee: "/employee/",
+};
 
 export function hasRole(user: CurrentUser | null, roles: RoleCode[]) {
   if (!user) {
@@ -40,6 +45,30 @@ export function getRoleHomePath(user: CurrentUser | null) {
   }
 
   return "/employee/home";
+}
+
+export function canAccessRolePath(user: CurrentUser | null, path: string | null | undefined) {
+  if (!user || !path) {
+    return false;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return user.roles.some((role) => {
+    const prefix = ROLE_ROUTE_PREFIX[role];
+    return Boolean(prefix && normalizedPath.startsWith(prefix));
+  });
+}
+
+export function getSafePostLoginPath(user: CurrentUser | null, requestedPath: string | null | undefined) {
+  const primaryRole = getPrimaryRole(user);
+  const primaryPrefix = primaryRole ? ROLE_ROUTE_PREFIX[primaryRole] : null;
+  const normalizedPath = requestedPath ? (requestedPath.startsWith("/") ? requestedPath : `/${requestedPath}`) : null;
+
+  if (normalizedPath && primaryPrefix && normalizedPath.startsWith(primaryPrefix)) {
+    return requestedPath as string;
+  }
+
+  return getRoleHomePath(user);
 }
 
 export function getNotificationsPath(user: CurrentUser | null) {

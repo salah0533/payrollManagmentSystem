@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/lib/errors";
 import { APP_LANGUAGES, APP_LANGUAGE_LABELS, changeAppLanguage, normalizeAppLanguage } from "@/lib/i18n";
-import { getRoleHomePath } from "@/lib/roles";
+import { getSafePostLoginPath } from "@/lib/roles";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/hooks/use-toast";
 
@@ -43,7 +43,7 @@ export default function Login() {
         return;
       }
 
-      navigate(from || getRoleHomePath(user), { replace: true });
+      navigate(getSafePostLoginPath(user, from), { replace: true });
     } catch (error) {
       toast({
         title: t("login.loginFailed"),
